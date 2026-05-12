@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd /d \"d:\\\\Shubham\\\\OtherData\\\\DentalInnovation\\\\DentalInnovation-main\\\\smart-dental-innovation\")",
+      "Bash(npm install *)"
+    ]
+  }
+}
