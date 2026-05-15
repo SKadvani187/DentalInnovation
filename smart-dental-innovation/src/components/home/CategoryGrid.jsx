@@ -7,15 +7,12 @@ export default function CategoryGrid() {
   const scroll = (dir) => {
     const el = scroller.current;
     if (!el) return;
-    el.scrollBy({ left: dir * 320, behavior: "smooth" });
+    // Increased scroll step from 320 to 420 to account for wider elements
+    el.scrollBy({ left: dir * 420, behavior: "smooth" });
   };
 
   return (
     <section className="max-w-[1400px] mx-auto px-3 sm:px-6 py-6 sm:py-10">
-      <div className="flex items-end justify-between mb-4">
-        <h2 className="text-lg sm:text-2xl font-bold text-brand-ink">Shop by Category</h2>
-        <a href="#" className="text-xs sm:text-sm font-semibold text-brand-navy hover:text-brand-orange">View All</a>
-      </div>
 
       <div className="relative">
         <div
@@ -25,12 +22,22 @@ export default function CategoryGrid() {
           {categories.map((c) => (
             <button
               key={c.id}
-              className="flex flex-col items-center shrink-0 w-[80px] sm:w-[100px] group cursor-pointer"
+              // Scaled outer container width: w-[80px] -> w-[95px] | sm:w-[100px] -> sm:w-[130px]
+              className="flex flex-col items-center shrink-0 w-[95px] sm:w-[130px] group cursor-pointer"
             >
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gray-50 ring-1 ring-gray-200 group-hover:ring-brand-orange overflow-hidden flex items-center justify-center transition">
-                <img src={c.img} alt={c.title} loading="lazy" className="w-full h-full object-contain p-2" />
+              {/* Scaled circle container: w-16/h-16 -> w-20/h-20 | sm:w-20/sm:h-20 -> sm:w-28/sm:h-28 */}
+              <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full bg-gray-50 ring-1 ring-gray-200 group-hover:ring-brand-orange overflow-hidden flex items-center justify-center transition">
+                <img 
+                  src={c.img} 
+                  alt={c.title} 
+                  loading="lazy" 
+                  className="w-full h-full object-contain p-2 sm:p-3" 
+                />
               </div>
-              <p className="mt-2 text-[11px] sm:text-xs text-center font-medium text-brand-ink leading-tight line-clamp-2">{c.title}</p>
+              {/* Scaled text font size and margin top slightly to balance the larger circles */}
+              <p className="mt-3 text-xs sm:text-sm text-center font-medium text-brand-ink leading-tight line-clamp-2">
+                {c.title}
+              </p>
             </button>
           ))}
         </div>

@@ -109,11 +109,11 @@ export default function Navbar() {
       </div>
 
       {/* Nav links row */}
-      <nav className="flex items-center gap-2 px-3 sm:px-6 py-2 overflow-x-auto no-scrollbar border-t border-gray-100">
+      <nav className="flex items-center gap-8 px-3 sm:px-6 py-2 overflow-x-auto no-scrollbar">
         {navLinks.map((l) => (
           <button
             key={l}
-            className="text-xs font-semibold whitespace-nowrap px-3 py-1.5 rounded-md border border-gray-200 hover:border-brand-navy hover:text-brand-navy transition"
+            className="text-base font-semibold whitespace-nowrap px-3 py-1.5 rounded-md hover:text-brand-navy transition"
           >
             {l}
           </button>

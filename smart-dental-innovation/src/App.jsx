@@ -25,6 +25,9 @@ import {
   matrixSystem,
   endodontics,
 } from "./data/products";
+import NavigationHeader from "./components/layout/Navbar copy";
+import ResponsiveImageBanner from "./components/home/ResponsiveImageBanner";
+import PromoBannerGrid from "./components/home/PromoBannerGrid";
 
 export default function App() {
   return (
@@ -32,13 +35,16 @@ export default function App() {
       <CartProvider>
         <WishlistProvider>
           <UIProvider>
-            <Navbar />
+            {/* <Navbar /> */}
+            <NavigationHeader/>
             <main>
               <HeroCarousel />
               <CategoryGrid />
+              <ResponsiveImageBanner/>
               <ProductSection eyebrow="Top Picks" title="Bestsellers" products={bestsellers} />
+              <PromoBannerGrid/>
               <ProductSection eyebrow="Fresh In" title="New Arrivals" products={newArrivals} accent="orange" />
-              <FeaturedCards />
+              {/* <FeaturedCards /> */}
               <ProductSection title="Implantology" products={implantology} />
               <ProductSection title="Handpiece" products={handpieces} />
               <ProductSection title="Matrix System" products={matrixSystem} />
