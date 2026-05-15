@@ -2,27 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
 
 const slides = [
-  {
-    eyebrow: "Where Innovation Meets Dental Excellence",
-    title: "Upgrade Your Practice with Smart Dental Products",
-    sub: "High-quality dental materials for precise, reliable, and better clinical results.",
-    img: "https://picsum.photos/seed/dental-hero-1/1600/700",
-    cta: "Shop Bestsellers",
-  },
-  {
-    eyebrow: "Professional. Proven. Performance.",
-    title: "Implantology Tools Engineered for Precision",
-    sub: "Surgical kits, drivers, and abutments trusted by 5,000+ practices across India.",
-    img: "https://picsum.photos/seed/dental-hero-2/1600/700",
-    cta: "Explore Implantology",
-  },
-  {
-    eyebrow: "New Arrivals — Limited Stock",
-    title: "Endodontics Reinvented",
-    sub: "Apex locators, NiTi rotary files, and bioceramic sealers for faster, predictable RCT.",
-    img: "https://picsum.photos/seed/dental-hero-3/1600/700",
-    cta: "View New Arrivals",
-  },
+  "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_5_1.webp",
+  "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_10.webp",
+  "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_9_(3).webp",
+  "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_9_1.webp",
+  "https://merchant-cdn.storedum.com/Smart_Hex_driver.png",
+  "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_8.webp",
+  "https://merchant-cdn.storedum.com/new_Website_slider_344_x_1080_px_5_(1).png",
 ];
 
 export default function HeroCarousel() {
@@ -46,38 +32,19 @@ export default function HeroCarousel() {
   }, [emblaApi]);
 
   return (
-    <section className="relative max-w-[1400px] mx-auto px-3 sm:px-6 pt-4">
-      <div className="relative overflow-hidden rounded-2xl">
+    <section className="relative max-w-[1400px] mx-auto px-3 sm:px-6 mt-[15px]">
+      <div className="relative overflow-hidden rounded-[20px]">
         <div className="embla" ref={emblaRef}>
           <div className="embla__container">
-            {slides.map((s, i) => (
-              <div key={i} className="embla__slide relative">
-                <div className="relative h-[280px] sm:h-[420px] lg:h-[520px] w-full">
-                  <img
-                    src={s.img}
-                    alt={s.title}
-                    className="absolute inset-0 w-full h-full object-cover"
-                    loading={i === 0 ? "eager" : "lazy"}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-r from-brand-navy/85 via-brand-navy/55 to-transparent" />
-                  <div className="relative h-full flex items-center px-6 sm:px-12 lg:px-20 max-w-4xl">
-                    <div className="text-white">
-                      <p className="text-xs sm:text-sm uppercase tracking-[0.18em] text-brand-orange font-semibold mb-3">
-                        {s.eyebrow}
-                      </p>
-                      <h1 className="text-2xl sm:text-4xl lg:text-5xl font-bold leading-tight mb-3 sm:mb-4">
-                        {s.title}
-                      </h1>
-                      <p className="text-sm sm:text-base lg:text-lg text-white/85 max-w-xl mb-5 sm:mb-7">
-                        {s.sub}
-                      </p>
-                      <button className="inline-flex items-center gap-2 px-5 sm:px-7 py-2.5 sm:py-3 bg-brand-orange hover:bg-brand-orange-light text-white text-sm sm:text-base font-semibold rounded-lg shadow-lg transition">
-                        {s.cta}
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" /></svg>
-                      </button>
-                    </div>
-                  </div>
-                </div>
+            {slides.map((src, i) => (
+              <div key={i} className="embla__slide flex flex-col items-center cursor-pointer">
+                <img
+                  src={src}
+                  alt=""
+                  loading={i === 0 ? "eager" : "lazy"}
+                  decoding="async"
+                  className="w-full h-auto block"
+                />
               </div>
             ))}
           </div>

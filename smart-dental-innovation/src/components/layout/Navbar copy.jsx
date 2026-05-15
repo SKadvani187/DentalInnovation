@@ -86,12 +86,12 @@ export default function NavigationHeader() {
       </div>
 
       {/* ROW 2: Sub-Navigation Cat Links */}
-      <div className="h-[40px] bg-[rgba(var(--background-primary-rgb),0.7)] backdrop-blur-[30px] border-0 border-b border-solid border-[rgba(var(--border-color-1-rgb),0.2)] flex items-center justify-center gap-[45px] w-full overflow-x-auto px-[10px] no-scrollbar">
+      <div className="h-[40px] bg-[rgba(var(--background-primary-rgb),0.7)] backdrop-blur-[30px] border-0 border-b border-solid border-[rgba(var(--border-color-1-rgb),0.2)] flex items-center justify-center gap-[45px] w-full overflow-visible px-[10px] no-scrollbar">
         <button className={subNavButtonStyle}>Category</button>
         <button className={subNavButtonStyle}>Combos</button>
         <button className={subNavButtonStyle}>Great Value Products</button>
         
-        <div className="relative">
+        <div className="relative group">
           <button className={subNavButtonStyle}>
             <img
               src="https://merchant-cdn.storedum.com/istockphoto-1309295716-612x612.jpg"
@@ -99,10 +99,40 @@ export default function NavigationHeader() {
               className="h-[16px] w-[16px] object-contain"
             />
             Shop by Price
-            <svg className="h-[14px] transition-transform duration-200 rotate-0" viewBox="0 0 24 24" data-testid="KeyboardArrowDownIcon">
+            <svg className="h-[14px] transition-transform duration-200 group-hover:-rotate-180" viewBox="0 0 24 24" data-testid="KeyboardArrowDownIcon">
               <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"></path>
             </svg>
           </button>
+
+          {/* Hover Dropdown */}
+          <div className="absolute left-1/2 -translate-x-1/2 top-full pt-3 hidden group-hover:block z-[1100]">
+            <div className="w-[230px] bg-white rounded-[14px] shadow-[0_12px_34px_rgba(0,0,0,0.16)] p-2">
+              {[
+                {
+                  label: "Below ₹499",
+                  icon: "M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
+                },
+                {
+                  label: "Below ₹999",
+                  icon: "M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z",
+                },
+                {
+                  label: "Below ₹1999",
+                  icon: "M20 6h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM10 4h4v2h-4V4z",
+                },
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  className="w-full flex items-center gap-[12px] px-[14px] py-[12px] rounded-[10px] text-[15px] font-semibold text-[var(--text-primary)] cursor-pointer hover:bg-[rgba(var(--border-color-1-rgb),0.6)] transition-colors"
+                >
+                  <svg className="h-[18px] w-[18px] shrink-0 text-[var(--text-primary)]" fill="currentColor" viewBox="0 0 24 24">
+                    <path d={item.icon} />
+                  </svg>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         <button className={subNavButtonStyle}>Events</button>

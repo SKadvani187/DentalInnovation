@@ -1,5 +1,5 @@
 const placeholder = (seed) =>
-  `https://picsum.photos/seed/${seed}/400/400`;
+  `https://merchant-cdn.storedum.com/${seed}`;
 
 const mk = (id, name, mrp, price, rating, reviews, category, seed) => ({
   id,
@@ -17,7 +17,7 @@ const mk = (id, name, mrp, price, rating, reviews, category, seed) => ({
 });
 
 export const bestsellers = [
-  mk("p-001", "Radio Frequency Advance Cautery, 2 Year Warranty", 21000, 19000, 4.7, 312, "unique", "rf-cautery"),
+  mk("p-001", "Radio Frequency Advance Cautery, 2 Year Warranty", 21000, 19000, 4.7, 312, "unique", "ai_img_2_(3).png"),
   mk("p-002", "Electric Portable Micromotor LED", 18500, 15999, 4.6, 240, "handpiece", "micromotor"),
   mk("p-003", "Endomotor with Apex Locator", 24999, 21500, 4.8, 187, "endodontics", "endomotor"),
   mk("p-004", "Straight Long Handpiece NSK Style", 7800, 6499, 4.5, 142, "handpiece", "straighthp"),
