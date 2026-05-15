@@ -5,7 +5,7 @@ export const featured = [
     tagline: "Precision Radio-Frequency for Modern Practice",
     description:
       "Bipolar + monopolar modes, foot-pedal control, autoclavable handle. Includes Active Handle, Hand Piece Pencil, Bio Polar Tweezer.",
-    image: "https://picsum.photos/seed/rf-cautery-feat/600/600",
+    image: "https://merchant-cdn.storedum.com/new_website_banner_mobile_2.png",
     bullets: ["Active Handle", "Hand Piece Pencil", "Bio Polar Tweezer"],
     price: 19000,
     mrp: 21000,
