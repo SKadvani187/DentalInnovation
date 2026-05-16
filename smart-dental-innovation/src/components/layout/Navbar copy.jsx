@@ -15,14 +15,9 @@ export default function NavigationHeader() {
         {/* Logo Switcher Container */}
         <div className="relative h-[40px] w-auto min-w-[100px] cursor-pointer">
           <img
-            src="https://d1865wozhn5fw4.cloudfront.net/smartdentalinnovations/sd.png"
+            src="./src/assets/logo.png"
             alt="Logo Option 1"
             className="relative top-0 left-0 h-[40px] object-contain opacity-0 transition-opacity duration-500 ease-in-out"
-          />
-          <img
-            src="https://d1865wozhn5fw4.cloudfront.net/smartdentalinnovations/a-division-of-younique-logo.webp"
-            alt="Logo Option 2"
-            className="absolute top-0 left-0 h-[40px] object-contain opacity-1 transition-opacity duration-500 ease-in-out"
           />
         </div>
 
