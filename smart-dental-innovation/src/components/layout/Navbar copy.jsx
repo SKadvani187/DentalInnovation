@@ -8,17 +8,26 @@ export default function NavigationHeader() {
 
   return (
     <div className="sticky top-0 flex flex-col z-[1000] w-full">
-      
+
       {/* ROW 1: Main Top Bar */}
       <div className="relative w-full h-[65px] border-0 border-b border-solid border-[rgba(var(--border-color-1-rgb),0.5)] flex items-center justify-between z-10 transition-all duration-300 bg-[rgba(var(--background-primary-rgb),0.7)] backdrop-blur-[30px] px-[35px] gap-[10px]">
-        
-        {/* Logo Switcher Container */}
-        <div className="relative h-[40px] w-auto min-w-[100px] cursor-pointer">
+
+        {/* Logo & Brand Name Container */}
+        <div className="flex items-center gap-2 h-[40px] cursor-pointer select-none">
+
+          {/* Logo Graphic */}
           <img
             src="./src/assets/logo.png"
-            alt="Logo Option 1"
-            className="relative top-0 left-0 h-[40px] object-contain opacity-0 transition-opacity duration-500 ease-in-out"
+            alt="Logo Icon"
+            className="h-[38px] w-auto object-contain opacity-100 transition-opacity duration-500 ease-in-out"
           />
+
+          {/* Brand Typography */}
+          <span className="text-xl font-extrabold tracking-tight text-gray-900 whitespace-nowrap">
+            Dent
+            <span className="text-[#1976d2]">Inno</span>
+          </span>
+
         </div>
 
         {/* Absolute Centered Search Bar */}
@@ -29,16 +38,15 @@ export default function NavigationHeader() {
               stroke="black"
             ></path>
           </svg>
-          
+
           {/* Animated Text Container */}
           <div className="inline-flex flex-wrap perspective-[1000px] min-h-[1.2em]">
             <div className="inline-flex flex-wrap">
               {searchPlaceholder.map((char, index) => (
                 <span
                   key={index}
-                  className={`inline-block origin-center-bottom opacity-100 transform-none ${
-                    char === " " ? "whitespace-pre" : "whitespace-normal"
-                  }`}
+                  className={`inline-block origin-center-bottom opacity-100 transform-none ${char === " " ? "whitespace-pre" : "whitespace-normal"
+                    }`}
                 >
                   {char === " " ? "\u00A0" : char}
                 </span>
@@ -85,7 +93,7 @@ export default function NavigationHeader() {
         <button className={subNavButtonStyle}>Category</button>
         <button className={subNavButtonStyle}>Combos</button>
         <button className={subNavButtonStyle}>Great Value Products</button>
-        
+
         <div className="relative group">
           <button className={subNavButtonStyle}>
             <img
