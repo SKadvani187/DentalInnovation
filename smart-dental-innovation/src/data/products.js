@@ -86,6 +86,24 @@ export const endodontics = [
   mk("e-008", "Paper Points Pack Sterile", 299, 199, 4.4, 264, "endodontics", "WhatsAppImage2025-11-20at12.59.57PM_(1).jpgv1763623816width1946"),
 ];
 
+export const premiumCategories=[
+  {
+    title: "Electric Portable Micromotor",
+    description: "The Electric Portable Micromotor is a compact, pen-style rotary device with 3-speed power control, designed for efficient sanding, polishing, drilling, cutting, carving, and grinding with low heat generation and smooth performance.",
+    imgSrc: "https://d2ypw3u7ezpmac.cloudfront.net/1_2_-removebg-preview.png",
+  },
+  {
+    title: "Endomotor",
+    description: "The Endo Motor by Smart Dental Innovations is a compact, rechargeable motor engineered for efficient and safe root canal procedures. With auto-reverse & auto-forward functions, bright LED illumination, and compatibility with 16:1 contra-angle handpieces, it ensures smooth instrumentation, reduced file separation, and enhanced clinical control during RCT.",
+    imgSrc: "https://d2ypw3u7ezpmac.cloudfront.net/1766209325816-removebg-preview.png",
+  },
+  {
+    title: "Straight Long Handpiece",
+    description: "A high-performance surgical straight long handpiece designed for implantology and advanced surgical procedures, delivering smooth rotation, firm bur holding, and exceptional control.",
+    imgSrc: "https://d2ypw3u7ezpmac.cloudfront.net/plain_images_19_1.png",
+  }
+]
+
 export const allProducts = [
   ...bestsellers,
   ...newArrivals,
@@ -93,6 +111,7 @@ export const allProducts = [
   ...handpieces,
   ...matrixSystem,
   ...endodontics,
+  ...premiumCategories
 ];
 
 export const findProductById = (id) => allProducts.find((p) => p.id === id);
