@@ -106,6 +106,58 @@ export function Footer() {
 
         </div>
       </div>
+
+      {/* PAYMENT + RATING STRIP */}
+      <div className="border-t border-gray-200">
+        <div className="max-w-[1200px] mx-auto pl-0 pr-4 py-8">
+          <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
+
+            {/* Secure payments box */}
+            <div className="w-full lg:max-w-[600px] rounded-xl border border-[var(--main,#1976d2)] pl-2 pr-5 py-5">
+              <div className="flex items-center gap-3 mb-3">
+                <svg className="w-7 h-7 shrink-0 text-[var(--main,#1976d2)]" viewBox="0 0 24 24">
+                  <path fill="currentColor" d="M12 2 4 5v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V5zm-2 14-4-4 1.41-1.41L10 13.17l6.59-6.59L18 8z" />
+                </svg>
+                <div>
+                  <p className="text-[15px] font-bold uppercase text-gray-900 leading-tight">100% Secure Payments</p>
+                  <p className="text-[13px] text-gray-500">Secure SSL Encrypted Payment</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  { label: "Credit/Debit Card", icon: "M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2m0 14H4v-6h16zm0-10H4V6h16z" },
+                  { label: "Net Banking", icon: "M11.5 1 2 6v2h19V6M16 10v7h3v-7M2 22h19v-3H2M10 10v7h3v-7M4 10v7h3v-7z" },
+                  { label: "UPI", icon: "M3 11h8V3H3zm2-6h4v4H5zM3 21h8v-8H3zm2-6h4v4H5zm8-12v8h8V3zm6 6h-4V5h4zm-6 12h2v2h-2zm2-6h2v2h-2zm2 2h2v2h-2zm-4 0h2v2h-2zm2 2h2v2h-2zm2 2h2v2h-2zm-2 0h2v2h-2zm0-4h2v2h-2z" },
+                ].map((p) => (
+                  <div key={p.label} className="flex items-center gap-2.5 rounded-lg border border-gray-200 px-3 py-3">
+                    <svg className="w-6 h-6 shrink-0 text-[var(--main,#1976d2)]" viewBox="0 0 24 24">
+                      <path fill="currentColor" d={p.icon} />
+                    </svg>
+                    <span className="text-[13px] font-medium uppercase text-gray-600">{p.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Average rating */}
+            <div className="flex items-baseline gap-2">
+              <span className="text-[18px] font-bold text-[var(--main,#1976d2)]">4.5</span>
+              <span className="text-[14px] text-gray-600">Average online rating</span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      {/* COPYRIGHT BAR */}
+      <div className="border-t border-gray-200">
+        <div className="max-w-[1200px] mx-auto px-4 py-5 text-center">
+          <p className="text-[13px] font-medium uppercase tracking-wide text-gray-500">
+            2016-2025, Smart Dental Innovation <span className="mx-1.5">•</span>
+            Crafted with <span className="text-red-500">♥</span> in India
+          </p>
+        </div>
+      </div>
     </footer>
   );
 }
