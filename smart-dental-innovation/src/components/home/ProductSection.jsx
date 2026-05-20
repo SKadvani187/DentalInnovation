@@ -52,10 +52,10 @@ export function RFCauterySection(){
 
             {/* Main Product Info Panel */}
             <div className="text-left w-[58%] flex flex-col items-start min-h-[300px]">
-              <label className="text-[56px] font-bold uppercase text-[#08070D] cursor-pointer select-none leading-tight">
+              <label className="font-montserrat text-[56px] font-extrabold uppercase text-[#08070D] cursor-pointer select-none leading-tight tracking-tight">
                 RF Advance Cautery
               </label>
-              <label className="text-[18px] font-light text-[var(--text-primary-2)] mt-2">
+              <label className="font-montserrat text-[18px] font-normal text-[#5a6472] leading-relaxed mt-2">
                 The Radio Frequency Advance Electro Cautery by Younique Dental Innovations is a high-performance surgical
                 unit designed to deliver precise, smooth, and bloodless soft-tissue management in dental procedures.
                 Powered by advanced high-frequency radio waves, it enables clean scalpel-like cutting with excellent
@@ -79,10 +79,10 @@ export function RFCauterySection(){
                     alt="Active Handle"
                     className="w-[100px]"
                   />
-                  <label className="text-[22px] font-medium text-[#08070D] mt-[10px]">
+                  <label className="font-montserrat text-[22px] font-bold text-[#08070D] mt-[10px]">
                     Active Handle
                   </label>
-                  <label className="text-[16px] text-[var(--text-primary-2)] mt-[3px]">
+                  <label className="font-montserrat text-[16px] text-[#5a6472] leading-relaxed mt-[3px]">
                     A durable and ergonomically designed cautery active handle that ensures precise energy delivery and
                     comfortable control during electrosurgical procedures.
                   </label>
@@ -95,10 +95,10 @@ export function RFCauterySection(){
                     alt="Hand Piece Pencil"
                     className="w-[100px]"
                   />
-                  <label className="text-[22px] font-medium text-[#08070D] mt-[10px]">
+                  <label className="font-montserrat text-[22px] font-bold text-[#08070D] mt-[10px]">
                     Hand Piece Pencil
                   </label>
-                  <label className="text-[16px] text-[var(--text-primary-2)] mt-[3px]">
+                  <label className="font-montserrat text-[16px] text-[#5a6472] leading-relaxed mt-[3px]">
                     A lightweight, ergonomically designed cautery hand switch pencil that provides precise, fingertip
                     control for safe and efficient electrosurgical procedures.
                   </label>
@@ -111,10 +111,10 @@ export function RFCauterySection(){
                     alt="Bio Polar Tweezer"
                     className="w-[100px]"
                   />
-                  <label className="text-[22px] font-medium text-[#08070D] mt-[10px]">
+                  <label className="font-montserrat text-[22px] font-bold text-[#08070D] mt-[10px]">
                     Bio Polar Tweezer
                   </label>
-                  <label className="text-[16px] text-[var(--text-primary-2)] mt-[3px]">
+                  <label className="font-montserrat text-[16px] text-[#5a6472] leading-relaxed mt-[3px]">
                     A high-precision bipolar cautery tweezer designed for controlled coagulation with minimal thermal
                     spread and maximum surgical accuracy.
                   </label>
