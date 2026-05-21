@@ -162,44 +162,37 @@ export function RFCauterySection(){
 };
 
 const CategoryCard = ({ item }) => (
-    <div className="premium-category-view-a-view_categoryView___Ouhr w-full bg-[rgba(var(--main-rgb),0.1)] relative overflow-hidden cursor-pointer min-h-[280px] group rounded-sm">
-      {/* MuiBox placeholder block */}
+    <div className="premium-category-view-a-view_categoryView___Ouhr w-full bg-[rgba(var(--main-rgb),0.1)] hover:bg-[var(--main)] relative overflow-hidden cursor-pointer min-h-[280px] group rounded-2xl transition-all duration-300 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-1">
       <div className="MuiBox-root"></div>
-      
-      {/* Content wrapper with scaling effects */}
+
       <div className="relative transition-all duration-300 transform scale-100 origin-top-left select-none">
-        {/* Title Container */}
         <div className="w-[300px] absolute top-5 left-0 px-5">
-          <p className="premium-category-view-a-view_title__JdJ5k text-[16px] font-semibold overflow-hidden text-ellipsis line-clamp-1 transition-all duration-300 text-[var(--text-primary)]">
+          <p className="premium-category-view-a-view_title__JdJ5k text-[16px] font-semibold overflow-hidden text-ellipsis line-clamp-1 transition-colors duration-300 text-[var(--text-primary)] group-hover:text-white">
             {item.title}
           </p>
         </div>
-        
-        {/* Subtitle / Description Container */}
+
         <div className="premium-category-view-a-view_subTitleContainer__4ZH0l w-[60%] absolute top-[60px] left-0 px-5">
-          <p className="premium-category-view-a-view_subTitle__WnU7y text-[14px] overflow-hidden text-ellipsis line-clamp-6 transition-all duration-300 text-[var(--text-primary)] opacity-90 leading-relaxed">
+          <p className="premium-category-view-a-view_subTitle__WnU7y text-[14px] overflow-hidden text-ellipsis line-clamp-6 transition-colors duration-300 text-[var(--text-primary)] opacity-90 leading-relaxed group-hover:text-white group-hover:opacity-95">
             {item.description}
           </p>
         </div>
       </div>
 
-      {/* Product Image */}
-      <img 
-        src={item.imgSrc} 
-        alt={item.title} 
-        className="w-[45%] aspect-square object-cover absolute bottom-0 right-0 transition-all duration-300 transform scale-100 origin-bottom center select-none group-hover:scale-105"
+      <img
+        src={item.imgSrc}
+        alt={item.title}
+        className="w-[55%] h-[90%] object-contain absolute bottom-0 right-0 transition-all duration-300 transform scale-100 origin-bottom-right select-none group-hover:scale-110"
       />
 
-      {/* Decorative Bottom Circle Elements */}
-      <div className="absolute bottom-5 left-5 h-10 w-10 rounded-full flex items-center justify-center overflow-hidden bg-white"></div>
-      <div className="absolute bottom-5 left-5 h-10 w-10 rounded-full flex items-center justify-center overflow-hidden bg-[rgba(var(--main-rgb),0.1)]"></div>
-      
-      {/* Interactive Border Circle with SVG Arrow */}
-      <div className="absolute bottom-5 left-5 h-10 w-10 rounded-full border-2 border-solid border-[var(--main)] transition-all duration-300 flex items-center justify-center overflow-hidden select-none group-hover:bg-[var(--main)]">
-        <svg 
-          className="absolute w-5 h-5 text-[var(--text-primary)] transition-colors duration-300" 
-          focusable="false" 
-          aria-hidden="true" 
+      <div className="absolute bottom-5 left-5 h-10 w-10 rounded-full flex items-center justify-center overflow-hidden bg-white group-hover:bg-transparent transition-colors duration-300"></div>
+      <div className="absolute bottom-5 left-5 h-10 w-10 rounded-full flex items-center justify-center overflow-hidden bg-[rgba(var(--main-rgb),0.1)] group-hover:bg-transparent transition-colors duration-300"></div>
+
+      <div className="absolute bottom-5 left-5 h-10 w-10 rounded-full border-2 border-solid border-[var(--main)] group-hover:border-white transition-all duration-300 flex items-center justify-center overflow-hidden select-none group-hover:bg-white">
+        <svg
+          className="absolute w-5 h-5 text-[var(--text-primary)] group-hover:text-[var(--main)] transition-colors duration-300"
+          focusable="false"
+          aria-hidden="true"
           viewBox="0 0 24 24"
         >
           <path fill="currentColor" d="M16.01 11H4v2h12.01v3L20 12l-3.99-4z"></path>
