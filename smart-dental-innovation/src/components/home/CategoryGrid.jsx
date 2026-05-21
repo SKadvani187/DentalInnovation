@@ -30,10 +30,10 @@ export default function CategoryGrid() {
                   src={c.img}
                   alt={c.title}
                   loading="lazy"
-                  className="relative w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-110 group-hover:rotate-3"
+                  className="relative w-[90%] h-[90%] object-contain transition-transform duration-300 ease-out group-hover:scale-110 group-hover:rotate-3"
                 />
               </div>
-              <p className="mt-3 text-xs sm:text-sm text-center font-medium text-brand-ink leading-tight line-clamp-2 transition-colors duration-200 group-hover:text-brand-orange">
+              <p className="mt-3 text-xs sm:text-sm text-center font-medium text-brand-ink leading-tight line-clamp-2 transition-all duration-300 ease-out group-hover:text-brand-orange group-hover:font-bold group-hover:scale-110 group-hover:-translate-y-0.5">
                 {c.title}
               </p>
             </button>
