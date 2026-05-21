@@ -53,7 +53,7 @@ export function Footer() {
                 </h6>
                 <div className="flex flex-col gap-2.5">
                   {section.links.map((link) => (
-                    <a key={link.label} href={link.href} className="text-[13px] text-gray-600 font-medium hover:text-[var(--main,#1976d2)] transition-colors no-underline">
+                    <a key={link.label} href={link.href} className="text-[13px] text-gray-600 font-medium hover:text-[var(--main,#0a2540)] transition-colors no-underline">
                       {link.label}
                     </a>
                   ))}
@@ -81,7 +81,7 @@ export function Footer() {
                 <svg className="w-4 h-4 shrink-0 text-gray-500" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02z" />
                 </svg>
-                <a href="tel:+919328762586" className="hover:text-[var(--main,#1976d2)] transition-colors">
+                <a href="tel:+919328762586" className="hover:text-[var(--main,#0a2540)] transition-colors">
                   +919328762586
                 </a>
               </div>
@@ -90,7 +90,7 @@ export function Footer() {
                 <svg className="w-4 h-4 shrink-0 text-gray-500" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2m0 4-8 5-8-5V6l8 5 8-5z" />
                 </svg>
-                <a href="mailto:smartdentalinnovations.web@gmail.com" className="hover:text-[var(--main,#1976d2)] transition-colors break-all">
+                <a href="mailto:smartdentalinnovations.web@gmail.com" className="hover:text-[var(--main,#0a2540)] transition-colors break-all">
                   smartdentalinnovations.web@gmail.com
                 </a>
               </div>
@@ -113,9 +113,9 @@ export function Footer() {
           <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
 
             {/* Secure payments box */}
-            <div className="w-full lg:max-w-[600px] rounded-xl border border-[var(--main,#1976d2)] pl-2 pr-5 py-5">
+            <div className="w-full lg:max-w-[600px] rounded-xl border border-[var(--main,#0a2540)] pl-2 pr-5 py-5">
               <div className="flex items-center gap-3 mb-3">
-                <svg className="w-7 h-7 shrink-0 text-[var(--main,#1976d2)]" viewBox="0 0 24 24">
+                <svg className="w-7 h-7 shrink-0 text-[var(--main,#0a2540)]" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M12 2 4 5v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V5zm-2 14-4-4 1.41-1.41L10 13.17l6.59-6.59L18 8z" />
                 </svg>
                 <div>
@@ -130,7 +130,7 @@ export function Footer() {
                   { label: "UPI", icon: "M3 11h8V3H3zm2-6h4v4H5zM3 21h8v-8H3zm2-6h4v4H5zm8-12v8h8V3zm6 6h-4V5h4zm-6 12h2v2h-2zm2-6h2v2h-2zm2 2h2v2h-2zm-4 0h2v2h-2zm2 2h2v2h-2zm2 2h2v2h-2zm-2 0h2v2h-2zm0-4h2v2h-2z" },
                 ].map((p) => (
                   <div key={p.label} className="flex items-center gap-2.5 rounded-lg border border-gray-200 px-3 py-3">
-                    <svg className="w-6 h-6 shrink-0 text-[var(--main,#1976d2)]" viewBox="0 0 24 24">
+                    <svg className="w-6 h-6 shrink-0 text-[var(--main,#0a2540)]" viewBox="0 0 24 24">
                       <path fill="currentColor" d={p.icon} />
                     </svg>
                     <span className="text-[13px] font-medium uppercase text-gray-600">{p.label}</span>
@@ -141,7 +141,7 @@ export function Footer() {
 
             {/* Average rating */}
             <div className="flex items-baseline gap-2">
-              <span className="text-[18px] font-bold text-[var(--main,#1976d2)]">4.5</span>
+              <span className="text-[18px] font-bold text-[var(--main,#0a2540)]">4.5</span>
               <span className="text-[14px] text-gray-600">Average online rating</span>
             </div>
 

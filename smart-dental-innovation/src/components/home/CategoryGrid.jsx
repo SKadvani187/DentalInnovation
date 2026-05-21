@@ -22,20 +22,18 @@ export default function CategoryGrid() {
           {categories.map((c) => (
             <button
               key={c.id}
-              // Scaled outer container width: w-[80px] -> w-[95px] | sm:w-[100px] -> sm:w-[130px]
-              className="flex flex-col items-center shrink-0 w-[95px] sm:w-[130px] group cursor-pointer"
+              className="flex flex-col items-center shrink-0 w-[110px] sm:w-[150px] group cursor-pointer"
             >
-              {/* Scaled circle container: w-16/h-16 -> w-20/h-20 | sm:w-20/sm:h-20 -> sm:w-28/sm:h-28 */}
-              <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full bg-gray-50 ring-1 ring-gray-200 group-hover:ring-brand-orange overflow-hidden flex items-center justify-center transition">
-                <img 
-                  src={c.img} 
-                  alt={c.title} 
-                  loading="lazy" 
-                  className="w-full h-full object-contain p-2 sm:p-3" 
+              <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-gray-50 to-gray-100 overflow-hidden flex items-center justify-center transition-all duration-300 ease-out shadow-[var(--shadow-card)] group-hover:shadow-[var(--shadow-cta-hover)] group-hover:scale-110 group-hover:-translate-y-1 group-hover:bg-gradient-to-br group-hover:from-brand-orange/10 group-hover:to-brand-orange/5">
+                <div className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'radial-gradient(circle at center, var(--color-accent-glow) 0%, transparent 70%)' }} />
+                <img
+                  src={c.img}
+                  alt={c.title}
+                  loading="lazy"
+                  className="relative w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-110 group-hover:rotate-3"
                 />
               </div>
-              {/* Scaled text font size and margin top slightly to balance the larger circles */}
-              <p className="mt-3 text-xs sm:text-sm text-center font-medium text-brand-ink leading-tight line-clamp-2">
+              <p className="mt-3 text-xs sm:text-sm text-center font-medium text-brand-ink leading-tight line-clamp-2 transition-colors duration-200 group-hover:text-brand-orange">
                 {c.title}
               </p>
             </button>

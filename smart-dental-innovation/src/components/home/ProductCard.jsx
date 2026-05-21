@@ -11,7 +11,7 @@ export default function ProductCard({ product }) {
   const wished = has(product.id);
 
   return (
-    <article className="group relative flex flex-col bg-[#f8f9fa] border border-gray-100 rounded-2xl p-3 overflow-hidden shadow-sm hover:shadow-md transition duration-300">
+    <article className="group relative flex flex-col bg-white border border-gray-100 rounded-2xl p-3 overflow-hidden shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-1 hover:border-brand-orange/30 transition-all duration-300">
       
       {/* Wishlist Top Right Button */}
       <button
@@ -41,7 +41,7 @@ export default function ProductCard({ product }) {
           <span>{product.rating?.toFixed(1) || "5.0"}</span>
           <span className="text-gray-300 mx-0.5">|</span>
           {/* Blue Shield/Check Icon */}
-          <svg className="w-3.5 h-3.5 text-[#4a92cb]" fill="currentColor" viewBox="0 0 24 24">
+          <svg className="w-3.5 h-3.5 text-[var(--color-success)]" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM10 14.5l-3-3 1.41-1.41L10 11.67l4.59-4.59L16 8.5l-6 6z" />
           </svg>
           <span className="text-gray-600 font-medium">{product.reviews || "0"}</span>
@@ -52,7 +52,7 @@ export default function ProductCard({ product }) {
       <div className="flex flex-col flex-1 pt-3 pb-1 gap-2.5">
         <button
           onClick={() => openProduct(product)}
-          className="text-sm sm:text-base font-semibold text-gray-900 text-left line-clamp-2 min-h-[44px] leading-tight hover:text-[#4a92cb] transition-colors"
+          className="text-sm sm:text-base font-semibold text-gray-900 text-left line-clamp-2 min-h-[44px] leading-tight hover:text-brand-navy transition-colors"
         >
           {product.name}
         </button>
@@ -70,7 +70,7 @@ export default function ProductCard({ product }) {
           {product.discount > 0 && (
             <>
               <span className="text-gray-300 text-xs">|</span>
-              <span className="text-xs sm:text-sm font-bold text-green-600 whitespace-nowrap">
+              <span className="text-xs sm:text-sm font-bold text-[var(--color-success)] whitespace-nowrap">
                 {product.discount}% OFF
               </span>
             </>
@@ -80,7 +80,10 @@ export default function ProductCard({ product }) {
         {/* Action Trigger Button */}
         <button
           onClick={() => addToCart(product, 1)}
-          className="w-full py-2.5 sm:py-3 mt-1 rounded-xl bg-[#4a92cb] hover:bg-[#3b81b8] text-white text-xs sm:text-sm font-bold uppercase tracking-wider transition-all duration-200 active:scale-[0.98]"
+          className="w-full py-2.5 sm:py-3 mt-1 rounded-xl text-white text-xs sm:text-sm font-bold uppercase tracking-wider transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 shadow-[var(--shadow-cta)] hover:shadow-[var(--shadow-cta-hover)]"
+          style={{ background: 'var(--gradient-accent)' }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--gradient-accent-hover)'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'var(--gradient-accent)'}
         >
           Add to Cart
         </button>

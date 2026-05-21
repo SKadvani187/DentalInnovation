@@ -107,7 +107,7 @@ export function ProsthodonticsCarousel() {
             Prosthodontics
           </h2>
         </div>
-        <a href="#" className="text-sm font-bold text-[#1976d2] hover:underline whitespace-nowrap">
+        <a href="#" className="text-sm font-bold text-brand-navy hover:underline whitespace-nowrap">
           View All &gt;&gt;
         </a>
       </div>
@@ -175,7 +175,7 @@ export function ProsthodonticsCarousel() {
 
                 {/* Base aligned Add Action Button */}
                 <div className="mt-auto pt-3">
-                  <button className="w-full py-1.5 bg-white border border-[#1976d2] text-[#1976d2] rounded text-[13px] font-bold hover:bg-[#1976d2] hover:text-white transition-colors cursor-pointer">
+                  <button className="w-full py-1.5 bg-white border border-brand-orange text-brand-orange rounded text-[13px] font-bold hover:bg-brand-orange hover:text-white transition-colors cursor-pointer">
                     ADD
                   </button>
                 </div>

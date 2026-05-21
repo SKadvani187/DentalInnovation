@@ -44,7 +44,7 @@ export function TopBar() {
                 key={social.name}
                 type="button"
                 aria-label={`Visit our ${social.name}`}
-                className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-full text-gray-500 hover:text-[var(--main,#1976d2)] hover:bg-gray-100 transition-colors cursor-pointer outline-none"
+                className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-full text-gray-500 hover:text-[var(--main,#0a2540)] hover:bg-gray-100 transition-colors cursor-pointer outline-none"
               >
                 <svg className="w-[16px] h-[16px] sm:w-[18px] sm:h-[18px]" focusable="false" aria-hidden="true" viewBox={social.viewBox}>
                   <path fill="currentColor" d={social.iconPath} />

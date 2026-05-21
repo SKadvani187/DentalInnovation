@@ -7,10 +7,10 @@ export default function NavigationHeader() {
   const searchPlaceholder = "Search over 1,000 Dental Products".split("");
 
   return (
-    <div className="sticky top-0 flex flex-col z-[1000] w-full">
+    <div className="sticky top-0 flex flex-col z-[1000] w-full shadow-[var(--shadow-navbar)]">
 
       {/* ROW 1: Main Top Bar */}
-      <div className="relative w-full h-[65px] border-0 border-b border-solid border-[rgba(var(--border-color-1-rgb),0.5)] flex items-center justify-between z-10 transition-all duration-300 bg-[rgba(var(--background-primary-rgb),0.7)] backdrop-blur-[30px] px-[35px] gap-[10px]">
+      <div className="relative w-full h-[65px] border-0 border-b border-solid border-[rgba(var(--border-color-1-rgb),0.6)] flex items-center justify-between z-10 transition-all duration-300 bg-[rgba(var(--background-primary-rgb),0.95)] backdrop-blur-[30px] px-[35px] gap-[10px]">
 
         {/* Logo & Brand Name Container */}
         <div className="flex items-center gap-2 h-[40px] cursor-pointer select-none">
@@ -25,7 +25,7 @@ export default function NavigationHeader() {
           {/* Brand Typography */}
           <span className="text-xl font-extrabold tracking-tight text-gray-900 whitespace-nowrap">
             Dent
-            <span className="text-[#1976d2]">Inno</span>
+            <span className="text-brand-orange">Inno</span>
           </span>
 
         </div>
@@ -60,8 +60,8 @@ export default function NavigationHeader() {
           {/* Account Button */}
           <button className="font-bold rounded-[8px] flex items-center cursor-pointer px-3 py-1 text-[var(--text-primary)]" aria-label="Account">
             <span className="mr-2">
-              <div className="bg-[var(--main)] h-[25px] w-[25px] flex items-center justify-center rounded-[100px]">
-                <svg className="text-white h-[18px]" focusable="false" aria-hidden="true" viewBox="0 0 24 24" data-testid="PersonRoundedIcon">
+              <div className="bg-brand-orange h-[25px] w-[25px] flex items-center justify-center rounded-[100px]">
+                <svg className="text-black h-[18px]" focusable="false" aria-hidden="true" viewBox="0 0 24 24" data-testid="PersonRoundedIcon">
                   <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4m0 2c-2.67 0-8 1.34-8 4v1c0 .55.45 1 1 1h14c.55 0 1-.45 1-1v-1c0-2.66-5.33-4-8-4"></path>
                 </svg>
               </div>
@@ -77,7 +77,12 @@ export default function NavigationHeader() {
           </button>
 
           {/* Cart Button */}
-          <button className="font-bold rounded-[8px] flex items-center bg-[var(--main)] text-white px-4 py-2 text-sm uppercase tracking-wider cursor-pointer">
+          <button
+            className="font-bold rounded-[8px] flex items-center text-white px-4 py-2 text-sm uppercase tracking-wider cursor-pointer transition-all duration-200 hover:-translate-y-0.5 shadow-[var(--shadow-cta)] hover:shadow-[var(--shadow-cta-hover)]"
+            style={{ background: 'var(--gradient-accent)' }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--gradient-accent-hover)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'var(--gradient-accent)'}
+          >
             <span className="mr-2">
               <svg className="h-[18px] w-[18px]" fill="currentColor" viewBox="0 0 24 24" data-testid="ShoppingBagIcon">
                 <path d="M18 6h-2c0-2.21-1.79-4-4-4S8 3.79 8 6H6c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2m-8 4c0 .55-.45 1-1 1s-1-.45-1-1V8h2zm2-6c1.1 0 2 .9 2 2h-4c0-1.1.9-2 2-2m4 6c0 .55-.45 1-1 1s-1-.45-1-1V8h2z"></path>
@@ -89,7 +94,7 @@ export default function NavigationHeader() {
       </div>
 
       {/* ROW 2: Sub-Navigation Cat Links */}
-      <div className="h-[40px] bg-[rgba(var(--background-primary-rgb),0.7)] backdrop-blur-[30px] border-0 border-b border-solid border-[rgba(var(--border-color-1-rgb),0.2)] flex items-center justify-center gap-[45px] w-full overflow-visible px-[10px] no-scrollbar">
+      <div className="h-[40px] bg-[rgba(var(--background-primary-rgb),0.95)] backdrop-blur-[30px] border-0 border-b border-solid border-[rgba(var(--border-color-1-rgb),0.4)] flex items-center justify-center gap-[45px] w-full overflow-visible px-[10px] no-scrollbar">
         <button className={subNavButtonStyle}>Category</button>
         <button className={subNavButtonStyle}>Combos</button>
         <button className={subNavButtonStyle}>Great Value Products</button>
