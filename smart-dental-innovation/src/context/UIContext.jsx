@@ -1,10 +1,13 @@
-import { createContext, useContext, useMemo, useState, useCallback } from "react";
+import { createContext, useContext, useMemo, useState, useCallback, useRef, useEffect } from "react";
 
 const UIContext = createContext(null);
 
 export function UIProvider({ children }) {
-  const [modal, setModal] = useState(null); // 'cart'|'wishlist'|'product'|'checkout'|'auth'|null
+  const [modal, setModal] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [view, setView] = useState({ name: "home", params: null });
+  const [toasts, setToasts] = useState([]); // [{ id, type, message }]
+  const idRef = useRef(0);
 
   const openModal = useCallback((name) => setModal(name), []);
   const closeModal = useCallback(() => setModal(null), []);
@@ -14,9 +17,26 @@ export function UIProvider({ children }) {
     setModal("product");
   }, []);
 
+  const navigate = useCallback((name, params = null) => {
+    setView({ name, params });
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, []);
+
+  const dismissToast = useCallback((id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const showToast = useCallback((message, type = "success") => {
+    const id = ++idRef.current;
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 2500);
+  }, []);
+
   const value = useMemo(
-    () => ({ modal, openModal, closeModal, selectedProduct, setSelectedProduct, openProduct }),
-    [modal, openModal, closeModal, selectedProduct, openProduct]
+    () => ({ modal, openModal, closeModal, selectedProduct, setSelectedProduct, openProduct, view, navigate, toasts, showToast, dismissToast }),
+    [modal, openModal, closeModal, selectedProduct, openProduct, view, navigate, toasts, showToast, dismissToast]
   );
 
   return <UIContext.Provider value={value}>{children}</UIContext.Provider>;

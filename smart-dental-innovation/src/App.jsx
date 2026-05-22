@@ -1,7 +1,7 @@
 import { CartProvider } from "./context/CartContext";
 import { WishlistProvider } from "./context/WishlistContext";
 import { AuthProvider } from "./context/AuthContext";
-import { UIProvider } from "./context/UIContext";
+import { UIProvider, useUI } from "./context/UIContext";
 
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
@@ -17,6 +17,12 @@ import CartDrawer from "./components/modals/CartDrawer";
 import WishlistDrawer from "./components/modals/WishlistDrawer";
 import CheckoutModal from "./components/modals/CheckoutModal";
 import AuthModal from "./components/modals/AuthModal";
+import CategoryPage from "./components/pages/CategoryPage";
+import CombosPage from "./components/pages/CombosPage";
+import EventsPage from "./components/pages/EventsPage";
+import AboutPage from "./components/pages/AboutPage";
+import ContactPage from "./components/pages/ContactPage";
+import ToastHost from "./components/ui/ToastHost";
 
 import {
   bestsellers,
@@ -39,38 +45,59 @@ export default function App() {
       <CartProvider>
         <WishlistProvider>
           <UIProvider>
-            {/* <Navbar /> */}
-            <NavigationHeader/>
-            <main>
-              <HeroCarousel />
-              <CategoryGrid />
-              <ResponsiveImageBanner/>
-              <ProductSection eyebrow="Top Picks" title="Bestsellers" products={bestsellers} />
-              <PromoBannerGrid/>
-              <ProductSection eyebrow="Fresh In" title="New Arrivals" products={newArrivals} accent="orange" />
-              {/* <FeaturedCards /> */}
-              <RFCauterySection />
-              <ProductSection title="Implantology" products={implantology} />
-              <PremiumCategories products={premiumCategories} />
-              <ProductSection title="Handpiece" products={handpieces} />
-              <HomeBanner/>
-              <ProductSection title="Matrix System" products={matrixSystem} />
-              <ProductSection title="Endodontics" products={endodontics} />
-              <RFCauterySection2 />
-              {/* <Testimonials /> */}
-              <ReviewsSection />
-              <ProsthodonticsCarousel/>
-            </main>
-            <Footer />
-
-            <ProductDetailModal />
-            <CartDrawer />
-            <WishlistDrawer />
-            <CheckoutModal />
-            <AuthModal />
+            <Shell />
           </UIProvider>
         </WishlistProvider>
       </CartProvider>
     </AuthProvider>
+  );
+}
+
+function Shell() {
+  const { view } = useUI();
+  return (
+    <>
+      <NavigationHeader />
+      <main>
+        {view.name === "category" || view.name === "gvp" ? (
+          <CategoryPage />
+        ) : view.name === "combos" ? (
+          <CombosPage />
+        ) : view.name === "events" ? (
+          <EventsPage />
+        ) : view.name === "about" ? (
+          <AboutPage />
+        ) : view.name === "contact" ? (
+          <ContactPage />
+        ) : (
+          <>
+            <HeroCarousel />
+            <CategoryGrid />
+            <ResponsiveImageBanner/>
+            <ProductSection eyebrow="Top Picks" title="Bestsellers" products={bestsellers} />
+            <PromoBannerGrid/>
+            <ProductSection eyebrow="Fresh In" title="New Arrivals" products={newArrivals} accent="orange" />
+            <RFCauterySection />
+            <ProductSection title="Implantology" products={implantology} />
+            <PremiumCategories products={premiumCategories} />
+            <ProductSection title="Handpiece" products={handpieces} />
+            <HomeBanner/>
+            <ProductSection title="Matrix System" products={matrixSystem} />
+            <ProductSection title="Endodontics" products={endodontics} />
+            <RFCauterySection2 />
+            <ReviewsSection />
+            <ProsthodonticsCarousel/>
+          </>
+        )}
+      </main>
+      <Footer />
+
+      <ProductDetailModal />
+      <CartDrawer />
+      <WishlistDrawer />
+      <CheckoutModal />
+      <AuthModal />
+      <ToastHost />
+    </>
   );
 }

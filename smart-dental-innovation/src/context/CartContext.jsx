@@ -24,6 +24,7 @@ export function CartProvider({ children }) {
           image: product.image,
           price: product.price,
           mrp: product.mrp,
+          category: product.category || "unique",
           variant,
           qty,
         },

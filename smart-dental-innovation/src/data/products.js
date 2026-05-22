@@ -1,6 +1,13 @@
 const placeholder = (seed) =>
   `https://merchant-cdn.storedum.com/${seed}`;
 
+const VARIANT_POOL = ["Standard", "Pro", "Bundle", "Mini", "XL", "Lite", "Premium", "Compact"];
+const variantsFor = (id) => {
+  const n = parseInt(String(id).replace(/\D/g, ""), 10) || 0;
+  const count = n % 4 === 0 ? 0 : (n % 7) + 1; // mix: some 0 (Add to Cart), some 1..7 (View Variants)
+  return VARIANT_POOL.slice(0, count);
+};
+
 const mk = (id, name, mrp, price, rating, reviews, category, seed) => ({
   id,
   name,
@@ -11,9 +18,10 @@ const mk = (id, name, mrp, price, rating, reviews, category, seed) => ({
   rating,
   reviews,
   category,
+  inStock: !(parseInt(String(id).replace(/\D/g, ""), 10) % 7 === 0),
   description:
     "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
-  variants: ["Standard", "Pro", "Bundle"],
+  variants: variantsFor(id),
 });
 
 export const bestsellers = [

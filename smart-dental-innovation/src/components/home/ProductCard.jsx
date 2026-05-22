@@ -7,13 +7,18 @@ const fmt = (n) => `₹${n.toLocaleString("en-IN")}`;
 export default function ProductCard({ product }) {
   const { addToCart } = useCart();
   const { has, toggle } = useWishlist();
-  const { openProduct } = useUI();
+  const { openProduct, openModal, showToast } = useUI();
   const wished = has(product.id);
+
+  const onAdd = (e) => {
+    e?.stopPropagation();
+    addToCart(product, 1);
+    showToast("Added to cart!", "success");
+    openModal("cart");
+  };
 
   return (
     <article className="group relative flex flex-col bg-[#f8f9fa] border border-gray-100 rounded-2xl p-3 overflow-hidden shadow-sm hover:shadow-md transition duration-300">
-      
-      {/* Wishlist Top Right Button */}
       <button
         onClick={(e) => { e.stopPropagation(); toggle(product.id); }}
         aria-label="Toggle wishlist"
@@ -24,7 +29,6 @@ export default function ProductCard({ product }) {
         </svg>
       </button>
 
-      {/* Main Image Container Area */}
       <div className="relative w-full aspect-square bg-white rounded-xl overflow-hidden border border-gray-50">
         <button onClick={() => openProduct(product)} className="w-full h-full block">
           <img
@@ -35,12 +39,10 @@ export default function ProductCard({ product }) {
           />
         </button>
 
-        {/* Screenshot Style: Embedded Star Rating Badge Overlay */}
         <div className="absolute bottom-2 left-2 bg-white/95 backdrop-blur px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1 text-[11px] sm:text-xs font-bold text-gray-800 border border-gray-100">
           <span className="text-amber-500">★</span>
           <span>{product.rating?.toFixed(1) || "5.0"}</span>
           <span className="text-gray-300 mx-0.5">|</span>
-          {/* Blue Shield/Check Icon */}
           <svg className="w-3.5 h-3.5 text-[#4a92cb]" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM10 14.5l-3-3 1.41-1.41L10 11.67l4.59-4.59L16 8.5l-6 6z" />
           </svg>
@@ -48,7 +50,6 @@ export default function ProductCard({ product }) {
         </div>
       </div>
 
-      {/* Product Information Details Stack */}
       <div className="flex flex-col flex-1 pt-3 pb-1 gap-2.5">
         <button
           onClick={() => openProduct(product)}
@@ -57,7 +58,6 @@ export default function ProductCard({ product }) {
           {product.name}
         </button>
 
-        {/* Horizontal Inline Pricing Layout */}
         <div className="flex flex-wrap items-center gap-2 mt-auto">
           {product.mrp > product.price && (
             <span className="text-xs sm:text-sm text-gray-400 line-through font-normal">
@@ -77,9 +77,8 @@ export default function ProductCard({ product }) {
           )}
         </div>
 
-        {/* Action Trigger Button */}
         <button
-          onClick={() => addToCart(product, 1)}
+          onClick={onAdd}
           className="w-full py-2.5 sm:py-3 mt-1 rounded-xl bg-[#4a92cb] hover:bg-[#3b81b8] text-white text-xs sm:text-sm font-bold uppercase tracking-wider transition-all duration-200 active:scale-[0.98]"
         >
           Add to Cart

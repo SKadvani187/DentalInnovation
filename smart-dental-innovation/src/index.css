@@ -55,3 +55,287 @@ body {
 .embla { overflow: hidden; }
 .embla__container { display: flex; }
 .embla__slide { flex: 0 0 100%; min-width: 0; }
+
+/* Auth modal SEND OTP / VERIFY button — match reference site hover */
+.otp-btn {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+  cursor: pointer;
+}
+.otp-btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -75%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.6s ease;
+}
+.otp-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #3684bf 0%, #1f5f96 100%);
+  box-shadow: 0 8px 20px rgba(54, 132, 191, 0.45);
+  transform: translateY(-1px);
+}
+.otp-btn:hover:not(:disabled)::before {
+  left: 125%;
+}
+.otp-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 3px 8px rgba(54, 132, 191, 0.35);
+}
+.otp-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* Auth modal error toast — match reference site */
+@keyframes auth-toast-in {
+  from { opacity: 0; transform: translate(-50%, -10px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+.auth-toast {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1200;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 320px;
+  max-width: 90vw;
+  padding: 12px 16px;
+  background: #fdecea;
+  border: 1px solid #f5c2c0;
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  color: #5f2120;
+  font-size: 14px;
+  font-weight: 400;
+  animation: auth-toast-in 0.25s ease-out;
+}
+.auth-toast__icon {
+  display: inline-flex;
+  color: #d32f2f;
+  flex-shrink: 0;
+}
+.auth-toast__msg {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #5f2120;
+}
+.auth-toast__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: #5f2120;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0.65;
+  transition: opacity 0.15s, background 0.15s;
+}
+.auth-toast__close:hover {
+  opacity: 1;
+  background: rgba(211, 47, 47, 0.08);
+}
+
+/* Dual-thumb price range slider */
+.price-range-thumb {
+  height: 24px;
+  margin: 0;
+  pointer-events: none;
+}
+.price-range-thumb::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #3684bf;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  cursor: grab;
+  position: relative;
+  z-index: 10;
+}
+.price-range-thumb::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.15);
+}
+.price-range-thumb::-moz-range-thumb {
+  pointer-events: auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #3684bf;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  cursor: grab;
+}
+.price-range-thumb::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 4px;
+}
+.price-range-thumb::-moz-range-track {
+  background: transparent;
+  height: 4px;
+}
+
+/* About page — Core Values card hover */
+.core-value-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  will-change: transform;
+}
+.core-value-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 14px 30px rgba(54, 132, 191, 0.18);
+  border-color: #cfe5f5;
+}
+
+/* Mission/Vision cards */
+.mv-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.mv-card:hover {
+  transform: translateY(-6px);
+  border-color: #5fb6ff;
+  box-shadow: 0 18px 40px rgba(95, 182, 255, 0.18);
+}
+
+/* What We Offer tiles */
+.offer-tile {
+  transition: transform 0.25s ease, background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.offer-tile:hover {
+  background: #dbeaf5;
+  border-color: #5fb6ff;
+  transform: translateY(-3px);
+  box-shadow: 0 8px 18px rgba(54, 132, 191, 0.15);
+}
+
+/* CTA buttons */
+.cta-btn {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease, border-color 0.25s ease;
+}
+.cta-btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -75%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.6s ease;
+}
+.cta-btn:hover::before {
+  left: 125%;
+}
+.cta-primary:hover {
+  background: #13335f;
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(11, 29, 58, 0.35);
+}
+.cta-outline:hover {
+  border-color: #3684bf;
+  color: #3684bf;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(54, 132, 191, 0.2);
+}
+
+/* Contact page — Our Office cards */
+.office-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.office-card:hover {
+  transform: translateY(-6px);
+  border-color: #5fb6ff;
+  box-shadow: 0 14px 30px rgba(54, 132, 191, 0.18);
+}
+
+/* About — Trust rows */
+.trust-row {
+  transition: transform 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+}
+.trust-row:hover {
+  transform: translateX(6px);
+  background: #eaf4fc;
+  box-shadow: 0 6px 18px rgba(54, 132, 191, 0.12);
+}
+
+.promise-row {
+  transition: transform 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+}
+.promise-row:hover {
+  transform: translateX(6px);
+  background: #dbeaf5;
+  box-shadow: 0 6px 18px rgba(54, 132, 191, 0.15);
+}
+
+/* Home category tile hover */
+.category-tile__circle {
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.category-tile:hover .category-tile__circle {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 30px rgba(54, 132, 191, 0.2);
+  --tw-ring-color: #3684bf;
+}
+
+/* Global toast (cart add, etc.) */
+@keyframes global-toast-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.global-toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 260px;
+  max-width: 360px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  font-size: 14px;
+  font-weight: 500;
+  animation: global-toast-in 0.25s ease-out;
+}
+.global-toast--success { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+.global-toast--error   { background: #fdecea; border-color: #f5c2c0; color: #5f2120; }
+.global-toast--info    { background: #eff6ff; border-color: #bfdbfe; color: #1e3a8a; }
+.global-toast--success .global-toast__icon { color: #16a34a; }
+.global-toast--error   .global-toast__icon { color: #dc2626; }
+.global-toast--info    .global-toast__icon { color: #2563eb; }
+.global-toast__icon { display: inline-flex; flex-shrink: 0; }
+.global-toast__msg { flex: 1; }
+.global-toast__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s, background 0.15s;
+  color: inherit;
+}
+.global-toast__close:hover { opacity: 1; background: rgba(0, 0, 0, 0.05); }

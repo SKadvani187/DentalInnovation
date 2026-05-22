@@ -1,3 +1,4 @@
+// Single source of truth for categories — used by home grid, category page sidebar, combos page, about page tiles, etc.
 export const categories = [
   { id: "unique", title: "Unique Products", img: "https://d2ypw3u7ezpmac.cloudfront.net/3e834044-f328-4ede-9d34-631335023a02.webp" },
   { id: "restorative", title: "Restorative", img: "https://d2ypw3u7ezpmac.cloudfront.net/plain_image_2_40_(5).png" },
@@ -11,4 +12,16 @@ export const categories = [
   { id: "accessories", title: "Accessories", img: "https://d2ypw3u7ezpmac.cloudfront.net/plain_image_2_50_(5).png" },
   { id: "burs", title: "Dental Burs", img: "https://d2ypw3u7ezpmac.cloudfront.net/plain_image_2_51.png" },
   { id: "clinic-setup", title: "New Clinic Setup", img: "https://d2ypw3u7ezpmac.cloudfront.net/plain_images_63_(7).png" },
+  { id: "photography", title: "Dental Photography" },
+  { id: "dentact", title: "DentAct" },
+  { id: "general", title: "General Dentistry" },
+  { id: "periodontology", title: "Periodontology" },
+  { id: "oral-surgery", title: "Oral Surgery" },
+  { id: "matrix", title: "Matrix System" },
 ];
+
+// For filter sidebars — uses `title` as label (id maps to product.category)
+export const categoryFilters = categories.map((c) => ({ id: c.id, label: c.title }));
+
+// Home grid shows only those with images
+export const categoryTiles = categories.filter((c) => c.img);
