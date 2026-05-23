@@ -82,3 +82,66 @@ export const pricePresets = [
 ];
 
 export const priceBounds = { min: 10, max: 500000 };
+
+// Product detail page tiered offers
+export const tierOffers = [
+  { minQty: 2, rate: 0.05, label: "Buy 2 or above" },
+  { minQty: 5, rate: 0.08, label: "Buy 5 or above" },
+];
+
+// Product detail page defaults
+export const productDefaults = {
+  reviews: 0,
+  rating: 5.0,
+  deliveryDays: "3–5 business days",
+  breadcrumbExtraCount: 5,
+};
+
+// Section title → category filter mapping (used by home ProductSection View All)
+export const sectionToCategory = {
+  Bestsellers: null,
+  "New Arrivals": "new",
+  Implantology: "implantology",
+  Handpiece: "handpiece",
+  "Matrix System": "matrix",
+  Endodontics: "endodontics",
+};
+
+// Sample reviews shown in product detail reviews dropdown
+export const sampleReviews = [
+  { id: "r1", name: "Dr. Patel", stars: 5, date: "2 weeks ago", text: "Excellent build quality and precision. My clinic team loves it." },
+  { id: "r2", name: "Dr. Mehta", stars: 5, date: "1 month ago", text: "Best purchase for our endo procedures. Fast delivery too." },
+  { id: "r3", name: "Dr. Shah", stars: 4, date: "2 months ago", text: "Works as advertised. Good value for money." },
+];
+
+// Product detail — benefits strip (Smart Dental Innovation Benefits)
+export const productBenefits = [
+  { id: "secure", label: "Secure Payment", icon: "shield" },
+  { id: "cancel", label: "Hassle Free Cancellation*", icon: "x" },
+  { id: "replace", label: "7 Days Replacement*", icon: "refresh" },
+  { id: "genuine", label: "100% Genuine", icon: "check" },
+];
+
+// Default product detail content (Highlights / Accordions / FAQs) — used when product doesn't override
+export const productContent = {
+  highlights: [
+    { title: "Key Features", text: "High-frequency alternating current for precise soft-tissue cutting and coagulation, smooth scalpel-like incisions, multiple intensity levels, and bipolar capability." },
+    { title: "Clinical Applications", text: "Suitable for gingivectomy, frenectomy, biopsy, hemostasis, and other electrosurgical procedures." },
+    { title: "Electrodes & Accessories", text: "Comes with a selection of interchangeable electrodes (needle, loop, ball) for flexibility in different surgical needs." },
+  ],
+  accordions: [
+    { id: "desc", title: "Description", body: "Premium dental product engineered for clinical excellence and patient outcomes." },
+    { id: "spec", title: "Key Specifications", body: "Power: 200W. Frequency: 3.5 MHz. Intensity Levels: 6. Display: LED. Foot control included." },
+    { id: "use", title: "Directions to Use", body: "Connect handpiece, set intensity, ground plate to patient, activate via foot switch or hand switch." },
+    { id: "pack", title: "Packaging Info", body: "Main unit, handpiece pencil, bipolar tweezer, electrodes set, foot switch, manual, warranty card." },
+    { id: "warr", title: "Warranty", body: "Manufacturer warranty as per product. Standard 2-year warranty unless specified." },
+  ],
+  faqs: [
+    { id: "f1", q: "Does the device come with different electrodes?", a: "Yes, it includes a variety of interchangeable electrodes like needle, loop, and ball types to suit different surgical needs." },
+    { id: "f2", q: "What is radio frequency advance cautery used for?", a: "The radio frequency advance cautery is used for precise soft-tissue cutting and coagulation in dental procedures. It helps achieve minimal tissue damage and excellent hemostasis." },
+    { id: "f3", q: "Is foot control included?", a: "Yes, includes both foot and hand switch options for flexibility." },
+    { id: "f4", q: "Does it support bipolar mode?", a: "Yes, supports both monopolar and bipolar modes." },
+    { id: "f5", q: "What is the warranty period?", a: "Standard 2-year manufacturer warranty. Extended warranty available on select models." },
+  ],
+};
+

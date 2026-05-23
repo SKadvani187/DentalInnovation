@@ -6,7 +6,7 @@ const AuthContext = createContext(null);
 const OTP_TTL_MS = 5 * 60 * 1000;
 
 function genOtp() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(Math.floor(1000 + Math.random() * 9000));
 }
 
 export function AuthProvider({ children }) {
@@ -26,7 +26,7 @@ export function AuthProvider({ children }) {
     return { ok: true, demoOtp: otp };
   }, []);
 
-  const verifyOtp = useCallback(({ mobile, otp, name }) => {
+  const verifyOtp = useCallback(({ mobile, otp }) => {
     const entry = otpStore.current.get(mobile);
     if (!entry) return { ok: false, error: "Request a new OTP." };
     if (Date.now() > entry.expiresAt) {
@@ -36,23 +36,63 @@ export function AuthProvider({ children }) {
     if (entry.otp !== otp) return { ok: false, error: "Invalid OTP." };
     otpStore.current.delete(mobile);
 
-    let acc = accounts.find((a) => a.mobile === mobile);
-    if (!acc) {
-      acc = { mobile, name: name || `User ${mobile.slice(-4)}` };
-      setAccounts([...accounts, acc]);
-    } else if (name && name !== acc.name) {
-      acc = { ...acc, name };
-      setAccounts(accounts.map((a) => (a.mobile === mobile ? acc : a)));
+    const existing = accounts.find((a) => a.mobile === mobile);
+    if (existing) {
+      setUser({ ...existing });
+      return { ok: true, isNew: false };
     }
-    setUser({ name: acc.name, mobile: acc.mobile });
+    return { ok: true, isNew: true, mobile };
+  }, [accounts, setUser]);
+
+  const completeProfile = useCallback(({ mobile, name, email, address }) => {
+    if (!name?.trim()) return { ok: false, error: "Enter your name." };
+    const acc = { mobile, name: name.trim(), email: email || "", address: address || "" };
+    const exists = accounts.find((a) => a.mobile === mobile);
+    if (exists) {
+      setAccounts(accounts.map((a) => (a.mobile === mobile ? { ...a, ...acc } : a)));
+    } else {
+      setAccounts([...accounts, acc]);
+    }
+    setUser(acc);
     return { ok: true };
   }, [accounts, setAccounts, setUser]);
+
+  const updateProfile = useCallback((updates) => {
+    if (!user) return { ok: false };
+    const next = { ...user, ...updates };
+    setUser(next);
+    setAccounts(accounts.map((a) => (a.mobile === user.mobile ? { ...a, ...next } : a)));
+    return { ok: true };
+  }, [user, accounts, setAccounts, setUser]);
+
+  const addAddress = useCallback((addr) => {
+    if (!user) return { ok: false };
+    const list = user.addresses || [];
+    const id = `addr-${Date.now()}`;
+    let next = [...list, { id, ...addr }];
+    if (addr.isDefault) {
+      next = next.map((a) => ({ ...a, isDefault: a.id === id }));
+    }
+    const updated = { ...user, addresses: next };
+    setUser(updated);
+    setAccounts(accounts.map((a) => (a.mobile === user.mobile ? updated : a)));
+    return { ok: true, id };
+  }, [user, accounts, setAccounts, setUser]);
+
+  const removeAddress = useCallback((id) => {
+    if (!user) return { ok: false };
+    const next = (user.addresses || []).filter((a) => a.id !== id);
+    const updated = { ...user, addresses: next };
+    setUser(updated);
+    setAccounts(accounts.map((a) => (a.mobile === user.mobile ? updated : a)));
+    return { ok: true };
+  }, [user, accounts, setAccounts, setUser]);
 
   const logout = useCallback(() => setUser(null), [setUser]);
 
   const value = useMemo(
-    () => ({ user, requestOtp, verifyOtp, logout }),
-    [user, requestOtp, verifyOtp, logout]
+    () => ({ user, requestOtp, verifyOtp, completeProfile, updateProfile, addAddress, removeAddress, logout }),
+    [user, requestOtp, verifyOtp, completeProfile, updateProfile, addAddress, removeAddress, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

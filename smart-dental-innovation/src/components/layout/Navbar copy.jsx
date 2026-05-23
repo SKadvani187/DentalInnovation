@@ -80,7 +80,7 @@ export default function NavigationHeader() {
         <div className="flex items-center gap-[10px]">
           {/* Account Button */}
           <button
-            onClick={() => (user ? logout() : openModal("auth"))}
+            onClick={() => (user ? navigate("account") : openModal("auth"))}
             className="font-bold rounded-[8px] flex items-center cursor-pointer px-3 py-1 text-[var(--text-primary)]"
             aria-label="Account"
           >
@@ -91,14 +91,19 @@ export default function NavigationHeader() {
                 </svg>
               </div>
             </span>
-            <span className="normal-case font-medium text-[var(--text-primary)]">
-              {user ? `Hi, ${user.name.split(" ")[0]}` : "You"}
-            </span>
+            {user ? (
+              <span className="flex flex-col items-start leading-tight text-left">
+                <span className="text-[11px] text-brand-muted normal-case">Hi {user.name.split(" ")[0].toUpperCase()},</span>
+                <span className="text-sm font-bold text-brand-ink">Account</span>
+              </span>
+            ) : (
+              <span className="normal-case font-medium text-[var(--text-primary)]">You</span>
+            )}
           </button>
 
           {/* Wishlist Button */}
           <button
-            onClick={() => openModal(user ? "wishlist" : "auth")}
+            onClick={() => (user ? navigate("wishlist") : openModal("auth"))}
             className="text-[var(--text-primary)] p-2 cursor-pointer"
             aria-label="Wishlist"
           >
@@ -125,6 +130,7 @@ export default function NavigationHeader() {
       {/* ROW 2: Sub-Navigation Cat Links */}
       <div className="h-[40px] bg-[rgba(var(--background-primary-rgb),0.7)] backdrop-blur-[30px] border-0 border-b border-solid border-[rgba(var(--border-color-1-rgb),0.2)] flex items-center justify-center gap-[45px] w-full overflow-visible px-[10px] no-scrollbar">
         <button onClick={() => navigate("category")} className={subNavButtonStyle}>Category</button>
+        <button onClick={() => navigate("offers")} className={subNavButtonStyle}>Offer Zone</button>
         <button onClick={() => navigate("combos")} className={subNavButtonStyle}>Combos</button>
         <button onClick={() => navigate("gvp")} className={subNavButtonStyle}>Great Value Products</button>
 
@@ -172,8 +178,8 @@ export default function NavigationHeader() {
           </div>
         </div>
 
-        <button onClick={() => navigate("events", { id: "ev-001" })} className={subNavButtonStyle}>Events</button>
-        <button onClick={() => openModal(user ? "wishlist" : "auth")} className={subNavButtonStyle}>Wishlist</button>
+        <button onClick={() => navigate("product", { id: "ev-001" })} className={subNavButtonStyle}>Events</button>
+        <button onClick={() => (user ? navigate("wishlist") : openModal("auth"))} className={subNavButtonStyle}>Wishlist</button>
         <button onClick={() => navigate("about")} className={subNavButtonStyle}>About Us</button>
         <button onClick={() => navigate("contact")} className={subNavButtonStyle}>Contact Us</button>
       </div>

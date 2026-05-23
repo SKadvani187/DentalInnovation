@@ -9,7 +9,8 @@ const fmt = (n) => `₹${n.toLocaleString("en-IN")}`;
 
 export default function CombosPage() {
   const { addToCart } = useCart();
-  const { openProduct, openModal } = useUI();
+  const { openModal, navigate } = useUI();
+  const openProduct = (p) => navigate("product", { id: p.id });
   const [sort, setSort] = useState("all");
   const [sortOpen, setSortOpen] = useState(false);
   const [selectedCat, setSelectedCat] = useState(null);

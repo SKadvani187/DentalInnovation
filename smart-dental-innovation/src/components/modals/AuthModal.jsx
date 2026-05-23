@@ -3,28 +3,39 @@ import { createPortal } from "react-dom";
 import { useUI } from "../../context/UIContext";
 import { useAuth } from "../../context/AuthContext";
 
-const OTP_LEN = 6;
-const RESEND_SECS = 30;
+const OTP_LEN = 4;
+const RESEND_SECS = 60;
 
 export default function AuthModal() {
   const { modal, closeModal } = useUI();
-  const { requestOtp, verifyOtp } = useAuth();
+  const { requestOtp, verifyOtp, completeProfile } = useAuth();
 
   const [step, setStep] = useState("mobile");
   const [mobile, setMobile] = useState("");
   const [otp, setOtp] = useState(Array(OTP_LEN).fill(""));
+  const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
+  const [toastType, setToastType] = useState("error");
   const [info, setInfo] = useState("");
   const [resendIn, setResendIn] = useState(0);
   const [loading, setLoading] = useState(false);
   const otpRefs = useRef([]);
+  const mobileRef = useRef(null);
+
+  useEffect(() => {
+    if (modal === "auth" && step === "mobile") {
+      const t = setTimeout(() => mobileRef.current?.focus(), 25);
+      return () => clearTimeout(t);
+    }
+  }, [modal, step]);
 
   useEffect(() => {
     if (modal !== "auth") {
       setStep("mobile");
       setMobile("");
       setOtp(Array(OTP_LEN).fill(""));
+      setName("");
       setError("");
       setToast("");
       setInfo("");
@@ -64,12 +75,17 @@ export default function AuthModal() {
     const res = requestOtp(m);
     setLoading(false);
     if (!res.ok) {
+      setToastType("error");
       setToast(res.error);
       return false;
     }
     setStep("otp");
     setResendIn(RESEND_SECS);
-    setInfo(`OTP sent to +91 ${m}. (Demo OTP: ${res.demoOtp})`);
+    const demo = String(res.demoOtp || "").slice(0, OTP_LEN);
+    setInfo(demo);
+    console.info("[Demo OTP]", demo);
+    setToastType("success");
+    setToast("OTP sent successfully");
     setTimeout(() => otpRefs.current[0]?.focus(), 50);
     return true;
   };
@@ -88,9 +104,12 @@ export default function AuthModal() {
     setOtp((prev) => {
       const next = [...prev];
       next[i] = v;
+      if (v && i < OTP_LEN - 1) otpRefs.current[i + 1]?.focus();
+      if (next.every((d) => d !== "") && next.join("").length === OTP_LEN) {
+        setTimeout(() => autoVerify(next.join("")), 50);
+      }
       return next;
     });
-    if (v && i < OTP_LEN - 1) otpRefs.current[i + 1]?.focus();
   };
 
   const onOtpKeyDown = (i, e) => {
@@ -107,6 +126,26 @@ export default function AuthModal() {
     for (let i = 0; i < data.length; i++) next[i] = data[i];
     setOtp(next);
     otpRefs.current[Math.min(data.length, OTP_LEN - 1)]?.focus();
+    if (data.length === OTP_LEN) setTimeout(() => autoVerify(data), 50);
+  };
+
+  const autoVerify = (code) => {
+    setError("");
+    setLoading(true);
+    const res = verifyOtp({ mobile, otp: code });
+    setLoading(false);
+    if (!res.ok) {
+      setToastType("error");
+      setToast(res.error || "Invalid OTP");
+      setOtp(Array(OTP_LEN).fill(""));
+      otpRefs.current[0]?.focus();
+      return;
+    }
+    if (res.isNew) {
+      setStep("profile");
+      return;
+    }
+    closeModal();
   };
 
   const onVerify = (e) => {
@@ -114,12 +153,35 @@ export default function AuthModal() {
     setError("");
     const code = otp.join("");
     if (code.length !== OTP_LEN) {
-      setError("Enter the 6-digit OTP.");
+      setToastType("error");
+      setToast("Enter the 4-digit OTP.");
       return;
     }
     setLoading(true);
     const res = verifyOtp({ mobile, otp: code });
     setLoading(false);
+    if (!res.ok) {
+      setToastType("error");
+      setToast(res.error || "Invalid OTP");
+      setOtp(Array(OTP_LEN).fill(""));
+      otpRefs.current[0]?.focus();
+      return;
+    }
+    if (res.isNew) {
+      setStep("profile");
+      return;
+    }
+    closeModal();
+  };
+
+  const onProfileSubmit = (e) => {
+    e.preventDefault();
+    setError("");
+    if (!name.trim()) {
+      setError("Please enter your name.");
+      return;
+    }
+    const res = completeProfile({ mobile, name });
     if (!res.ok) {
       setError(res.error);
       return;
@@ -150,14 +212,20 @@ export default function AuthModal() {
     >
       {toast && (
         <div
-          className="auth-toast"
+          className={`auth-toast ${toastType === "success" ? "auth-toast--success" : ""}`}
           onClick={(e) => e.stopPropagation()}
           role="alert"
         >
           <span className="auth-toast__icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-            </svg>
+            {toastType === "success" ? (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+              </svg>
+            ) : (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+              </svg>
+            )}
           </span>
           <span className="auth-toast__msg">{toast}</span>
           <button onClick={() => setToast("")} aria-label="Close" className="auth-toast__close">
@@ -171,6 +239,17 @@ export default function AuthModal() {
         className="relative w-full max-w-[420px] bg-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
+        {(step === "otp" || step === "profile") && (
+          <button
+            onClick={() => { setStep(step === "profile" ? "otp" : "mobile"); setError(""); }}
+            aria-label="Back"
+            className="absolute top-4 left-4 p-1 text-red-500 hover:bg-red-50 rounded-full"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+          </button>
+        )}
         <button
           onClick={closeModal}
           aria-label="Close"
@@ -182,40 +261,59 @@ export default function AuthModal() {
         </button>
 
         <div className="px-6 pt-6 pb-5">
-          <div className="flex items-center gap-3 mb-5 pr-8">
-            <svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor" className="text-gray-900 shrink-0">
-              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4m0 2c-2.67 0-8 1.34-8 4v1c0 .55.45 1 1 1h14c.55 0 1-.45 1-1v-1c0-2.66-5.33-4-8-4" />
-            </svg>
+          <div className="flex items-center gap-3 mb-5 pr-8 pl-6">
+            {step === "otp" ? (
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-gray-900 shrink-0">
+                <path d="M12 2L3 7v6c0 5 4 9 9 10 5-1 9-5 9-10V7l-9-5z" />
+                <path d="M9 12l2 2 4-4" />
+              </svg>
+            ) : step === "profile" ? (
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor" className="text-gray-900 shrink-0">
+                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4m0 2c-2.67 0-8 1.34-8 4v1c0 .55.45 1 1 1h14c.55 0 1-.45 1-1v-1c0-2.66-5.33-4-8-4" />
+              </svg>
+            ) : (
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor" className="text-gray-900 shrink-0">
+                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4m0 2c-2.67 0-8 1.34-8 4v1c0 .55.45 1 1 1h14c.55 0 1-.45 1-1v-1c0-2.66-5.33-4-8-4" />
+              </svg>
+            )}
             <div className="flex flex-col leading-tight">
               <h2 className="text-2xl font-bold text-gray-900">
-                {step === "mobile" ? "Sign In" : "Verify OTP"}
+                {step === "mobile" ? "Sign In" : step === "otp" ? "Verify OTP" : "Complete Profile"}
               </h2>
               <p className="text-sm text-gray-500 mt-0.5">
                 {step === "mobile"
                   ? "Please sign in to continue with checkout"
-                  : `Enter the 6-digit code sent to +91 ${mobile}`}
+                  : step === "otp"
+                  ? `We've sent a 4-digit code to +91 ${mobile}`
+                  : "Enter your name to complete registration"}
               </p>
             </div>
           </div>
 
           {step === "mobile" && (
             <form onSubmit={onMobileSubmit}>
-              <div className="relative mb-5">
-                <label className="absolute -top-2 left-3 px-1 bg-white text-[11px] font-medium text-gray-500 z-10">
+              <div className="relative mb-5 group">
+                <label className="absolute -top-2 left-3 px-1 bg-white text-[11px] font-medium text-gray-500 z-10 group-focus-within:text-[#3684bf]">
                   Mobile Number
                 </label>
-                <div className="flex items-center gap-2 border border-gray-300 rounded-lg px-3 py-3 focus-within:border-gray-500">
+                <div className="flex items-center gap-2 border-2 border-gray-300 rounded-lg px-3 py-3 focus-within:border-[#3684bf] transition-colors">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-gray-500 shrink-0">
                     <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" />
                   </svg>
                   <span className="text-gray-700 font-medium">+91</span>
                   <input
-                    autoFocus
+                    ref={mobileRef}
                     type="tel"
                     inputMode="numeric"
                     maxLength={10}
                     value={mobile}
-                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, "").slice(0, 10);
+                      setMobile(v);
+                      if (v.length === 10 && /^[6-9]\d{9}$/.test(v)) {
+                        startOtp(v);
+                      }
+                    }}
                     className="flex-1 text-base focus:outline-none bg-transparent"
                   />
                 </div>
@@ -235,7 +333,7 @@ export default function AuthModal() {
 
           {step === "otp" && (
             <form onSubmit={onVerify}>
-              <div className="flex justify-between gap-2 mb-3" onPaste={onOtpPaste}>
+              <div className="flex justify-center gap-3 mb-4" onPaste={onOtpPaste}>
                 {otp.map((d, i) => (
                   <input
                     key={i}
@@ -246,13 +344,24 @@ export default function AuthModal() {
                     value={d}
                     onChange={(e) => onOtpChange(i, e.target.value)}
                     onKeyDown={(e) => onOtpKeyDown(i, e)}
-                    className="w-11 h-12 text-center text-lg font-bold border border-gray-300 rounded-md focus:outline-none focus:border-blue-500"
+                    className="w-14 h-14 text-center text-xl font-bold border-2 border-blue-300 rounded-lg focus:outline-none focus:border-blue-500"
                   />
                 ))}
               </div>
 
               {info && !error && (
-                <p className="text-[11px] text-gray-500 text-center mb-2">{info}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = info.split("").slice(0, OTP_LEN);
+                    while (next.length < OTP_LEN) next.push("");
+                    setOtp(next);
+                    otpRefs.current[OTP_LEN - 1]?.focus();
+                  }}
+                  className="text-[11px] text-gray-400 hover:text-[#3684bf] block mx-auto mb-2"
+                >
+                  Demo OTP: {info} (click to autofill)
+                </button>
               )}
               {error && (
                 <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2 mb-2">{error}</p>
@@ -280,6 +389,43 @@ export default function AuthModal() {
                 className="otp-btn w-full py-3.5 rounded-lg text-white font-bold text-sm uppercase tracking-wider"
               >
                 {loading ? "Verifying..." : "Verify & Continue"}
+              </button>
+            </form>
+          )}
+
+          {step === "profile" && (
+            <form onSubmit={onProfileSubmit}>
+              <div className="relative mb-5">
+                <label className="absolute -top-2 left-3 px-1 bg-white text-[11px] font-medium text-gray-500 z-10">
+                  Full Name
+                </label>
+                <div className="flex items-center gap-2 border border-blue-500 rounded-lg px-3 py-3">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-gray-500 shrink-0">
+                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4m0 2c-2.67 0-8 1.34-8 4v1c0 .55.45 1 1 1h14c.55 0 1-.45 1-1v-1c0-2.66-5.33-4-8-4" />
+                  </svg>
+                  <input
+                    autoFocus
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="flex-1 text-base focus:outline-none bg-transparent"
+                    placeholder="Enter your name"
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2 mb-3">{error}</p>
+              )}
+
+              <TrustBadges />
+
+              <button
+                type="submit"
+                disabled={!name.trim()}
+                className="otp-btn w-full py-3.5 rounded-lg text-white font-bold text-sm uppercase tracking-wider"
+              >
+                Complete Registration
               </button>
             </form>
           )}

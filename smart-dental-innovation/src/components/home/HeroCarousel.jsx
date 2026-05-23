@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
+import { useUI } from "../../context/UIContext";
 
 const slides = [
-  "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_5_1.webp",
-  "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_10.webp",
-  "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_9_(3).webp",
-  "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_9_1.webp",
-  "https://merchant-cdn.storedum.com/Smart_Hex_driver.png",
-  "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_8.webp",
-  "https://merchant-cdn.storedum.com/new_Website_slider_344_x_1080_px_5_(1).png",
+  { src: "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_5_1.webp", productId: "p-001" },
+  { src: "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_10.webp", productId: "p-002" },
+  { src: "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_9_(3).webp", productId: "p-003" },
+  { src: "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_9_1.webp", productId: "p-007" },
+  { src: "https://merchant-cdn.storedum.com/Smart_Hex_driver.png", productId: "i-001" },
+  { src: "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_8.webp", productId: "p-010" },
+  { src: "https://merchant-cdn.storedum.com/new_Website_slider_344_x_1080_px_5_(1).png", productId: "n-003" },
 ];
 
 export default function HeroCarousel() {
+  const { navigate } = useUI();
+  const go = (id) => navigate("product", { id });
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
   const [selected, setSelected] = useState(0);
 
@@ -36,10 +39,14 @@ export default function HeroCarousel() {
       <div className="relative overflow-hidden rounded-[20px]">
         <div className="embla" ref={emblaRef}>
           <div className="embla__container">
-            {slides.map((src, i) => (
-              <div key={i} className="embla__slide flex flex-col items-center cursor-pointer">
+            {slides.map((s, i) => (
+              <div
+                key={i}
+                onClick={() => go(s.productId)}
+                className="embla__slide flex flex-col items-center cursor-pointer"
+              >
                 <img
-                  src={src}
+                  src={s.src}
                   alt=""
                   loading={i === 0 ? "eager" : "lazy"}
                   decoding="async"

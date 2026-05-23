@@ -1,6 +1,15 @@
 import ProductCard from "./ProductCard";
+import { useUI } from "../../context/UIContext";
+import { sectionToCategory as TITLE_TO_CATEGORY } from "../../data/site";
 
 export default function ProductSection({ title, eyebrow, products, accent = "navy" }) {
+  const { navigate } = useUI();
+
+  const onViewAll = () => {
+    const category = TITLE_TO_CATEGORY[title];
+    navigate("category", category ? { category, title } : { title });
+  };
+
   return (
     <section className="max-w-[1400px] mx-auto px-3 sm:px-6 py-6 sm:py-10">
       <div className="flex items-end justify-between mb-4 sm:mb-6">
@@ -11,12 +20,17 @@ export default function ProductSection({ title, eyebrow, products, accent = "nav
             </p>
           )}
           <h2 className={`text-lg sm:text-2xl font-bold ${accent === "orange" ? "text-brand-orange" : "text-brand-ink"}`}>
-            {title}
+            <span className="text-brand-ink">{title.split(" ")[0]}</span>{" "}
+            <span className="text-[#3684bf]">{title.split(" ").slice(1).join(" ")}</span>
           </h2>
         </div>
-        <a href="#" className="text-xs sm:text-sm font-semibold text-brand-navy hover:text-brand-orange whitespace-nowrap">
-          View All →
-        </a>
+        <button
+          onClick={onViewAll}
+          className="inline-flex items-center gap-1 text-xs sm:text-sm font-bold text-[#3684bf] hover:underline whitespace-nowrap"
+        >
+          {title}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" /></svg>
+        </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 md:gap-6">
@@ -28,7 +42,9 @@ export default function ProductSection({ title, eyebrow, products, accent = "nav
   );
 }
 
-export function RFCauterySection(){
+export function RFCauterySection({ productId = "p-001" } = {}){
+  const { navigate } = useUI();
+  const onView = () => navigate("product", { id: productId });
   return (
     <div className="px-2 sm:px-0">
       {/* Spacer matching height:100px on desktop */}
@@ -42,17 +58,21 @@ export function RFCauterySection(){
         {/* Content Container */}
         <div className="homepage-container-large px-[80px] w-full">
           <div className="relative pt-[35px] flex flex-col items-start">
-            
+
             {/* Main Product Image */}
             <img
               src="https://merchant-cdn.storedum.com/Untitled_design_6_(1).png"
               alt="RF Advance Cautery"
+              onClick={onView}
               className="absolute right-0 left-auto top-[-100px] w-[28%] select-none cursor-pointer"
             />
 
             {/* Main Product Info Panel */}
             <div className="text-left w-[58%] flex flex-col items-start min-h-[300px]">
-              <label className="font-montserrat text-[56px] font-extrabold uppercase text-[#08070D] cursor-pointer select-none leading-tight tracking-tight">
+              <label
+                onClick={onView}
+                className="font-montserrat text-[56px] font-extrabold uppercase text-[#08070D] cursor-pointer select-none leading-tight tracking-tight"
+              >
                 RF Advance Cautery
               </label>
               <label className="font-montserrat text-[18px] font-normal text-[#5a6472] leading-relaxed mt-2">
@@ -61,11 +81,15 @@ export function RFCauterySection(){
                 Powered by advanced high-frequency radio waves, it enables clean scalpel-like cutting with excellent
                 coagulation, ensuring faster healing and superior clinical outcomes.
               </label>
-              
+
               {/* View Details Button */}
-              <div className="h-[50px] w-[200px] bg-[#007AFF] mt-[20px] rounded-[100px] flex items-center justify-center text-white font-extrabold cursor-pointer hover:bg-[#006ce0] transition-colors">
+              <button
+                type="button"
+                onClick={onView}
+                className="h-[50px] w-[200px] bg-[#007AFF] mt-[20px] rounded-[100px] flex items-center justify-center text-white font-extrabold cursor-pointer hover:bg-[#006ce0] transition-colors"
+              >
                 <span className="select-none">VIEW DETAILS</span>
-              </div>
+              </button>
             </div>
 
             {/* Features Grid (Replacing MuiGrid structure) */}
@@ -132,7 +156,7 @@ export function RFCauterySection(){
           <div className="w-1/2 absolute right-0 left-auto h-[4px] bg-white"></div>
           
           {/* Outer Rounded Button Container */}
-          <div className="h-full rounded-[100px] w-[16%] bg-white flex relative items-center justify-center cursor-pointer shadow-sm hover:shadow-md transition-shadow">
+          <div onClick={onView} className="h-full rounded-[100px] w-[16%] bg-white flex relative items-center justify-center cursor-pointer shadow-sm hover:shadow-md transition-shadow">
             
             {/* Embedded Action Icon Badge */}
             <div className="h-[45px] aspect-square absolute rounded-[100px] overflow-hidden left-[7.5px] flex items-center justify-center select-none pointer-events-none">
@@ -161,8 +185,11 @@ export function RFCauterySection(){
   );
 };
 
-const CategoryCard = ({ item }) => (
-    <div className="premium-category-view-a-view_categoryView___Ouhr w-full bg-[rgba(var(--main-rgb),0.1)] relative overflow-hidden cursor-pointer min-h-[280px] group rounded-sm">
+const CategoryCard = ({ item, onOpen }) => (
+    <div
+      onClick={() => onOpen?.(item)}
+      className="premium-category-view-a-view_categoryView___Ouhr w-full bg-[rgba(var(--main-rgb),0.1)] relative overflow-hidden cursor-pointer min-h-[280px] group rounded-sm"
+    >
       {/* MuiBox placeholder block */}
       <div className="MuiBox-root"></div>
       
@@ -208,16 +235,19 @@ const CategoryCard = ({ item }) => (
     </div>
   );
 export function PremiumCategories({products}){
-  // Reusable Card Component mapping styles exactly
+  const { navigate } = useUI();
+  const onOpen = (item) => {
+    if (item?.id) navigate("product", { id: item.id });
+  };
   return (
     <div className="px-2 sm:px-0">
       <section className="max-w-[1400px] mx-auto px-3 sm:px-6 py-6 sm:py-10">
-        
+
         {/* DESKTOP VIEW: Displays as a clean 3-column grid structure */}
         <div className="hidden sm:grid grid-cols-3 gap-6 w-full">
           {products.map((item, index) => (
             <div key={index} className="w-full">
-              <CategoryCard item={item} />
+              <CategoryCard item={item} onOpen={onOpen} />
             </div>
           ))}
         </div>
@@ -226,7 +256,7 @@ export function PremiumCategories({products}){
         <div className="flex sm:hidden overflow-x-auto gap-[10px] w-full scrollbar-none pb-2">
           {products.map((item, index) => (
             <div key={index} className="w-[80vw] shrink-0 overflow-hidden">
-              <CategoryCard item={item} />
+              <CategoryCard item={item} onOpen={onOpen} />
             </div>
           ))}
         </div>
@@ -236,24 +266,33 @@ export function PremiumCategories({products}){
   );
 }
 
-export function HomeBanner(){
+export function HomeBanner({
+  bannerLeftId = "n-003",
+  bannerTopRightId = "p-010",
+  bannerBottomRightId = "e-007",
+} = {}){
+  const { navigate } = useUI();
+  const go = (id) => navigate("product", { id });
   const mobileBanners = [
-    "https://merchant-cdn.storedum.com/new_website_banner_mobile_2_(1).png",
-    "https://merchant-cdn.storedum.com/new_banner_2.webp",
-    "https://merchant-cdn.storedum.com/new_website_banner_mobile_1_1.webp"
+    { src: "https://merchant-cdn.storedum.com/new_website_banner_mobile_2_(1).png", id: bannerLeftId },
+    { src: "https://merchant-cdn.storedum.com/new_banner_2.webp", id: bannerTopRightId },
+    { src: "https://merchant-cdn.storedum.com/new_website_banner_mobile_1_1.webp", id: bannerBottomRightId },
   ];
   return(
     <div className="px-2 sm:px-0">
       <section className="max-w-[1400px] mx-auto px-3 sm:px-6 py-6 sm:py-10">
-        
+
         {/* DESKTOP VIEW: Split Layout (Visible on sm screens and up) */}
         <div className="hidden sm:flex flex-row gap-5 w-full px-3">
-          
+
           {/* Left Block: Massive Featured Banner */}
-          <div className="aspect-[8/5] w-[calc(50%-10px)] relative overflow-hidden rounded-[15px] cursor-pointer group">
-            <img 
-              src="https://merchant-cdn.storedum.com/new_website_banner_mobile_2.png" 
-              alt="Featured Promotion" 
+          <div
+            onClick={() => go(bannerLeftId)}
+            className="aspect-[8/5] w-[calc(50%-10px)] relative overflow-hidden rounded-[15px] cursor-pointer group"
+          >
+            <img
+              src="https://merchant-cdn.storedum.com/new_website_banner_mobile_2.png"
+              alt="Featured Promotion"
               loading="lazy"
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-102"
             />
@@ -261,22 +300,28 @@ export function HomeBanner(){
 
           {/* Right Block: Stacked Column Banners */}
           <div className="aspect-[8/5] w-[calc(50%-10px)] flex flex-col gap-5">
-            
+
             {/* Top Right Banner */}
-            <div className="w-full h-[calc(50%-10px)] relative overflow-hidden rounded-[15px] cursor-pointer group">
-              <img 
-                src="https://merchant-cdn.storedum.com/new_website_banner_desktop_(2).webp" 
-                alt="Secondary Offer" 
+            <div
+              onClick={() => go(bannerTopRightId)}
+              className="w-full h-[calc(50%-10px)] relative overflow-hidden rounded-[15px] cursor-pointer group"
+            >
+              <img
+                src="https://merchant-cdn.storedum.com/new_website_banner_desktop_(2).webp"
+                alt="Secondary Offer"
                 loading="lazy"
                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-102"
               />
             </div>
-            
+
             {/* Bottom Right Banner */}
-            <div className="w-full h-[calc(50%-10px)] relative overflow-hidden rounded-[15px] cursor-pointer group">
-              <img 
-                src="https://merchant-cdn.storedum.com/new_website_banner_desktop.png" 
-                alt="Tertiary Offer" 
+            <div
+              onClick={() => go(bannerBottomRightId)}
+              className="w-full h-[calc(50%-10px)] relative overflow-hidden rounded-[15px] cursor-pointer group"
+            >
+              <img
+                src="https://merchant-cdn.storedum.com/new_website_banner_desktop.png"
+                alt="Tertiary Offer"
                 loading="lazy"
                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-102"
               />
@@ -287,14 +332,15 @@ export function HomeBanner(){
 
         {/* MOBILE VIEW: Horizontal Swipe Track (Visible on extra-small screens only) */}
         <div className="flex sm:hidden flex-row gap-[10px] overflow-x-auto whitespace-nowrap thin-scroller scrollbar-none pb-1">
-          {mobileBanners.map((src, index) => (
-            <div 
-              key={index} 
+          {mobileBanners.map((b, index) => (
+            <div
+              key={index}
+              onClick={() => go(b.id)}
               className="shrink-0 w-[80vw] aspect-[8/5] relative rounded-[10px] overflow-hidden cursor-pointer"
             >
-              <img 
-                src={src} 
-                alt={`Mobile Slide ${index + 1}`} 
+              <img
+                src={b.src}
+                alt={`Mobile Slide ${index + 1}`}
                 loading="lazy"
                 className="absolute inset-0 w-full h-full object-cover"
               />

@@ -40,8 +40,7 @@ export function Footer() {
   return (
     <footer className="w-full bg-[var(--background-secondary,#f8f9fa)] text-[var(--text-primary,#212529)] border-t border-gray-200">
       <TopBar />
-      {/* Removed px-4 sm:px-6 md:px-8 to remove extra padding on left/right edge */}
-      <div className="max-w-[1200px] mx-auto px-0 py-12">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 py-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-11 gap-8">
           
           {FOOTER_SECTIONS.map((section) => {
@@ -63,7 +62,7 @@ export function Footer() {
           })}
 
           {/* REGISTERED OFFICE ADDRESS */}
-          <div className="col-12 sm:col-span-2 md:col-span-4 lg:col-span-2 flex flex-col">
+          <div className="col-span-1 sm:col-span-2 md:col-span-4 lg:col-span-2 flex flex-col">
             <h6 className="text-[14px] font-bold tracking-wider text-gray-900 uppercase mb-4">
               REGISTERED OFFICE ADDRESS
             </h6>
@@ -109,11 +108,11 @@ export function Footer() {
 
       {/* PAYMENT + RATING STRIP */}
       <div className="border-t border-gray-200">
-        <div className="max-w-[1200px] mx-auto pl-0 pr-4 py-8">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 py-8">
           <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
 
             {/* Secure payments box */}
-            <div className="w-full lg:max-w-[600px] rounded-xl border border-[var(--main,#1976d2)] pl-2 pr-5 py-5">
+            <div className="w-full lg:max-w-[600px] rounded-xl border border-[var(--main,#1976d2)] px-5 py-5">
               <div className="flex items-center gap-3 mb-3">
                 <svg className="w-7 h-7 shrink-0 text-[var(--main,#1976d2)]" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M12 2 4 5v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V5zm-2 14-4-4 1.41-1.41L10 13.17l6.59-6.59L18 8z" />
@@ -151,7 +150,7 @@ export function Footer() {
 
       {/* COPYRIGHT BAR */}
       <div className="border-t border-gray-200">
-        <div className="max-w-[1200px] mx-auto px-4 py-5 text-center">
+        <div className="max-w-[1400px] mx-auto px-4 py-5 text-center">
           <p className="text-[13px] font-medium uppercase tracking-wide text-gray-500">
             2016-2025, Smart Dental Innovation <span className="mx-1.5">•</span>
             Crafted with <span className="text-red-500">♥</span> in India

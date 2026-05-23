@@ -1,42 +1,49 @@
 import { useCart } from "../../context/CartContext";
-import { useWishlist } from "../../context/WishlistContext";
 import { useUI } from "../../context/UIContext";
+import { useWishlist } from "../../context/WishlistContext";
+import { useAuth } from "../../context/AuthContext";
 
 const fmt = (n) => `₹${n.toLocaleString("en-IN")}`;
 
 export default function ProductCard({ product }) {
   const { addToCart } = useCart();
+  const { openModal, navigate } = useUI();
   const { has, toggle } = useWishlist();
-  const { openProduct, openModal, showToast } = useUI();
+  const { user } = useAuth();
+  const openProduct = () => navigate("product", { id: product.id });
   const wished = has(product.id);
+
+  const onWish = (e) => {
+    e.stopPropagation();
+    if (!user) { openModal("auth"); return; }
+    toggle(product.id);
+  };
 
   const onAdd = (e) => {
     e?.stopPropagation();
     addToCart(product, 1);
-    showToast("Added to cart!", "success");
     openModal("cart");
   };
 
   return (
     <article className="group relative flex flex-col bg-[#f8f9fa] border border-gray-100 rounded-2xl p-3 overflow-hidden shadow-sm hover:shadow-md transition duration-300">
-      <button
-        onClick={(e) => { e.stopPropagation(); toggle(product.id); }}
-        aria-label="Toggle wishlist"
-        className="absolute top-5 right-5 z-10 w-8 h-8 rounded-full bg-white/90 backdrop-blur shadow-sm flex items-center justify-center hover:scale-110 transition"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill={wished ? "#ff6b1a" : "none"} stroke={wished ? "#ff6b1a" : "#1a1a1a"} strokeWidth="1.8">
-          <path d="M12 21s-7-4.534-9.5-9C.5 7.5 4 4 7 4c2 0 3.5 1 5 3 1.5-2 3-3 5-3 3 0 6.5 3.5 4.5 8-2.5 4.466-9.5 9-9.5 9z" />
-        </svg>
-      </button>
-
       <div className="relative w-full aspect-square bg-white rounded-xl overflow-hidden border border-gray-50">
-        <button onClick={() => openProduct(product)} className="w-full h-full block">
+        <button onClick={() => openProduct()} className="w-full h-full block">
           <img
             src={product.image}
             alt={product.name}
             loading="lazy"
             className="w-full h-full object-contain p-2 group-hover:scale-102 transition duration-300"
           />
+        </button>
+        <button
+          onClick={onWish}
+          aria-label="Wishlist"
+          className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white shadow flex items-center justify-center hover:bg-gray-50 z-10"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill={wished ? "#ef4444" : "none"} stroke={wished ? "#ef4444" : "#374151"} strokeWidth="2">
+            <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
+          </svg>
         </button>
 
         <div className="absolute bottom-2 left-2 bg-white/95 backdrop-blur px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1 text-[11px] sm:text-xs font-bold text-gray-800 border border-gray-100">
@@ -52,7 +59,7 @@ export default function ProductCard({ product }) {
 
       <div className="flex flex-col flex-1 pt-3 pb-1 gap-2.5">
         <button
-          onClick={() => openProduct(product)}
+          onClick={() => openProduct()}
           className="text-sm sm:text-base font-semibold text-gray-900 text-left line-clamp-2 min-h-[44px] leading-tight hover:text-[#4a92cb] transition-colors"
         >
           {product.name}

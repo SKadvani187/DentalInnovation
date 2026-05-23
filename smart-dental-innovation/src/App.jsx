@@ -8,7 +8,7 @@ import Footer from "./components/layout/Footer";
 import HeroCarousel from "./components/home/HeroCarousel";
 import CategoryGrid from "./components/home/CategoryGrid";
 import ProductSection from "./components/home/ProductSection";
-import { RFCauterySection, PremiumCategories, HomeBanner,RFCauterySection2 } from "./components/home/ProductSection";
+import { RFCauterySection, PremiumCategories, HomeBanner } from "./components/home/ProductSection";
 import FeaturedCards from "./components/home/FeaturedCards";
 import Testimonials from "./components/home/Testimonials";
 
@@ -22,6 +22,13 @@ import CombosPage from "./components/pages/CombosPage";
 import EventsPage from "./components/pages/EventsPage";
 import AboutPage from "./components/pages/AboutPage";
 import ContactPage from "./components/pages/ContactPage";
+import ProductDetailPage from "./components/pages/ProductDetailPage";
+import QnaPage from "./components/pages/QnaPage";
+import AccountPage from "./components/pages/AccountPage";
+import OrdersPage from "./components/pages/OrdersPage";
+import WishlistPage from "./components/pages/WishlistPage";
+import AddressPage from "./components/pages/AddressPage";
+import OfferZonePage from "./components/pages/OfferZonePage";
 import ToastHost from "./components/ui/ToastHost";
 
 import {
@@ -69,6 +76,20 @@ function Shell() {
           <AboutPage />
         ) : view.name === "contact" ? (
           <ContactPage />
+        ) : view.name === "product" ? (
+          <ProductDetailPage />
+        ) : view.name === "qna" ? (
+          <QnaPage />
+        ) : view.name === "account" ? (
+          <AccountPage />
+        ) : view.name === "orders" ? (
+          <OrdersPage />
+        ) : view.name === "wishlist" ? (
+          <WishlistPage />
+        ) : view.name === "address" ? (
+          <AddressPage />
+        ) : view.name === "offers" ? (
+          <OfferZonePage />
         ) : (
           <>
             <HeroCarousel />
@@ -84,7 +105,6 @@ function Shell() {
             <HomeBanner/>
             <ProductSection title="Matrix System" products={matrixSystem} />
             <ProductSection title="Endodontics" products={endodontics} />
-            <RFCauterySection2 />
             <ReviewsSection />
             <ProsthodonticsCarousel/>
           </>

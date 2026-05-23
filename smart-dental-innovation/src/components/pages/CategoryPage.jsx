@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { allProducts } from "../../data/products";
 import { combos } from "../../data/combos";
 import { categoryFilters as CATEGORY_FILTERS } from "../../data/categories";
@@ -23,6 +24,16 @@ export default function CategoryPage() {
   const [expanded, setExpanded] = useState(false);
   const [priceMin, setPriceMin] = useState(PRICE_MIN);
   const [priceMax, setPriceMax] = useState(initialPriceMax);
+
+  useEffect(() => {
+    if (view?.params?.priceMax) {
+      setPriceMax(view.params.priceMax);
+      setPriceMin(PRICE_MIN);
+    }
+    if (view?.params?.category !== undefined) {
+      setSelectedCat(view.params.category || null);
+    }
+  }, [view?.params?.priceMax, view?.params?.category]);
 
   const products = useMemo(() => {
     let list = [...combos, ...allProducts].filter((p) => p.id);
@@ -194,23 +205,38 @@ function PriceRange({ min, max, valueMin, valueMax, onChange }) {
 
 function ProductCard({ product }) {
   const { addToCart } = useCart();
-  const { openProduct, openModal, closeModal } = useUI();
-  const hasVariants = Array.isArray(product.variants) && product.variants.length >= 1;
+  const { openModal, navigate } = useUI();
+  const openProduct = () => navigate("product", { id: product.id });
+  const variants = Array.isArray(product.variants)
+    ? product.variants.filter((v) => typeof v === "object")
+    : [];
+  const hasVariants = variants.length >= 1;
   const oos = product.inStock === false;
+  const [variantsOpen, setVariantsOpen] = useState(false);
+  const cardRef = useRef(null);
+
+  const variantPrices = variants.map((v) => v.price);
+  const minVariantPrice = variantPrices.length ? Math.min(...variantPrices) : product.price;
+  const maxVariantPrice = variantPrices.length ? Math.max(...variantPrices) : product.price;
 
   const onAdd = (e) => {
     e.preventDefault();
     e.stopPropagation();
     addToCart(product, 1);
-    closeModal();
-    requestAnimationFrame(() => openModal("cart"));
+    openModal("cart");
+  };
+
+  const onViewVariants = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setVariantsOpen(true);
   };
 
   return (
-    <article className="border border-gray-200 rounded-xl bg-white overflow-hidden flex flex-col hover:shadow-md transition">
+    <article ref={cardRef} className="border border-gray-200 rounded-xl bg-white overflow-hidden flex flex-col hover:shadow-md transition">
       <div className="relative">
         <button
-          onClick={() => openProduct(product)}
+          onClick={() => openProduct()}
           className="w-full aspect-square bg-gray-50 flex items-center justify-center p-4 cursor-pointer"
         >
           <img src={product.image} alt={product.name} className={`max-w-full max-h-full object-contain ${oos ? "opacity-70" : ""}`} />
@@ -227,14 +253,14 @@ function ProductCard({ product }) {
       <div className="p-4 flex flex-col flex-1">
         <h3
           className="text-sm font-bold text-brand-ink line-clamp-2 mb-2 cursor-pointer hover:text-[#3684bf]"
-          onClick={() => openProduct(product)}
+          onClick={() => openProduct()}
         >
           {product.name}
         </h3>
 
         {hasVariants && !oos && (
           <p className="text-xs text-[#3684bf] font-semibold mb-1">
-            {product.variants.length} variants available <span className="text-brand-muted font-normal">from</span>
+            {variants.length} variants available <span className="text-brand-muted font-normal">from</span>
           </p>
         )}
 
@@ -256,10 +282,10 @@ function ProductCard({ product }) {
             </button>
           ) : hasVariants ? (
             <button
-              onClick={onAdd}
-              className="w-full bg-[#3684bf] hover:bg-[#1f5f96] text-white font-bold text-sm py-2.5 rounded-md uppercase tracking-wider transition"
+              onClick={onViewVariants}
+              className="w-full border-2 border-[#3684bf] text-[#3684bf] hover:bg-[#3684bf] hover:text-white font-bold text-sm py-2.5 rounded-md uppercase tracking-wider transition"
             >
-              Add to Cart
+              View Variants
             </button>
           ) : (
             <button
@@ -271,6 +297,158 @@ function ProductCard({ product }) {
           )}
         </div>
       </div>
+
+      {variantsOpen && (
+        <VariantsModal
+          product={product}
+          variants={variants}
+          priceRange={[minVariantPrice, maxVariantPrice]}
+          anchorRef={cardRef}
+          onClose={() => setVariantsOpen(false)}
+        />
+      )}
     </article>
+  );
+}
+
+function VariantsModal({ product, variants, priceRange, anchorRef, onClose }) {
+  const { addToCart, items, updateQty, removeFromCart } = useCart();
+  const { openModal, modal } = useUI();
+  const cartOpen = modal === "cart";
+  const [pos, setPos] = useState(null);
+
+  useEffect(() => {
+    const compute = () => {
+      const modalW = 480;
+      const margin = 16;
+      const left = Math.max(margin, (window.innerWidth - modalW) / 2);
+      const top = Math.max(margin, window.innerHeight * 0.12);
+      setPos({ left, top, width: modalW });
+    };
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, []);
+
+  const getCartItem = (label) =>
+    items.find((i) => i.id === product.id && i.variant === label);
+
+  const onAdd = (v) => {
+    addToCart(
+      { ...product, price: v.price, mrp: v.mrp },
+      1,
+      v.label
+    );
+    openModal("cart");
+  };
+  const inc = (v) => {
+    const ci = getCartItem(v.label);
+    if (ci) updateQty(ci.key, ci.qty + 1);
+    else onAdd(v);
+  };
+  const dec = (v) => {
+    const ci = getCartItem(v.label);
+    if (!ci) return;
+    if (ci.qty <= 1) removeFromCart(ci.key);
+    else updateQty(ci.key, ci.qty - 1);
+  };
+
+  const [lo, hi] = priceRange;
+  const rangeLabel = lo === hi ? fmt(lo) : `${fmt(lo)} - ${fmt(hi)}`;
+
+  return createPortal(
+    <div>
+      {!cartOpen && (
+        <div
+          className="fixed inset-0 z-[1095] bg-black/50"
+          onClick={onClose}
+        />
+      )}
+      <div
+        className="fixed z-[1099] bg-white rounded-2xl shadow-2xl overflow-hidden"
+        style={pos ? { left: pos.left, top: pos.top, width: pos.width } : { visibility: "hidden" }}
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between px-5 pt-5 pb-3">
+          <div>
+            <h3 className="font-bold text-brand-ink text-lg">{product.name}</h3>
+            <p className="text-xs text-brand-muted mt-1">
+              {variants.length} variants <span className="mx-1">|</span> {rangeLabel}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </div>
+
+        <ul className="divide-y divide-gray-100 max-h-[60vh] overflow-y-auto">
+          {variants.map((v) => {
+            const ci = getCartItem(v.label);
+            const qty = ci?.qty || 0;
+            return (
+              <li key={v.label} className="flex items-center justify-between px-5 py-3 gap-3">
+                <div className="min-w-0">
+                  <p className="font-semibold text-brand-ink text-sm">{v.label}</p>
+                  <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                    <span className="text-sm font-bold text-brand-ink">{fmt(v.price)}</span>
+                    <span className="text-xs text-brand-muted line-through">₹{v.mrp.toLocaleString("en-IN")}</span>
+                    {v.discount > 0 && (
+                      <span className="text-xs font-bold text-green-600">{v.discount}% OFF</span>
+                    )}
+                  </div>
+                </div>
+                {qty > 0 ? (
+                  <div className="inline-flex items-center border-2 border-[#3684bf] rounded overflow-hidden">
+                    <button onClick={() => dec(v)} className="w-8 h-8 text-[#3684bf] font-bold hover:bg-blue-50">−</button>
+                    <span className="w-8 text-center font-bold text-brand-ink">{qty}</span>
+                    <button onClick={() => inc(v)} className="w-8 h-8 text-[#3684bf] font-bold hover:bg-blue-50">+</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => onAdd(v)}
+                    className="inline-flex items-center gap-1 border-2 border-[#3684bf] text-[#3684bf] hover:bg-[#3684bf] hover:text-white font-bold text-xs px-4 py-1.5 rounded uppercase tracking-wider transition"
+                  >
+                    + Add
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+
+        <CartFooter onClose={onClose} />
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function CartFooter({ onClose }) {
+  const { itemCount } = useCart();
+  const { openModal } = useUI();
+  if (itemCount <= 0) return null;
+  return (
+    <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50">
+      <span className="text-sm text-brand-muted flex items-center gap-2">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M6 6h15l-1.5 9h-13z" />
+          <circle cx="9" cy="20" r="1.5" />
+          <circle cx="18" cy="20" r="1.5" />
+        </svg>
+        {itemCount} item{itemCount > 1 ? "s" : ""} added
+      </span>
+      <button
+        onClick={() => { onClose(); openModal("cart"); }}
+        className="bg-[#3684bf] hover:bg-[#1f5f96] text-white font-bold text-sm px-5 py-2 rounded uppercase tracking-wider"
+      >
+        View Cart
+      </button>
+    </div>
   );
 }

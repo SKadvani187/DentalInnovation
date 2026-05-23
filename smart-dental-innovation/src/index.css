@@ -93,6 +93,72 @@ body {
   cursor: not-allowed;
 }
 
+/* Animated Buy Now button — match reference site */
+@keyframes buy-now-shake {
+  0%, 100% { transform: translate(0, 0); }
+  10% { transform: translate(-1px, 1px); }
+  20% { transform: translate(1px, -1px); }
+  30% { transform: translate(-1px, -1px); }
+  40% { transform: translate(1px, 1px); }
+  50% { transform: translate(0, 0); }
+}
+@keyframes buy-now-shimmer {
+  0% { left: -20px; }
+  100% { left: 120%; }
+}
+.buy-now-btn {
+  width: 100%;
+  height: 50px;
+  flex-shrink: 0;
+  position: relative;
+  animation: buy-now-shake 4000ms ease 700ms infinite;
+  transition: 0.2s;
+}
+.buy-now-btn__shadow {
+  height: calc(100% - 5px);
+  width: calc(100% - 5px);
+  position: absolute;
+  background-color: #2b2b2b;
+  border-radius: 8px;
+  bottom: 0;
+  right: 0;
+}
+.buy-now-btn__face {
+  height: calc(100% - 5px);
+  width: calc(100% - 5px);
+  border: 2px solid #2b2b2b;
+  position: absolute;
+  background-color: #f6d739;
+  border-radius: 8px;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-transform: uppercase;
+  font-weight: 800;
+  overflow: hidden;
+  transition: 0.2s;
+  color: black;
+  user-select: none;
+}
+.buy-now-btn__face:hover {
+  background-color: #fde047;
+}
+.buy-now-btn__shimmer {
+  position: absolute;
+  width: 30px;
+  height: 90px;
+  background-color: white;
+  opacity: 0.8;
+  top: -10px;
+  left: -20px;
+  transform: rotate(20deg) translate(-50%, 0);
+  animation: buy-now-shimmer 2500ms ease 700ms infinite;
+  pointer-events: none;
+}
+
 /* Auth modal error toast — match reference site */
 @keyframes auth-toast-in {
   from { opacity: 0; transform: translate(-50%, -10px); }
@@ -118,6 +184,18 @@ body {
   font-size: 14px;
   font-weight: 400;
   animation: auth-toast-in 0.25s ease-out;
+}
+.auth-toast--success {
+  background: #edf7ee;
+  border-color: #bfe0c2;
+  color: #1e4620;
+}
+.auth-toast--success .auth-toast__msg,
+.auth-toast--success .auth-toast__close {
+  color: #1e4620;
+}
+.auth-toast--success .auth-toast__icon {
+  color: #16a34a;
 }
 .auth-toast__icon {
   display: inline-flex;

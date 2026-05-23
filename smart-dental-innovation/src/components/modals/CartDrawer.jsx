@@ -1,7 +1,9 @@
 import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Drawer from "../ui/Drawer";
 import { useUI } from "../../context/UIContext";
 import { useCart } from "../../context/CartContext";
+import { useWishlist } from "../../context/WishlistContext";
 import { useAuth } from "../../context/AuthContext";
 import { fbtItems as FBT_ITEMS, freeGifts, bulkRule } from "../../data/site";
 
@@ -21,7 +23,23 @@ export default function CartDrawer() {
   const { modal, closeModal, openModal } = useUI();
   const { items, updateQty, removeFromCart, subtotal, itemCount } = useCart();
   const { user } = useAuth();
+  const { toggle: toggleWish } = useWishlist();
   const [priceOpen, setPriceOpen] = useState(true);
+  const [confirmRemove, setConfirmRemove] = useState(null);
+
+  const askRemove = (item) => setConfirmRemove(item);
+  const closeConfirm = () => setConfirmRemove(null);
+  const removeNow = () => {
+    if (!confirmRemove) return;
+    removeFromCart(confirmRemove.key);
+    closeConfirm();
+  };
+  const saveToWishlist = () => {
+    if (!confirmRemove) return;
+    toggleWish(confirmRemove.id);
+    removeFromCart(confirmRemove.key);
+    closeConfirm();
+  };
 
   const onCheckout = () => {
     if (!user) {
@@ -36,8 +54,12 @@ export default function CartDrawer() {
     0
   );
   const mrpTotal = items.reduce((s, i) => s + (i.mrp || i.price) * i.qty, 0);
-  const finalTotal = Math.max(0, subtotal - bulkSavings);
-  const totalSaved = Math.max(0, mrpTotal - finalTotal);
+  const productDiscount = Math.max(0, mrpTotal - subtotal);
+  const FREE_DELIVERY_THRESHOLD = 20000;
+  const deliveryCharges = subtotal >= FREE_DELIVERY_THRESHOLD || items.length === 0 ? 0 : 600;
+  const codCharges = 0;
+  const finalTotal = Math.max(0, subtotal - bulkSavings) + deliveryCharges + codCharges;
+  const totalSaved = Math.max(0, mrpTotal - (subtotal - bulkSavings));
   const showFreeGifts = subtotal >= freeGifts.threshold;
 
   return (
@@ -63,29 +85,75 @@ export default function CartDrawer() {
               </svg>
             </button>
 
-            {priceOpen && totalSaved > 0 && (
-              <div className="bg-green-50 border border-green-100 rounded-md px-3 py-2 text-center text-sm text-green-800 font-semibold">
-                🎉 🎁 You saved {fmt(totalSaved)} on this order!
+            {priceOpen && (
+              <div className="bg-gray-50 border border-gray-100 rounded-md px-4 py-3 space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-brand-ink">MRP Total</span>
+                  <span className="font-semibold text-brand-ink">₹{mrpTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                {productDiscount > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-brand-ink">Product Discount</span>
+                    <span className="font-semibold text-green-600">-₹{productDiscount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-1 border-t border-gray-200">
+                  <span className="text-brand-ink">Delivery Charges</span>
+                  {deliveryCharges > 0 ? (
+                    <span className="font-semibold text-brand-ink">₹{deliveryCharges.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  ) : (
+                    <span className="font-semibold text-green-600">FREE</span>
+                  )}
+                </div>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="text-brand-ink">COD Charges</div>
+                    <div className="text-[11px] text-brand-muted">Free on Prepaid</div>
+                  </div>
+                  <span className="font-semibold text-green-600">FREE</span>
+                </div>
+                {totalSaved > 0 && (
+                  <div className="bg-green-50 border border-green-100 rounded-md px-3 py-2 text-center text-sm text-green-800 font-semibold mt-2">
+                    🎉 🎁 You saved {fmt(totalSaved)} on this order!
+                  </div>
+                )}
               </div>
             )}
 
             <div className="flex items-center justify-between pt-1">
               <div>
                 <div className="text-lg font-bold text-brand-ink">Rs. {fmt(finalTotal)}</div>
-                <button className="text-xs text-[#3684bf] underline">View Price Details</button>
+                <button
+                  onClick={() => setPriceOpen((v) => !v)}
+                  className="text-xs text-[#3684bf] underline"
+                >
+                  View Price Details
+                </button>
               </div>
-              <button
-                onClick={onCheckout}
-                className="place-order-btn inline-flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-black font-bold px-5 py-3 rounded-md transition"
-              >
-                Place Order
-                <span className="flex items-center gap-1 ml-2 bg-white rounded px-1.5 py-0.5">
-                  <span className="text-[8px] font-bold text-blue-700">P</span>
-                  <span className="w-3 h-3 rounded-full bg-purple-600" />
-                  <span className="text-[8px] font-bold text-orange-600">G</span>
-                </span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 6l6 6-6 6" /></svg>
-              </button>
+              <div className="buy-now-btn" style={{ width: "180px", height: "50px" }}>
+                <div className="buy-now-btn__shadow" />
+                <button
+                  type="button"
+                  onClick={onCheckout}
+                  className="buy-now-btn__face"
+                  style={{ textTransform: "none", gap: 6, fontSize: 15 }}
+                >
+                  <span className="buy-now-btn__shimmer" />
+                  <span style={{ userSelect: "none", pointerEvents: "none", display: "flex" }}>
+                    {"Place Order".split("").map((c, i) => (
+                      <span key={i}>{c === " " ? " " : c}</span>
+                    ))}
+                  </span>
+                  <img
+                    src="https://d1865wozhn5fw4.cloudfront.net/upi-icons.svg"
+                    alt="UPI"
+                    style={{ height: 23, userSelect: "none", pointerEvents: "none" }}
+                  />
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
         )
@@ -113,7 +181,7 @@ export default function CartDrawer() {
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm font-semibold text-brand-ink line-clamp-2">{i.name}</p>
                     <button
-                      onClick={() => removeFromCart(i.key)}
+                      onClick={() => askRemove(i)}
                       className="text-brand-muted hover:text-red-500 shrink-0"
                       aria-label="Remove"
                     >
@@ -136,10 +204,28 @@ export default function CartDrawer() {
                         <span className="text-xs text-brand-muted line-through">₹{i.mrp.toLocaleString("en-IN")}.00</span>
                       )}
                     </div>
-                    <div className="inline-flex items-center border border-gray-300 rounded-md text-sm bg-white">
-                      <button onClick={() => updateQty(i.key, i.qty - 1)} className="w-7 h-7 hover:bg-gray-50 text-brand-ink">−</button>
-                      <span className="w-8 text-center font-semibold">{i.qty}</span>
-                      <button onClick={() => updateQty(i.key, i.qty + 1)} className="w-7 h-7 hover:bg-gray-50 text-brand-ink">+</button>
+                    <div className="inline-flex items-center border border-[#3684bf] rounded-md text-sm bg-white overflow-hidden">
+                      {i.qty <= 1 ? (
+                        <button
+                          onClick={() => askRemove(i)}
+                          className="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-50"
+                          aria-label="Remove"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <path d="M6 6l12 12M18 6L6 18" />
+                          </svg>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => updateQty(i.key, i.qty - 1)}
+                          className="w-8 h-8 hover:bg-gray-50 text-[#3684bf] font-bold"
+                        >−</button>
+                      )}
+                      <span className="w-8 text-center font-semibold text-brand-ink">{i.qty}</span>
+                      <button
+                        onClick={() => updateQty(i.key, i.qty + 1)}
+                        className="w-8 h-8 hover:bg-gray-50 text-[#3684bf] font-bold"
+                      >+</button>
                     </div>
                   </div>
 
@@ -199,7 +285,78 @@ export default function CartDrawer() {
           <TrustSeal />
         </div>
       )}
+
+      {confirmRemove && (
+        <RemoveConfirmDialog
+          item={confirmRemove}
+          onCancel={closeConfirm}
+          onRemove={removeNow}
+          onWishlist={saveToWishlist}
+        />
+      )}
     </Drawer>
+  );
+}
+
+function RemoveConfirmDialog({ item, onCancel, onRemove, onWishlist }) {
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[1200] bg-black/50 flex items-center justify-center p-4"
+      onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="#dc2626">
+            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+          </svg>
+          <h3 className="text-xl font-bold text-brand-ink">Remove from Cart?</h3>
+        </div>
+
+        <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-3 mb-4">
+          <div className="w-14 h-14 bg-white rounded shrink-0 flex items-center justify-center overflow-hidden">
+            <img src={item.image} alt={item.name} className="max-w-full max-h-full object-contain" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-brand-ink line-clamp-1">{item.name}</p>
+            <p className="text-xs text-brand-muted mt-0.5">
+              {item.variant || "2 Year Warranty"} • Qty: {item.qty}
+            </p>
+          </div>
+        </div>
+
+        <p className="text-sm text-brand-muted mb-4">Save for later or remove completely?</p>
+
+        <button
+          onClick={onWishlist}
+          className="w-full flex items-center justify-center gap-2 bg-[#3684bf] hover:bg-[#1f5f96] text-white font-bold py-3 rounded-lg transition mb-2"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
+          </svg>
+          Save to Wishlist
+        </button>
+
+        <button
+          onClick={onRemove}
+          className="w-full border border-gray-300 hover:border-red-500 hover:text-red-600 text-brand-ink font-bold py-3 rounded-lg transition mb-2"
+        >
+          Remove Completely
+        </button>
+
+        <button
+          onClick={onCancel}
+          className="w-full text-brand-muted hover:text-brand-ink font-semibold py-2"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>,
+    document.body
   );
 }
 

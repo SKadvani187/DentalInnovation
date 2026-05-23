@@ -13,6 +13,13 @@ export const events = [
     mrp: 19980,
     price: 3000,
     image: img("ai_img_6_(1).png"),
+    images: [
+      img("ai_img_6_(1).png"),
+      img("ai_img_22_(1).png"),
+      img("plain_image_2_53_(1).png"),
+    ],
+    videoThumb: img("ai_img_42_(1).png"),
+    videoUrl: "https://www.youtube.com/watch?v=9RJuESYo6jw",
     description:
       "This masterclass is designed to simplify extractions and boost your clinical confidence — with practical, real-world techniques for routine, surgical, and implant-friendly cases.",
   },

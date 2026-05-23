@@ -1,28 +1,61 @@
 const placeholder = (seed) =>
   `https://merchant-cdn.storedum.com/${seed}`;
 
-const VARIANT_POOL = ["Standard", "Pro", "Bundle", "Mini", "XL", "Lite", "Premium", "Compact"];
-const variantsFor = (id) => {
+const VARIANT_POOL = ["Generic", "4 mm", "6 mm", "8 mm", "10 mm", "12 mm", "Pro", "XL"];
+const variantsFor = (id, basePrice, baseMrp) => {
   const n = parseInt(String(id).replace(/\D/g, ""), 10) || 0;
-  const count = n % 4 === 0 ? 0 : (n % 7) + 1; // mix: some 0 (Add to Cart), some 1..7 (View Variants)
-  return VARIANT_POOL.slice(0, count);
+  const count = n % 4 === 0 ? 0 : (n % 7) + 1;
+  const factors = [1, 0.5, 0.5, 0.6, 0.7, 0.85, 1.1, 1.25];
+  return VARIANT_POOL.slice(0, count).map((label, i) => {
+    const factor = factors[i] ?? 1;
+    const price = Math.max(50, Math.round(basePrice * factor / 10) * 10);
+    const mrp = Math.max(price + 10, Math.round(baseMrp * factor / 10) * 10);
+    return {
+      label,
+      price,
+      mrp,
+      discount: Math.round(((mrp - price) / mrp) * 100),
+    };
+  });
 };
 
-const mk = (id, name, mrp, price, rating, reviews, category, seed) => ({
-  id,
-  name,
-  image: placeholder(seed),
-  mrp,
-  price,
-  discount: Math.round(((mrp - price) / mrp) * 100),
-  rating,
-  reviews,
-  category,
-  inStock: !(parseInt(String(id).replace(/\D/g, ""), 10) % 7 === 0),
-  description:
-    "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
-  variants: variantsFor(id),
-});
+// Extract warranty from name if present (e.g. "..., 2 Year Warranty" → "2 Year Warranty")
+const warrantyFromName = (name) => {
+  const m = name.match(/(\d+\s*Year\s*Warranty)/i);
+  return m ? m[1] : null;
+};
+
+// Demo extra gallery images — recycled to give every product multiple thumbs
+const GALLERY_POOL = [
+  "ai_img_(1).webp",
+  "ai_img_1_(2).png",
+  "ai_img_2_(3).png",
+  "ai_img_5_(2).png",
+  "47_(8).png",
+  "plain_image_2_53_(1).png",
+];
+
+const mk = (id, name, mrp, price, rating, reviews, category, seed) => {
+  const main = placeholder(seed);
+  const extras = GALLERY_POOL.map((s) => placeholder(s));
+  return {
+    id,
+    name,
+    image: main,
+    images: [main, ...extras].slice(0, 6),
+    mrp,
+    price,
+    discount: Math.round(((mrp - price) / mrp) * 100),
+    rating,
+    reviews,
+    category,
+    warranty: warrantyFromName(name),
+    inStock: !(parseInt(String(id).replace(/\D/g, ""), 10) % 7 === 0),
+    description:
+      "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+    variants: variantsFor(id, price, mrp),
+  };
+};
 
 export const bestsellers = [
   mk("p-001", "Radio Frequency Advance Cautery, 2 Year Warranty", 21000, 19000, 4.7, 312, "unique", "ai_img_(1).webp"),
@@ -96,16 +129,19 @@ export const endodontics = [
 
 export const premiumCategories=[
   {
+    id: "p-002",
     title: "Electric Portable Micromotor",
     description: "The Electric Portable Micromotor is a compact, pen-style rotary device with 3-speed power control, designed for efficient sanding, polishing, drilling, cutting, carving, and grinding with low heat generation and smooth performance.",
     imgSrc: "https://d2ypw3u7ezpmac.cloudfront.net/1_2_-removebg-preview.png",
   },
   {
+    id: "p-003",
     title: "Endomotor",
     description: "The Endo Motor by Smart Dental Innovations is a compact, rechargeable motor engineered for efficient and safe root canal procedures. With auto-reverse & auto-forward functions, bright LED illumination, and compatibility with 16:1 contra-angle handpieces, it ensures smooth instrumentation, reduced file separation, and enhanced clinical control during RCT.",
     imgSrc: "https://d2ypw3u7ezpmac.cloudfront.net/1766209325816-removebg-preview.png",
   },
   {
+    id: "p-004",
     title: "Straight Long Handpiece",
     description: "A high-performance surgical straight long handpiece designed for implantology and advanced surgical procedures, delivering smooth rotation, firm bur holding, and exceptional control.",
     imgSrc: "https://d2ypw3u7ezpmac.cloudfront.net/plain_images_19_1.png",
@@ -119,7 +155,6 @@ export const allProducts = [
   ...handpieces,
   ...matrixSystem,
   ...endodontics,
-  ...premiumCategories
 ];
 
 export const findProductById = (id) => allProducts.find((p) => p.id === id);
