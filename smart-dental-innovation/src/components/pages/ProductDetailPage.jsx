@@ -54,6 +54,7 @@ export default function ProductDetailPage() {
 
   const [pincode, setPincode] = useState("");
   const [pinMsg, setPinMsg] = useState("");
+  const [pinInfo, setPinInfo] = useState(null);
   const [catalogueDownloaded, setCatalogueDownloaded] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [reviewsOpen, setReviewsOpen] = useState(false);
@@ -86,9 +87,19 @@ export default function ProductDetailPage() {
   const checkPin = () => {
     if (!/^\d{6}$/.test(pincode)) {
       setPinMsg("Please enter a valid 6-digit pincode.");
+      setPinInfo(null);
       return;
     }
-    setPinMsg(`Delivery available to ${pincode} in ${productDefaults.deliveryDays}.`);
+    const daysStr = String(productDefaults.deliveryDays || "");
+    const m = daysStr.match(/(\d+)\s*-\s*(\d+)/) || daysStr.match(/(\d+)/);
+    const baseDays = m ? parseInt(m[2] || m[1], 10) : 5;
+    const pinSum = pincode.split("").reduce((s, d) => s + parseInt(d, 10), 0);
+    const addDays = baseDays + (pinSum % 3);
+    const eta = new Date();
+    eta.setDate(eta.getDate() + addDays);
+    const iso = `${eta.getFullYear()}-${String(eta.getMonth() + 1).padStart(2, "0")}-${String(eta.getDate()).padStart(2, "0")}`;
+    setPinInfo({ ok: true, date: iso });
+    setPinMsg("");
   };
 
   const onAdd = () => {
@@ -243,18 +254,20 @@ export default function ProductDetailPage() {
                   OUT OF STOCK
                 </button>
               ) : qty > 0 ? (
-                <div className="inline-flex items-center border-2 border-orange-500 rounded-md overflow-hidden">
-                  <button onClick={dec} className="w-9 h-9 bg-orange-500 text-white text-xl font-bold hover:bg-orange-600">−</button>
-                  <span className="w-10 text-center font-bold text-brand-ink">{qty}</span>
-                  <button onClick={inc} className="w-9 h-9 bg-orange-500 text-white text-xl font-bold hover:bg-orange-600">+</button>
+                <div className="inline-flex items-center border border-orange-500 rounded-lg overflow-hidden" style={{ borderRadius: 8 }}>
+                  <button onClick={dec} className="w-8 h-8 text-orange-500 text-lg font-semibold hover:bg-orange-50 transition">−</button>
+                  <span className="w-8 text-center font-semibold text-brand-ink text-sm">{qty}</span>
+                  <button onClick={inc} className="w-8 h-8 text-orange-500 text-lg font-semibold hover:bg-orange-50 transition">+</button>
                 </div>
               ) : (
                 <button
                   onClick={onAdd}
                   title="Add to cart"
-                  className="px-5 py-2 border-2 border-orange-500 text-orange-500 font-bold rounded-md hover:bg-orange-500 hover:text-white transition"
+                  type="button"
+                  className="text-orange-500 border border-orange-500 hover:bg-orange-50 font-medium uppercase text-sm tracking-wide transition"
+                  style={{ borderRadius: 8, paddingBlock: 4, paddingInline: 22, minWidth: 64 }}
                 >
-                  ADD
+                  add
                 </button>
               )}
             </div>
@@ -282,23 +295,64 @@ export default function ProductDetailPage() {
             )}
           </div>
 
-          <div className="border border-gray-200 rounded-xl p-5">
-            <h3 className="font-bold text-brand-ink mb-3">Delivery Details</h3>
-            <div className="flex items-stretch border border-gray-300 rounded-md overflow-hidden">
-              <span className="flex items-center px-2 bg-gray-50 text-xs">🇮🇳</span>
+          <div className="group border border-gray-200 rounded-xl p-5 transition-all duration-300 hover:border-[#3684bf] hover:shadow-lg hover:-translate-y-0.5 cursor-pointer">
+            <h3 className="font-bold text-brand-ink mb-3 transition-colors duration-300 group-hover:text-[#3684bf]">Delivery Details</h3>
+            <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-md px-3 py-1.5 transition-colors duration-200 hover:border-gray-800 focus-within:border-[#3684bf] focus-within:ring-1 focus-within:ring-[#3684bf]">
+              <svg width="20" height="20" viewBox="0 0 20 20" aria-label="India" className="shrink-0 rounded-full overflow-hidden">
+                <defs>
+                  <clipPath id="indFlagClip"><circle cx="10" cy="10" r="10" /></clipPath>
+                </defs>
+                <g clipPath="url(#indFlagClip)">
+                  <rect x="0" y="0" width="20" height="6.67" fill="#FF9933" />
+                  <rect x="0" y="6.67" width="20" height="6.66" fill="#FFFFFF" />
+                  <rect x="0" y="13.33" width="20" height="6.67" fill="#138808" />
+                  <circle cx="10" cy="10" r="1.6" fill="none" stroke="#000080" strokeWidth="0.5" />
+                </g>
+              </svg>
               <input
-                type="tel"
+                type="text"
                 inputMode="numeric"
                 maxLength={6}
                 placeholder="Enter pincode"
                 value={pincode}
-                onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                className="flex-1 px-3 py-2 text-sm focus:outline-none"
+                onChange={(e) => {
+                  setPincode(e.target.value.replace(/\D/g, "").slice(0, 6));
+                  setPinInfo(null);
+                  setPinMsg("");
+                }}
+                className="flex-1 min-w-0 text-sm text-brand-ink placeholder:text-gray-400 focus:outline-none bg-transparent"
               />
-              <button onClick={checkPin} className="px-4 text-[#3684bf] font-bold text-sm hover:bg-blue-50">
-                CHECK
+              <button
+                onClick={checkPin}
+                type="button"
+                className="text-[#3684bf] hover:bg-blue-50 active:bg-blue-100 font-medium text-sm uppercase tracking-wide px-2 py-1 rounded transition-colors"
+              >
+                Check
               </button>
             </div>
+            {pinInfo?.ok ? (
+              <div className="mt-3 space-y-2 text-sm">
+                <div className="flex items-center gap-2 text-brand-ink">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3684bf" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                    <rect x="1" y="6" width="14" height="11" rx="1" />
+                    <path d="M15 9h4l3 3v5h-7" />
+                    <circle cx="6" cy="19" r="2" />
+                    <circle cx="18" cy="19" r="2" />
+                  </svg>
+                  <span>Get it by <span className="font-semibold">{pinInfo.date}</span></span>
+                </div>
+                <div className="flex items-center gap-2 text-brand-ink">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3684bf" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                    <path d="M3 7h13l-3-3M21 17H8l3 3" />
+                  </svg>
+                  <span>Easy 7 days replacement available</span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-brand-muted mt-2 transition-opacity duration-300 group-hover:opacity-90">
+                Please enter PIN code to check delivery time & Pay on Delivery Availability
+              </p>
+            )}
             {pinMsg && (
               <p className={`text-xs mt-2 ${pinMsg.startsWith("Please") ? "text-red-600" : "text-brand-muted"}`}>{pinMsg}</p>
             )}
