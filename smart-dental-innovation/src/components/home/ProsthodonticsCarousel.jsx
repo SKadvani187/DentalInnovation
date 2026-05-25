@@ -130,10 +130,11 @@ export function ProsthodonticsCarousel() {
     openModal("cart");
   };
 
-  // Scroll handler matching step distance matching desktop viewports
+  // Scroll handler — step adapts to viewport
   const scroll = (direction) => {
     if (scrollRef.current) {
-      const scrollAmount = 380; 
+      const w = typeof window !== "undefined" ? window.innerWidth : 1280;
+      const scrollAmount = w < 640 ? 200 : w < 1024 ? 280 : 380;
       scrollRef.current.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
     }
   };
@@ -184,7 +185,7 @@ export function ProsthodonticsCarousel() {
             <div
               key={product.id}
               onClick={() => open(product)}
-              className="w-[180px] flex-none snap-start bg-white border border-gray-200 rounded-lg p-2.5 flex flex-col hover:shadow-md transition-shadow cursor-pointer"
+              className="w-[160px] sm:w-[180px] flex-none snap-start bg-white border border-gray-200 rounded-lg p-2.5 flex flex-col hover:shadow-md transition-shadow cursor-pointer"
             >
               
               {/* IMAGE ASSETS ENVELOPE: Squares container stops stretching */}

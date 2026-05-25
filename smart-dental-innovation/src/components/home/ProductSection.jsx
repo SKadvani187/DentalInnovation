@@ -47,6 +47,34 @@ export function RFCauterySection({ productId = "p-001" } = {}){
   const onView = () => navigate("product", { id: productId });
   return (
     <div className="px-2 sm:px-0">
+      {/* Mobile fallback */}
+      <div className="sm:hidden bg-[#007AFF]/10 px-4 py-8">
+        <div className="flex flex-col items-center text-center">
+          <img
+            src="https://merchant-cdn.storedum.com/Untitled_design_6_(1).png"
+            alt="RF Advance Cautery"
+            onClick={onView}
+            className="w-[55%] max-w-[220px] cursor-pointer"
+          />
+          <h3
+            onClick={onView}
+            className="font-montserrat text-2xl font-extrabold uppercase text-[#08070D] mt-4 leading-tight tracking-tight cursor-pointer"
+          >
+            RF Advance Cautery
+          </h3>
+          <p className="font-montserrat text-sm text-[#5a6472] mt-2 leading-relaxed">
+            High-performance surgical unit for precise, bloodless soft-tissue management with clean scalpel-like cutting and superior coagulation.
+          </p>
+          <button
+            type="button"
+            onClick={onView}
+            className="h-[44px] px-6 bg-[#007AFF] mt-5 rounded-full text-white font-extrabold text-sm hover:bg-[#006ce0] transition-colors"
+          >
+            VIEW DETAILS
+          </button>
+        </div>
+      </div>
+
       {/* Spacer matching height:100px on desktop */}
       <div className="hidden sm:flex h-[100px]"></div>
 
@@ -56,7 +84,7 @@ export function RFCauterySection({ productId = "p-001" } = {}){
         <div className="absolute inset-0 bg-[#007AFF] opacity-[0.15] top-0 left-0 w-full h-full pointer-events-none"></div>
 
         {/* Content Container */}
-        <div className="homepage-container-large px-[80px] w-full">
+        <div className="homepage-container-large px-6 md:px-12 lg:px-[80px] w-full">
           <div className="relative pt-[35px] flex flex-col items-start">
 
             {/* Main Product Image */}
@@ -64,18 +92,18 @@ export function RFCauterySection({ productId = "p-001" } = {}){
               src="https://merchant-cdn.storedum.com/Untitled_design_6_(1).png"
               alt="RF Advance Cautery"
               onClick={onView}
-              className="absolute right-0 left-auto top-[-100px] w-[28%] select-none cursor-pointer"
+              className="absolute right-0 left-auto top-[-60px] md:top-[-100px] w-[32%] md:w-[28%] select-none cursor-pointer"
             />
 
             {/* Main Product Info Panel */}
-            <div className="text-left w-[58%] flex flex-col items-start min-h-[300px]">
+            <div className="text-left w-[62%] md:w-[58%] flex flex-col items-start min-h-[260px] md:min-h-[300px]">
               <label
                 onClick={onView}
-                className="font-montserrat text-[56px] font-extrabold uppercase text-[#08070D] cursor-pointer select-none leading-tight tracking-tight"
+                className="font-montserrat text-[28px] md:text-[42px] lg:text-[56px] font-extrabold uppercase text-[#08070D] cursor-pointer select-none leading-tight tracking-tight"
               >
                 RF Advance Cautery
               </label>
-              <label className="font-montserrat text-[18px] font-normal text-[#5a6472] leading-relaxed mt-2">
+              <label className="font-montserrat text-sm md:text-base lg:text-[18px] font-normal text-[#5a6472] leading-relaxed mt-2">
                 The Radio Frequency Advance Electro Cautery by Younique Dental Innovations is a high-performance surgical
                 unit designed to deliver precise, smooth, and bloodless soft-tissue management in dental procedures.
                 Powered by advanced high-frequency radio waves, it enables clean scalpel-like cutting with excellent
@@ -86,7 +114,7 @@ export function RFCauterySection({ productId = "p-001" } = {}){
               <button
                 type="button"
                 onClick={onView}
-                className="h-[50px] w-[200px] bg-[#007AFF] mt-[20px] rounded-[100px] flex items-center justify-center text-white font-extrabold cursor-pointer hover:bg-[#006ce0] transition-colors"
+                className="h-[44px] md:h-[50px] px-6 md:w-[200px] bg-[#007AFF] mt-[20px] rounded-[100px] flex items-center justify-center text-white font-extrabold cursor-pointer hover:bg-[#006ce0] transition-colors text-sm md:text-base"
               >
                 <span className="select-none">VIEW DETAILS</span>
               </button>
@@ -94,7 +122,7 @@ export function RFCauterySection({ productId = "p-001" } = {}){
 
             {/* Features Grid (Replacing MuiGrid structure) */}
             <div className="mt-[30px] w-full">
-              <div className="grid grid-cols-3 gap-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
                 
                 {/* Feature 1: Active Handle */}
                 <div className="flex flex-col items-start text-left">
@@ -103,10 +131,10 @@ export function RFCauterySection({ productId = "p-001" } = {}){
                     alt="Active Handle"
                     className="w-[100px]"
                   />
-                  <label className="font-montserrat text-[22px] font-bold text-[#08070D] mt-[10px]">
+                  <label className="font-montserrat text-base md:text-lg lg:text-[22px] font-bold text-[#08070D] mt-[10px]">
                     Active Handle
                   </label>
-                  <label className="font-montserrat text-[16px] text-[#5a6472] leading-relaxed mt-[3px]">
+                  <label className="font-montserrat text-sm md:text-[16px] text-[#5a6472] leading-relaxed mt-[3px]">
                     A durable and ergonomically designed cautery active handle that ensures precise energy delivery and
                     comfortable control during electrosurgical procedures.
                   </label>
@@ -119,10 +147,10 @@ export function RFCauterySection({ productId = "p-001" } = {}){
                     alt="Hand Piece Pencil"
                     className="w-[100px]"
                   />
-                  <label className="font-montserrat text-[22px] font-bold text-[#08070D] mt-[10px]">
+                  <label className="font-montserrat text-base md:text-lg lg:text-[22px] font-bold text-[#08070D] mt-[10px]">
                     Hand Piece Pencil
                   </label>
-                  <label className="font-montserrat text-[16px] text-[#5a6472] leading-relaxed mt-[3px]">
+                  <label className="font-montserrat text-sm md:text-[16px] text-[#5a6472] leading-relaxed mt-[3px]">
                     A lightweight, ergonomically designed cautery hand switch pencil that provides precise, fingertip
                     control for safe and efficient electrosurgical procedures.
                   </label>
@@ -135,10 +163,10 @@ export function RFCauterySection({ productId = "p-001" } = {}){
                     alt="Bio Polar Tweezer"
                     className="w-[100px]"
                   />
-                  <label className="font-montserrat text-[22px] font-bold text-[#08070D] mt-[10px]">
+                  <label className="font-montserrat text-base md:text-lg lg:text-[22px] font-bold text-[#08070D] mt-[10px]">
                     Bio Polar Tweezer
                   </label>
-                  <label className="font-montserrat text-[16px] text-[#5a6472] leading-relaxed mt-[3px]">
+                  <label className="font-montserrat text-sm md:text-[16px] text-[#5a6472] leading-relaxed mt-[3px]">
                     A high-precision bipolar cautery tweezer designed for controlled coagulation with minimal thermal
                     spread and maximum surgical accuracy.
                   </label>
@@ -156,7 +184,7 @@ export function RFCauterySection({ productId = "p-001" } = {}){
           <div className="w-1/2 absolute right-0 left-auto h-[4px] bg-white"></div>
           
           {/* Outer Rounded Button Container */}
-          <div onClick={onView} className="h-full rounded-[100px] w-[16%] bg-white flex relative items-center justify-center cursor-pointer shadow-sm hover:shadow-md transition-shadow">
+          <div onClick={onView} className="h-full rounded-[100px] w-[60%] sm:w-[40%] md:w-[24%] lg:w-[16%] min-w-[220px] bg-white flex relative items-center justify-center cursor-pointer shadow-sm hover:shadow-md transition-shadow">
             
             {/* Embedded Action Icon Badge */}
             <div className="h-[45px] aspect-square absolute rounded-[100px] overflow-hidden left-[7.5px] flex items-center justify-center select-none pointer-events-none">
@@ -196,25 +224,25 @@ const CategoryCard = ({ item, onOpen }) => (
       {/* Content wrapper with scaling effects */}
       <div className="relative transition-all duration-300 transform scale-100 origin-top-left select-none">
         {/* Title Container */}
-        <div className="w-[300px] absolute top-5 left-0 px-5">
-          <p className="premium-category-view-a-view_title__JdJ5k text-[16px] font-semibold overflow-hidden text-ellipsis line-clamp-1 transition-all duration-300 text-[var(--text-primary)]">
+        <div className="w-[55%] sm:w-[60%] max-w-[300px] absolute top-4 sm:top-5 left-0 px-4 sm:px-5">
+          <p className="premium-category-view-a-view_title__JdJ5k text-sm sm:text-[16px] font-semibold overflow-hidden text-ellipsis line-clamp-1 transition-all duration-300 text-[var(--text-primary)]">
             {item.title}
           </p>
         </div>
-        
+
         {/* Subtitle / Description Container */}
-        <div className="premium-category-view-a-view_subTitleContainer__4ZH0l w-[60%] absolute top-[60px] left-0 px-5">
-          <p className="premium-category-view-a-view_subTitle__WnU7y text-[14px] overflow-hidden text-ellipsis line-clamp-6 transition-all duration-300 text-[var(--text-primary)] opacity-90 leading-relaxed">
+        <div className="premium-category-view-a-view_subTitleContainer__4ZH0l w-[55%] sm:w-[60%] absolute top-[44px] sm:top-[60px] left-0 px-4 sm:px-5">
+          <p className="premium-category-view-a-view_subTitle__WnU7y text-xs sm:text-[14px] overflow-hidden text-ellipsis line-clamp-5 sm:line-clamp-6 transition-all duration-300 text-[var(--text-primary)] opacity-90 leading-relaxed">
             {item.description}
           </p>
         </div>
       </div>
 
       {/* Product Image */}
-      <img 
-        src={item.imgSrc} 
-        alt={item.title} 
-        className="w-[45%] aspect-square object-cover absolute bottom-0 right-0 transition-all duration-300 transform scale-100 origin-bottom center select-none group-hover:scale-105"
+      <img
+        src={item.imgSrc}
+        alt={item.title}
+        className="w-[42%] sm:w-[45%] aspect-square object-cover absolute bottom-0 right-0 transition-all duration-300 transform scale-100 origin-bottom center select-none group-hover:scale-105"
       />
 
       {/* Decorative Bottom Circle Elements */}
@@ -253,9 +281,9 @@ export function PremiumCategories({products}){
         </div>
 
         {/* MOBILE VIEW: Displays as a smooth horizontally scrollable swipe row */}
-        <div className="flex sm:hidden overflow-x-auto gap-[10px] w-full scrollbar-none pb-2">
+        <div className="flex sm:hidden overflow-x-auto gap-3 w-full scrollbar-none pb-2 snap-x snap-mandatory">
           {products.map((item, index) => (
-            <div key={index} className="w-[80vw] shrink-0 overflow-hidden">
+            <div key={index} className="w-[78vw] max-w-[320px] shrink-0 overflow-hidden snap-start">
               <CategoryCard item={item} onOpen={onOpen} />
             </div>
           ))}

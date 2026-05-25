@@ -611,7 +611,7 @@ function ProductGallery({ product, wished, onWish }) {
         </div>
         {zoom && panelRect && createPortal(
           <div
-            className="fixed w-[480px] h-[480px] bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[9999] pointer-events-none"
+            className="hidden lg:block fixed w-[480px] h-[480px] bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[9999] pointer-events-none"
             style={{ top: panelRect.top, left: panelRect.left }}
           >
             <div
@@ -1084,7 +1084,7 @@ function SmartBenefitsCard() {
           </svg>
         </button>
       </div>
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {productBenefits.map((b) => (
           <div key={b.id} className="flex flex-col items-center text-center">
             <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center mb-2">

@@ -51,14 +51,14 @@ export default function ReviewsSection() {
         </h2>
 
         {/* 4-Column desktop track / Touch swipe tracking for mobile layout viewports */}
-        <div className="w-full flex sm:grid sm:grid-cols-4 gap-[30px] overflow-x-auto sm:overflow-x-visible snap-x snap-mandatory scrollbar-none pb-6">
+        <div className="w-full flex sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-[30px] overflow-x-auto sm:overflow-x-visible snap-x snap-mandatory scrollbar-none pb-6">
           {REVIEWS_DATA.map((review) => (
-            <div 
-              key={review.id} 
-              className="w-[85vw] sm:w-full shrink-0 snap-center relative flex flex-col items-center"
+            <div
+              key={review.id}
+              className="w-[85vw] min-w-[260px] sm:w-full sm:min-w-0 shrink-0 snap-center relative flex flex-col items-center"
             >
               {/* Profile Avatar sitting strictly on z-20 above the card border lines */}
-              <div className="pointer-events-none h-[100px] w-[100px] bg-white absolute rounded-full top-0 left-1/2 -translate-x-1/2 z-20 border border-neutral-100 shadow-sm overflow-hidden">
+              <div className="pointer-events-none h-[80px] w-[80px] sm:h-[100px] sm:w-[100px] bg-white absolute rounded-full top-0 left-1/2 -translate-x-1/2 z-20 border border-neutral-100 shadow-sm overflow-hidden">
                 <img 
                   alt={`${review.reviewer} profile`} 
                   src={review.avatar} 
@@ -67,8 +67,8 @@ export default function ReviewsSection() {
               </div>
 
               {/* Card Container Layout Box */}
-              <div className="bg-transparent pt-[50px] w-full mt-[50px] border border-[var(--main)] rounded-none relative z-10">
-                <div className="p-5 h-[255px] flex flex-col items-center justify-start">
+              <div className="bg-transparent pt-[40px] sm:pt-[50px] w-full mt-[40px] sm:mt-[50px] border border-[var(--main)] rounded-none relative z-10">
+                <div className="p-4 sm:p-5 min-h-[230px] sm:min-h-[255px] flex flex-col items-center justify-start">
                   
                   {/* Product Tagging Block */}
                   <div className="flex items-center mb-3 cursor-pointer w-full justify-center">

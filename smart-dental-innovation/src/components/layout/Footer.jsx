@@ -40,19 +40,19 @@ export function Footer() {
   return (
     <footer className="w-full bg-[var(--background-secondary,#f8f9fa)] text-[var(--text-primary,#212529)] border-t border-gray-200">
       <TopBar />
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 py-12">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-11 gap-8">
-          
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 py-10 sm:py-12">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-11 gap-6 sm:gap-8">
+
           {FOOTER_SECTIONS.map((section) => {
             const lgSpan = section.title === "CONTACT WITH US" ? "lg:col-span-3" : "lg:col-span-2";
             return (
               <div key={section.title} className={`flex flex-col ${lgSpan}`}>
-                <h6 className="text-[14px] font-bold tracking-wider text-gray-900 uppercase mb-4">
+                <h6 className="text-[13px] sm:text-[14px] font-bold tracking-wider text-gray-900 uppercase mb-3 sm:mb-4">
                   {section.title}
                 </h6>
-                <div className="flex flex-col gap-2.5">
+                <div className="flex flex-col gap-2 sm:gap-2.5">
                   {section.links.map((link) => (
-                    <a key={link.label} href={link.href} className="text-[13px] text-gray-600 font-medium hover:text-[var(--main,#1976d2)] transition-colors no-underline">
+                    <a key={link.label} href={link.href} className="text-[12px] sm:text-[13px] text-gray-600 font-medium hover:text-[var(--main,#1976d2)] transition-colors no-underline">
                       {link.label}
                     </a>
                   ))}
@@ -62,7 +62,7 @@ export function Footer() {
           })}
 
           {/* REGISTERED OFFICE ADDRESS */}
-          <div className="col-span-1 sm:col-span-2 md:col-span-4 lg:col-span-2 flex flex-col">
+          <div className="col-span-2 md:col-span-3 lg:col-span-2 flex flex-col">
             <h6 className="text-[14px] font-bold tracking-wider text-gray-900 uppercase mb-4">
               REGISTERED OFFICE ADDRESS
             </h6>
