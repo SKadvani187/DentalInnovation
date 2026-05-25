@@ -52,7 +52,12 @@ export default function NavigationHeader() {
         </div>
 
         {/* Absolute Centered Search Bar */}
-        <div className="absolute left-1/2 -translate-x-1/2 w-[40%] h-[52px] border border-solid border-[var(--text-primary-2)] rounded-[100px] min-w-[300px] flex items-center px-[20px] gap-[10px] bg-[var(--background-primary)] cursor-pointer transition-all duration-300">
+        <div
+          onClick={() => openModal("search")}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && openModal("search")}
+          className="absolute left-1/2 -translate-x-1/2 w-[40%] h-[52px] border border-solid border-[var(--text-primary-2)] rounded-[100px] min-w-[300px] flex items-center px-[20px] gap-[10px] bg-[var(--background-primary)] cursor-pointer transition-all duration-300 hover:shadow-md">
           <svg viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-[20px]">
             <path
               d="M14.5 14.5L10.5 10.5M6.5 12.5C3.18629 12.5 0.5 9.81371 0.5 6.5C0.5 3.18629 3.18629 0.5 6.5 0.5C9.81371 0.5 12.5 3.18629 12.5 6.5C12.5 9.81371 9.81371 12.5 6.5 12.5Z"

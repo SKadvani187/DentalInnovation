@@ -65,6 +65,39 @@ export const bulkRule = {
   rate: 0.1, // 10% per line when qty >= minQty
 };
 
+// Coupon offers — applied at cart. Discount: { type: "flat"|"percent", value, max? }.
+export const coupons = [
+  {
+    code: "SDI100",
+    title: "Flat ₹100 off",
+    desc: "Min order ₹1,500. Auto-eligible.",
+    minSubtotal: 1500,
+    discount: { type: "flat", value: 100 },
+  },
+  {
+    code: "WELCOME10",
+    title: "10% off (up to ₹500)",
+    desc: "First order or any cart above ₹2,000.",
+    minSubtotal: 2000,
+    discount: { type: "percent", value: 10, max: 500 },
+  },
+  {
+    code: "DENTAL15",
+    title: "Flat 15% off",
+    desc: "On orders above ₹10,000.",
+    minSubtotal: 10000,
+    discount: { type: "percent", value: 15, max: 3000 },
+  },
+  {
+    code: "FREESHIP",
+    title: "Free shipping",
+    desc: "Removes delivery charges. Min ₹500.",
+    minSubtotal: 500,
+    discount: { type: "flat", value: 0 },
+    perk: "shipping",
+  },
+];
+
 // Sort options used across category & combos
 export const sortOptions = [
   { id: "all", label: "All Products" },

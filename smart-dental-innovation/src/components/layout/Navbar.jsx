@@ -29,6 +29,7 @@ export default function Navbar() {
         <div className="flex-1 max-w-2xl hidden md:block">
           <button
             type="button"
+            onClick={() => openModal("search")}
             className="w-full h-10 flex items-center gap-3 px-4 border border-gray-300 rounded-lg text-left text-brand-muted hover:border-brand-navy transition"
           >
             <svg width="18" height="18" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.2">
@@ -99,6 +100,7 @@ export default function Navbar() {
       <div className="md:hidden px-3 pb-3">
         <button
           type="button"
+          onClick={() => openModal("search")}
           className="w-full h-10 flex items-center gap-3 px-4 border border-gray-300 rounded-lg text-left text-brand-muted"
         >
           <svg width="16" height="16" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.2">

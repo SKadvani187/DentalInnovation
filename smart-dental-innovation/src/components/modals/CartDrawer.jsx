@@ -5,7 +5,7 @@ import { useUI } from "../../context/UIContext";
 import { useCart } from "../../context/CartContext";
 import { useWishlist } from "../../context/WishlistContext";
 import { useAuth } from "../../context/AuthContext";
-import { fbtItems as FBT_ITEMS, freeGifts, bulkRule } from "../../data/site";
+import { fbtItems as FBT_ITEMS, freeGifts, bulkRule, coupons as COUPONS } from "../../data/site";
 
 const fmt = (n) => `₹${Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -26,6 +26,11 @@ export default function CartDrawer() {
   const { toggle: toggleWish } = useWishlist();
   const [priceOpen, setPriceOpen] = useState(true);
   const [confirmRemove, setConfirmRemove] = useState(null);
+  const [view, setView] = useState("cart");
+  const [couponCode, setCouponCode] = useState("");
+  const [couponTab, setCouponTab] = useState("all");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponMsg, setCouponMsg] = useState("");
 
   const askRemove = (item) => setConfirmRemove(item);
   const closeConfirm = () => setConfirmRemove(null);
@@ -56,20 +61,82 @@ export default function CartDrawer() {
   const mrpTotal = items.reduce((s, i) => s + (i.mrp || i.price) * i.qty, 0);
   const productDiscount = Math.max(0, mrpTotal - subtotal);
   const FREE_DELIVERY_THRESHOLD = 20000;
-  const deliveryCharges = subtotal >= FREE_DELIVERY_THRESHOLD || items.length === 0 ? 0 : 600;
+  const baseDelivery = subtotal >= FREE_DELIVERY_THRESHOLD || items.length === 0 ? 0 : 600;
   const codCharges = 0;
-  const finalTotal = Math.max(0, subtotal - bulkSavings) + deliveryCharges + codCharges;
-  const totalSaved = Math.max(0, mrpTotal - (subtotal - bulkSavings));
+  const couponShippingWaived = appliedCoupon?.perk === "shipping";
+  const deliveryCharges = couponShippingWaived ? 0 : baseDelivery;
+  const couponDiscount = (() => {
+    if (!appliedCoupon || subtotal < appliedCoupon.minSubtotal) return 0;
+    const d = appliedCoupon.discount;
+    if (d.type === "flat") return d.value;
+    if (d.type === "percent") {
+      const raw = Math.round(subtotal * (d.value / 100));
+      return d.max ? Math.min(raw, d.max) : raw;
+    }
+    return 0;
+  })();
+  const finalTotal = Math.max(0, subtotal - bulkSavings - couponDiscount) + deliveryCharges + codCharges;
+  const totalSaved = Math.max(0, mrpTotal - (subtotal - bulkSavings - couponDiscount));
   const showFreeGifts = subtotal >= freeGifts.threshold;
+
+  const eligibleCoupons = COUPONS.filter((c) => subtotal >= c.minSubtotal);
+  const unavailableCoupons = COUPONS.filter((c) => subtotal < c.minSubtotal);
+  const visibleCoupons = couponTab === "all" ? eligibleCoupons : unavailableCoupons;
+  const codeFilter = couponCode.trim().toUpperCase();
+  const filteredCoupons = codeFilter
+    ? visibleCoupons.filter((c) => c.code.includes(codeFilter))
+    : visibleCoupons;
+
+  const applyCoupon = (c) => {
+    if (subtotal < c.minSubtotal) {
+      setCouponMsg(`Add ${fmt(c.minSubtotal - subtotal)} more to use ${c.code}.`);
+      return;
+    }
+    setAppliedCoupon(c);
+    setCouponMsg(`${c.code} applied.`);
+    setView("cart");
+  };
+
+  const onCouponInputSubmit = () => {
+    const code = couponCode.trim().toUpperCase();
+    if (!code) return;
+    const match = COUPONS.find((c) => c.code === code);
+    if (!match) {
+      setCouponMsg(`Invalid coupon "${code}".`);
+      return;
+    }
+    applyCoupon(match);
+  };
+
+  const closeAll = () => {
+    setView("cart");
+    closeModal();
+  };
+
+  const headerTitle = view === "coupons" ? (
+    <div className="flex items-center gap-2 leading-tight">
+      <button
+        onClick={() => setView("cart")}
+        aria-label="Back"
+        className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-brand-ink"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M15 6l-6 6 6 6" /></svg>
+      </button>
+      <div>
+        <div className="text-lg font-semibold text-brand-ink">Coupons</div>
+        <div className="text-xs text-brand-muted font-normal">Enter code or choose an offer</div>
+      </div>
+    </div>
+  ) : "Your Cart";
 
   return (
     <Drawer
       open={modal === "cart"}
-      onClose={closeModal}
-      title="Your Cart"
-      titleIcon={cartIcon}
+      onClose={closeAll}
+      title={headerTitle}
+      titleIcon={view === "coupons" ? null : cartIcon}
       footer={
-        items.length > 0 && (
+        view === "cart" && items.length > 0 && (
           <div className="space-y-3 -mx-5 -my-4 px-5 py-4 bg-white border-t border-gray-200">
             {/* Price summary bar */}
             <button
@@ -95,6 +162,12 @@ export default function CartDrawer() {
                   <div className="flex items-center justify-between">
                     <span className="text-brand-ink">Product Discount</span>
                     <span className="font-semibold text-green-600">-₹{productDiscount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+                {couponDiscount > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-brand-ink">Coupon ({appliedCoupon.code})</span>
+                    <span className="font-semibold text-green-600">-₹{couponDiscount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 )}
                 <div className="flex items-center justify-between pt-1 border-t border-gray-200">
@@ -159,7 +232,21 @@ export default function CartDrawer() {
         )
       }
     >
-      {items.length === 0 ? (
+      {view === "coupons" ? (
+        <CouponsPanel
+          code={couponCode}
+          setCode={setCouponCode}
+          tab={couponTab}
+          setTab={setCouponTab}
+          allCount={eligibleCoupons.length}
+          unavailableCount={unavailableCoupons.length}
+          coupons={filteredCoupons}
+          subtotal={subtotal}
+          onSubmit={onCouponInputSubmit}
+          onApply={applyCoupon}
+          msg={couponMsg}
+        />
+      ) : items.length === 0 ? (
         <EmptyCart closeModal={closeModal} />
       ) : (
         <div className="-mx-5 -my-4">
@@ -271,13 +358,31 @@ export default function CartDrawer() {
           </div>
 
           <div className="px-5 py-3 bg-white border-b border-gray-100">
-            <button className="w-full flex items-center justify-between border border-gray-200 rounded-lg px-4 py-3 hover:border-green-500 hover:bg-green-50 transition">
-              <span className="flex items-center gap-2 text-green-700 font-semibold">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>
-                View Coupons
-              </span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5"><path d="M9 6l6 6-6 6" /></svg>
-            </button>
+            {appliedCoupon ? (
+              <div className="w-full flex items-center justify-between border border-green-500 bg-green-50 rounded-lg px-4 py-3">
+                <span className="flex items-center gap-2 text-green-700 font-semibold">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>
+                  {appliedCoupon.code} applied
+                </span>
+                <button
+                  onClick={() => { setAppliedCoupon(null); setCouponMsg(""); }}
+                  className="text-xs text-red-600 font-semibold hover:underline"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setView("coupons"); setCouponMsg(""); }}
+                className="w-full flex items-center justify-between border border-gray-200 rounded-lg px-4 py-3 hover:border-green-500 hover:bg-green-50 transition"
+              >
+                <span className="flex items-center gap-2 text-green-700 font-semibold">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>
+                  View Coupons
+                </span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5"><path d="M9 6l6 6-6 6" /></svg>
+              </button>
+            )}
           </div>
 
           <FrequentlyBought />
@@ -450,6 +555,115 @@ function TrustSeal() {
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function CouponsPanel({ code, setCode, tab, setTab, allCount, unavailableCount, coupons, subtotal, onSubmit, onApply, msg }) {
+  return (
+    <div className="-mx-5 -my-4 bg-gray-50 min-h-full">
+      <div className="px-5 py-4 bg-white border-b border-gray-100">
+        <div className="flex items-center gap-2 border border-gray-300 rounded-md px-3 py-2 bg-white">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" className="shrink-0">
+            <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" />
+            <line x1="7" y1="7" x2="7.01" y2="7" />
+          </svg>
+          <input
+            type="text"
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            onKeyDown={(e) => e.key === "Enter" && onSubmit()}
+            placeholder="ENTER COUPON CODE"
+            className="flex-1 min-w-0 text-sm text-brand-ink placeholder:text-gray-400 focus:outline-none bg-transparent uppercase tracking-wide"
+          />
+          {code && (
+            <button
+              onClick={onSubmit}
+              className="text-[#3684bf] font-semibold text-sm hover:underline"
+            >
+              Apply
+            </button>
+          )}
+        </div>
+        {msg && (
+          <p className={`mt-2 text-xs ${msg.includes("applied") ? "text-green-600" : "text-red-600"}`}>{msg}</p>
+        )}
+      </div>
+
+      <div className="px-5 py-3 bg-white border-b border-gray-100 flex items-center gap-2">
+        <button
+          onClick={() => setTab("all")}
+          className={`px-3 py-1.5 rounded-md text-sm font-semibold border transition ${
+            tab === "all"
+              ? "border-[#3684bf] text-[#3684bf] bg-blue-50"
+              : "border-gray-200 text-brand-muted hover:bg-gray-50"
+          }`}
+        >
+          All{allCount > 0 ? ` (${allCount})` : ""}
+        </button>
+        <button
+          onClick={() => setTab("unavailable")}
+          className={`px-3 py-1.5 rounded-md text-sm font-semibold border transition ${
+            tab === "unavailable"
+              ? "border-[#3684bf] text-[#3684bf] bg-blue-50"
+              : "border-gray-200 text-brand-muted hover:bg-gray-50"
+          }`}
+        >
+          Unavailable{unavailableCount > 0 ? ` (${unavailableCount})` : ""}
+        </button>
+      </div>
+
+      <div className="px-5 py-5">
+        {coupons.length === 0 ? (
+          <div className="text-center text-sm text-brand-muted py-16">No coupons available</div>
+        ) : (
+          <ul className="space-y-3">
+            {coupons.map((c) => {
+              const eligible = subtotal >= c.minSubtotal;
+              return (
+                <li
+                  key={c.code}
+                  className={`relative bg-white border rounded-lg p-4 flex items-start gap-3 transition ${
+                    eligible ? "border-gray-200 hover:border-[#3684bf]" : "border-gray-200 opacity-70"
+                  }`}
+                >
+                  <div className="w-10 h-10 rounded-md bg-[#3684bf]/10 text-[#3684bf] flex items-center justify-center shrink-0">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" />
+                      <line x1="7" y1="7" x2="7.01" y2="7" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-brand-ink text-sm">{c.code}</span>
+                      <span className="text-[10px] font-bold text-green-700 bg-green-50 border border-green-100 rounded px-1.5 py-0.5 uppercase">
+                        {c.title}
+                      </span>
+                    </div>
+                    <p className="text-xs text-brand-muted mt-1">{c.desc}</p>
+                    {!eligible && (
+                      <p className="text-[11px] text-red-600 mt-1">
+                        Add {`₹${(c.minSubtotal - subtotal).toLocaleString("en-IN")}`} more to use this coupon.
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => onApply(c)}
+                    disabled={!eligible}
+                    className={`shrink-0 text-xs font-bold uppercase px-3 py-1.5 rounded transition ${
+                      eligible
+                        ? "text-[#3684bf] hover:bg-blue-50"
+                        : "text-gray-400 cursor-not-allowed"
+                    }`}
+                  >
+                    Apply
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
     </div>
   );
