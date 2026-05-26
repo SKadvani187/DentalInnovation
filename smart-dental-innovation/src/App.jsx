@@ -18,6 +18,7 @@ import WishlistDrawer from "./components/modals/WishlistDrawer";
 import CheckoutModal from "./components/modals/CheckoutModal";
 import AuthModal from "./components/modals/AuthModal";
 import SearchModal from "./components/modals/SearchModal";
+import BulkQuoteModal from "./components/modals/BulkQuoteModal";
 import CategoryPage from "./components/pages/CategoryPage";
 import CombosPage from "./components/pages/CombosPage";
 import EventsPage from "./components/pages/EventsPage";
@@ -119,6 +120,7 @@ function Shell() {
       <CheckoutModal />
       <AuthModal />
       <SearchModal />
+      <BulkQuoteModal />
       <ToastHost />
     </>
   );

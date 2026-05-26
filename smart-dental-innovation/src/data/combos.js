@@ -1,17 +1,57 @@
 const img = (seed) => `https://merchant-cdn.storedum.com/${seed}`;
 
-const mkCombo = (id, name, mrp, price, seed) => ({
-  id,
-  name,
-  image: img(seed),
-  mrp,
-  price,
-  discount: Math.round(((mrp - price) / mrp) * 100),
-  category: "combo",
-  inStock: true,
-  description: "Carefully curated combo pack for dental clinics — better value than individual items.",
-  variants: [],
-});
+const GALLERY_POOL = [
+  "ai_img_(1).webp",
+  "ai_img_1_(2).png",
+  "ai_img_2_(3).png",
+  "ai_img_5_(2).png",
+  "47_(8).png",
+  "plain_image_2_53_(1).png",
+  "ai_img_6_(1).png",
+  "ai_img_9_(1).png",
+  "ai_img_22_(1).png",
+  "ai_img_35_(2).png",
+  "ai_img_40_(5).png",
+  "ai_img_42_(1).png",
+  "WhatsApp_Image_2026-03-07_at_12.34.31_PM.jpeg",
+  "dq3oxgejdhsf5sv5ym37_(7).webp",
+  "plain_images_19_1.png",
+  "plain_images_68_(1).png",
+];
+
+const galleryFor = (id, mainSeed) => {
+  const n = parseInt(String(id).replace(/\D/g, ""), 10) || 0;
+  const start = n % GALLERY_POOL.length;
+  const picked = [];
+  for (let i = 0; i < 5; i++) {
+    const seed = GALLERY_POOL[(start + i * 3 + 1) % GALLERY_POOL.length];
+    if (seed !== mainSeed && !picked.includes(seed)) picked.push(seed);
+    if (picked.length >= 5) break;
+  }
+  let k = 0;
+  while (picked.length < 5 && k < GALLERY_POOL.length) {
+    const seed = GALLERY_POOL[k++];
+    if (seed !== mainSeed && !picked.includes(seed)) picked.push(seed);
+  }
+  return [img(mainSeed), ...picked.map(img)];
+};
+
+const mkCombo = (id, name, mrp, price, seed) => {
+  const main = img(seed);
+  return {
+    id,
+    name,
+    image: main,
+    images: galleryFor(id, seed),
+    mrp,
+    price,
+    discount: Math.round(((mrp - price) / mrp) * 100),
+    category: "combo",
+    inStock: true,
+    description: "Carefully curated combo pack for dental clinics — better value than individual items.",
+    variants: [],
+  };
+};
 
 export const combos = [
   mkCombo("c-001", "Trial Pack Combo", 2100, 1199, "plain_images_19_1.png"),

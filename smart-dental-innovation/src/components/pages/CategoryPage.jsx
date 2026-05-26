@@ -205,8 +205,8 @@ function PriceRange({ min, max, valueMin, valueMax, onChange }) {
 
 function ProductCard({ product }) {
   const { addToCart } = useCart();
-  const { openModal, navigate } = useUI();
-  const openProduct = () => navigate("product", { id: product.id });
+  const { openModal, navigate, view } = useUI();
+  const openProduct = () => navigate("product", { id: product.id, fromCategory: view?.params?.category });
   const variants = Array.isArray(product.variants)
     ? product.variants.filter((v) => typeof v === "object")
     : [];

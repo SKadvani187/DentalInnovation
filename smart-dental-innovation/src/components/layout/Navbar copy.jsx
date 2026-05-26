@@ -29,7 +29,32 @@ export default function NavigationHeader() {
 
   const subNavButtonStyle = "text-[15px] font-semibold flex items-center gap-[5px] whitespace-nowrap border-0 border-solid border-[var(--border-color-light)] px-[10px] py-[2px] rounded-[8px] bg-none cursor-pointer";
 
-  const searchPlaceholder = "Search over 1,000 Dental Products".split("");
+  const SEARCH_PHRASES = [
+    "Search over 1,000 Dental Products",
+    "Find Endodontics, Implants, Burs...",
+    "Shop Handpieces, Cautery & more",
+    "Best deals on Restorative Kits",
+  ];
+  const [phraseIdx, setPhraseIdx] = useState(0);
+  const [phase, setPhase] = useState("in"); // "in" | "out"
+
+  useEffect(() => {
+    const phrase = SEARCH_PHRASES[phraseIdx];
+    const lettersDuration = 30 * phrase.length;
+    const inHold = 450 + lettersDuration;
+    const visibleHold = 2200;
+    const outAnim = 350 + lettersDuration;
+
+    const outTimer = setTimeout(() => setPhase("out"), inHold + visibleHold);
+    const nextTimer = setTimeout(() => {
+      setPhase("in");
+      setPhraseIdx((i) => (i + 1) % SEARCH_PHRASES.length);
+    }, inHold + visibleHold + outAnim);
+
+    return () => { clearTimeout(outTimer); clearTimeout(nextTimer); };
+  }, [phraseIdx]);
+
+  const currentPhrase = SEARCH_PHRASES[phraseIdx];
 
   const goAndClose = (fn) => () => { setMobileOpen(false); fn(); };
 
@@ -80,12 +105,13 @@ export default function NavigationHeader() {
               stroke="black"
             />
           </svg>
-          <div className="inline-flex flex-wrap perspective-[1000px] min-h-[1.2em] overflow-hidden text-sm lg:text-base">
-            <div className="inline-flex flex-wrap">
-              {searchPlaceholder.map((char, index) => (
+          <div className="inline-flex flex-wrap perspective-[1000px] min-h-[1.2em] overflow-hidden text-sm lg:text-base whitespace-nowrap">
+            <div key={`${phraseIdx}-${phase}`} className="inline-flex flex-nowrap">
+              {currentPhrase.split("").map((char, index) => (
                 <span
                   key={index}
-                  className={`inline-block origin-center-bottom opacity-100 transform-none ${char === " " ? "whitespace-pre" : "whitespace-normal"}`}
+                  className={`search-letter ${phase}`}
+                  style={{ animationDelay: `${index * 30}ms` }}
                 >
                   {char === " " ? " " : char}
                 </span>

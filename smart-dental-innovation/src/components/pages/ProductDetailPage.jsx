@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { allProducts, findProductById } from "../../data/products";
 import { combos } from "../../data/combos";
@@ -12,7 +12,7 @@ import { categories } from "../../data/categories";
 const fmt = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 
 export default function ProductDetailPage() {
-  const { view, navigate, openModal } = useUI();
+  const { view, navigate, openModal, setSelectedProduct, showToast } = useUI();
   const { addToCart, items, updateQty, removeFromCart } = useCart();
   const { has, toggle } = useWishlist();
 
@@ -61,8 +61,12 @@ export default function ProductDetailPage() {
   const [crumbsOpen, setCrumbsOpen] = useState(false);
   const wished = has(product.id);
 
-  const crumbCategory = categories.find((c) => c.id === product.category) || categories[0];
-  const otherCategories = categories.filter((c) => c.id !== product.category).slice(0, 5);
+  const fromCategory = view?.params?.fromCategory;
+  const crumbCategory =
+    (fromCategory && categories.find((c) => c.id === fromCategory)) ||
+    categories.find((c) => c.id === product.category) ||
+    categories[0];
+  const otherCategories = categories.filter((c) => c.id !== crumbCategory.id).slice(0, 8);
 
   const catalogueFile = `${product.name.split(" ")[0]}_${product.name.split(" ")[1] || "Catalogue"}.pdf`;
   const onDownloadCatalogue = () => {
@@ -172,7 +176,7 @@ export default function ProductDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* LEFT image gallery */}
-        <div className="lg:col-span-5 lg:sticky lg:top-20 lg:self-start">
+        <div className="lg:col-span-5 lg:sticky lg:top-[110px] lg:self-start">
           <ProductGallery product={product} wished={wished} onWish={() => toggle(product.id)} />
         </div>
 
@@ -184,7 +188,14 @@ export default function ProductDetailPage() {
             </div>
             <div className="mb-3 flex items-center gap-2 flex-wrap">
               {outOfStock && (
-                <span className="inline-block bg-[#e57373] text-white text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full">
+                <span
+                  className="inline-flex items-center text-white font-bold rounded-full"
+                  style={{
+                    background: "linear-gradient(135deg, rgb(220, 38, 38) 0%, rgb(153, 27, 27) 100%)",
+                    fontSize: "13px",
+                    padding: "4px 8px",
+                  }}
+                >
                   Out of Stock
                 </span>
               )}
@@ -425,12 +436,11 @@ export default function ProductDetailPage() {
 
             <div className="grid grid-cols-2 gap-2 mt-4">
               <button
-                disabled={outOfStock}
                 onClick={() => {
                   const msg = encodeURIComponent(`Hi, I'm interested in ${product.name} (₹${product.price}). Is it available?`);
                   window.open(`https://wa.me/919328762586?text=${msg}`, "_blank");
                 }}
-                className={`relative flex items-center justify-center bg-white border border-gray-200 rounded-lg h-[45px] w-full hover:border-green-500 transition ${outOfStock ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                className="relative flex items-center justify-center bg-white border border-gray-200 rounded-lg h-[45px] w-full hover:border-green-500 transition cursor-pointer"
               >
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="#16a34a" className="mr-2">
                   <path d="M20.52 3.48A11.94 11.94 0 0012 0C5.37 0 0 5.37 0 12c0 2.11.55 4.16 1.6 5.97L0 24l6.18-1.62A11.95 11.95 0 0012 24c6.63 0 12-5.37 12-12 0-3.2-1.25-6.21-3.48-8.52zM12 22a9.9 9.9 0 01-5.05-1.38l-.36-.21-3.67.96.98-3.58-.23-.37A9.93 9.93 0 012 12c0-5.52 4.48-10 10-10s10 4.48 10 10-4.48 10-10 10zm5.42-7.46c-.3-.15-1.76-.87-2.03-.96-.27-.1-.47-.15-.67.15-.2.3-.77.96-.94 1.16-.17.2-.35.22-.65.07-.3-.15-1.25-.46-2.38-1.46-.88-.78-1.47-1.75-1.65-2.05-.17-.3-.02-.46.13-.6.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51l-.57-.01c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48 0 1.46 1.06 2.87 1.21 3.07.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.63.71.23 1.36.2 1.87.12.57-.08 1.76-.72 2.01-1.41.25-.7.25-1.29.17-1.41-.07-.12-.27-.2-.57-.35z" />
@@ -441,12 +451,18 @@ export default function ProductDetailPage() {
                 </div>
               </button>
               {outOfStock ? (
-                <button
-                  disabled
-                  className="bg-gray-400 text-white font-bold text-sm py-2.5 rounded-md cursor-not-allowed"
-                >
-                  OUT OF STOCK
-                </button>
+                <div className="buy-now-btn buy-now-btn--disabled" style={{ animation: "none" }}>
+                  <div className="buy-now-btn__shadow" />
+                  <div className="buy-now-btn__face">
+
+                    <span className="buy-now-btn__shimmer" />
+                    <span className="relative flex items-center justify-center select-none pointer-events-none" style={{ color: "black" }}>
+                      {"Out of Stock".split("").map((c, i) => (
+                        <span key={i}>{c === " " ? " " : c}</span>
+                      ))}
+                    </span>
+                  </div>
+                </div>
               ) : (
                 <div className="buy-now-btn">
                   <div className="buy-now-btn__shadow" />
@@ -465,7 +481,10 @@ export default function ProductDetailPage() {
 
           <div className="border border-gray-200 rounded-xl p-5 text-center">
             <p className="text-sm text-brand-ink mb-3">Want to buy even more quantity ?</p>
-            <button className="w-full border border-[#3684bf] text-[#3684bf] font-bold text-sm py-2.5 rounded-md uppercase hover:bg-[#3684bf] hover:text-white transition">
+            <button
+              onClick={() => { setSelectedProduct(product); openModal("bulk"); }}
+              className="w-full border border-[#3684bf] text-[#3684bf] font-bold text-sm py-2.5 rounded-md uppercase hover:bg-[#3684bf] hover:text-white transition"
+            >
               Get Bulk Quote Now
             </button>
           </div>
@@ -538,6 +557,17 @@ function ProductGallery({ product, wished, onWish }) {
   const current = images[idx] || product.image;
   const prev = () => { setIdx((i) => (i - 1 + images.length) % images.length); setZoom(null); setHovering(false); };
   const next = () => { setIdx((i) => (i + 1) % images.length); setZoom(null); setHovering(false); };
+
+  useEffect(() => { setIdx(0); }, [product.id]);
+
+  useEffect(() => {
+    if (images.length <= 1) return;
+    if (hovering) return;
+    const t = setInterval(() => {
+      setIdx((i) => (i + 1) % images.length);
+    }, 3000);
+    return () => clearInterval(t);
+  }, [images.length, hovering, product.id]);
 
   const onMove = (e) => {
     if (!hovering) return;

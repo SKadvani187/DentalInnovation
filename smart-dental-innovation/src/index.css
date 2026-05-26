@@ -93,6 +93,25 @@ body {
   cursor: not-allowed;
 }
 
+/* Animated search bar placeholder — letters flip in from bottom, out to top */
+@keyframes search-letter-in {
+  0%   { opacity: 0; transform: rotateX(90deg) translateY(40%); }
+  60%  { opacity: 1; transform: rotateX(0deg) translateY(0); }
+  100% { opacity: 1; transform: rotateX(0deg) translateY(0); }
+}
+@keyframes search-letter-out {
+  0%   { opacity: 1; transform: rotateX(0deg) translateY(0); }
+  100% { opacity: 0; transform: rotateX(-90deg) translateY(-40%); }
+}
+.search-letter {
+  display: inline-block;
+  transform-origin: center bottom;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+}
+.search-letter.in  { animation: search-letter-in  450ms ease forwards; }
+.search-letter.out { animation: search-letter-out 350ms ease forwards; }
+
 /* Animated Buy Now button — match reference site */
 @keyframes buy-now-shake {
   0%, 100% { transform: translate(0, 0); }
@@ -145,6 +164,11 @@ body {
 }
 .buy-now-btn__face:hover {
   background-color: #fde047;
+}
+.buy-now-btn--disabled .buy-now-btn__face,
+.buy-now-btn--disabled .buy-now-btn__face:hover {
+  background-color: #cccccc !important;
+  cursor: not-allowed;
 }
 .buy-now-btn__shimmer {
   position: absolute;

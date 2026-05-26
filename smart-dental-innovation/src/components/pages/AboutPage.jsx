@@ -1,3 +1,5 @@
+import { useUI } from "../../context/UIContext";
+
 export default function AboutPage() {
   return (
     <div>
@@ -419,19 +421,20 @@ function MissionVision() {
 }
 
 function WhatWeOffer() {
+  const { navigate } = useUI();
   const items = [
-    { label: "Unique Products", icon: "💡" },
-    { label: "Restorative", icon: "🦷" },
-    { label: "Endodontics", icon: "🔧" },
-    { label: "Implantology", icon: "🪛" },
-    { label: "Mirrors", icon: "🪞" },
-    { label: "Handpiece", icon: "⚙️" },
-    { label: "Implant Components", icon: "🔩" },
-    { label: "Dental Burs", icon: "💎" },
-    { label: "Accessories", icon: "🧰" },
-    { label: "Smartmed Scrub", icon: "🥼" },
-    { label: "New Clinic Setup", icon: "🏥" },
-    { label: "New Arrivals", icon: "🆕" },
+    { label: "Unique Products", icon: "💡", category: "unique" },
+    { label: "Restorative", icon: "🦷", category: "restorative" },
+    { label: "Endodontics", icon: "🔧", category: "endodontics" },
+    { label: "Implantology", icon: "🪛", category: "implantology" },
+    { label: "Mirrors", icon: "🪞", category: "mirrors" },
+    { label: "Handpiece", icon: "⚙️", category: "handpiece" },
+    { label: "Implant Components", icon: "🔩", category: "implant-component" },
+    { label: "Dental Burs", icon: "💎", category: "burs" },
+    { label: "Accessories", icon: "🧰", category: "accessories" },
+    { label: "Smartmed Scrub", icon: "🥼", category: "scrub" },
+    { label: "New Clinic Setup", icon: "🏥", category: "clinic-setup" },
+    { label: "New Arrivals", icon: "🆕", category: "new" },
   ];
 
   return (
@@ -451,6 +454,7 @@ function WhatWeOffer() {
           {items.map((c) => (
             <button
               key={c.label}
+              onClick={() => navigate("category", { category: c.category, title: c.label })}
               className="offer-tile group flex items-center gap-3 bg-[#eef5fb] border border-transparent rounded-xl px-5 py-4 text-left cursor-pointer"
             >
               <span className="text-xl shrink-0 transition-transform duration-300 group-hover:scale-125">{c.icon}</span>
@@ -464,6 +468,7 @@ function WhatWeOffer() {
 }
 
 function ReadyCTA() {
+  const { navigate } = useUI();
   return (
     <section className="bg-[#eef5fb] py-16 lg:py-24">
       <div className="max-w-[900px] mx-auto px-4 text-center">
@@ -478,11 +483,17 @@ function ReadyCTA() {
         </p>
 
         <div className="mt-8 flex items-center justify-center gap-3 flex-wrap">
-          <button className="cta-btn cta-primary inline-flex items-center gap-2 bg-[#0b1d3a] text-white font-bold px-7 py-3.5 rounded-full shadow-lg">
+          <button
+            onClick={() => navigate("category")}
+            className="cta-btn cta-primary inline-flex items-center gap-2 bg-[#0b1d3a] text-white font-bold px-7 py-3.5 rounded-full shadow-lg hover:bg-[#13294f] transition-colors"
+          >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6" /></svg>
             Shop Now
           </button>
-          <button className="cta-btn cta-outline inline-flex items-center gap-2 border border-gray-300 text-brand-ink font-bold px-7 py-3.5 rounded-full bg-white">
+          <button
+            onClick={() => navigate("contact")}
+            className="cta-btn cta-outline inline-flex items-center gap-2 border border-gray-300 text-brand-ink font-bold px-7 py-3.5 rounded-full bg-white hover:bg-gray-50 transition-colors"
+          >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" /></svg>
             Contact Us
           </button>
