@@ -3,6 +3,7 @@ import { useUI } from "../../context/UIContext";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import { pricePresets } from "../../data/site";
+import { categories } from "../../data/categories";
 
 export default function NavigationHeader() {
   const { openModal, navigate, openSearch, openSearchWithImage, view } = useUI();
@@ -14,6 +15,7 @@ export default function NavigationHeader() {
   const [priceOpen, setPriceOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobilePriceOpen, setMobilePriceOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const closeTimer = useRef(null);
 
   const openPrice = () => {
@@ -253,7 +255,7 @@ export default function NavigationHeader() {
       </div>
 
       {/* ROW 2: Sub-Navigation (desktop only) */}
-      <div className="hidden lg:flex h-[46px] bg-white/85 backdrop-blur-[30px] border-0 border-b border-solid border-gray-200 items-center justify-center gap-3 xl:gap-6 w-full overflow-visible px-[10px] no-scrollbar shadow-[0_1px_0_rgba(0,0,0,0.02)]">
+      <div className="hidden lg:flex h-[44px] bg-white border-0 border-t border-b border-solid border-gray-200 items-center justify-around gap-2 w-full overflow-visible px-0 no-scrollbar">
         <button onClick={() => navigate("category")} className={navClass(currentView === "category")}>Category</button>
         <button onClick={() => navigate("offers")} className={navClass(currentView === "offers")}>Offer Zone</button>
         <button onClick={() => navigate("combos")} className={navClass(currentView === "combos")}>Combos</button>
@@ -265,13 +267,9 @@ export default function NavigationHeader() {
           onMouseLeave={schedulePriceClose}
         >
           <button className={navClass(priceOpen)}>
-            <img
-              src="https://merchant-cdn.storedum.com/istockphoto-1309295716-612x612.jpg"
-              alt=""
-              className="h-[16px] w-[16px] object-contain"
-            />
+            <span className="font-bold">₹</span>
             Shop by Price
-            <svg className={`h-[14px] transition-transform duration-200 ${priceOpen ? "-rotate-180" : ""}`} viewBox="0 0 24 24">
+            <svg className={`h-[14px] transition-transform duration-200 ${priceOpen ? "-rotate-180" : ""}`} viewBox="0 0 24 24" fill="currentColor">
               <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
             </svg>
           </button>
