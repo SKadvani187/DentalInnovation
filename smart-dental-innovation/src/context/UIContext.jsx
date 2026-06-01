@@ -7,10 +7,20 @@ export function UIProvider({ children }) {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [view, setView] = useState({ name: "home", params: null });
   const [toasts, setToasts] = useState([]); // [{ id, type, message }]
+  const [searchSeed, setSearchSeed] = useState("");
+  const [searchImageFile, setSearchImageFile] = useState(null);
   const idRef = useRef(0);
 
   const openModal = useCallback((name) => setModal(name), []);
   const closeModal = useCallback(() => setModal(null), []);
+  const openSearch = useCallback((seed = "") => {
+    setSearchSeed(seed);
+    setModal("search");
+  }, []);
+  const openSearchWithImage = useCallback((file) => {
+    setSearchImageFile(file);
+    setModal("search");
+  }, []);
 
   const openProduct = useCallback((product) => {
     setSelectedProduct(product);
@@ -35,8 +45,8 @@ export function UIProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ modal, openModal, closeModal, selectedProduct, setSelectedProduct, openProduct, view, navigate, toasts, showToast, dismissToast }),
-    [modal, openModal, closeModal, selectedProduct, openProduct, view, navigate, toasts, showToast, dismissToast]
+    () => ({ modal, openModal, closeModal, openSearch, openSearchWithImage, searchSeed, setSearchSeed, searchImageFile, setSearchImageFile, selectedProduct, setSelectedProduct, openProduct, view, navigate, toasts, showToast, dismissToast }),
+    [modal, openModal, closeModal, openSearch, openSearchWithImage, searchSeed, searchImageFile, selectedProduct, openProduct, view, navigate, toasts, showToast, dismissToast]
   );
 
   return <UIContext.Provider value={value}>{children}</UIContext.Provider>;

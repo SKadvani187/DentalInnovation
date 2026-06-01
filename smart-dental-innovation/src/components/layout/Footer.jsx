@@ -1,42 +1,58 @@
 import React from 'react';
 import TopBar from './TopBar';
+import { useUI } from '../../context/UIContext';
 
 const FOOTER_SECTIONS = [
   {
     title: "ABOUT",
     links: [
-      { label: "Contact Us", href: "/contact-us" },
-      { label: "About Us", href: "/about-us" },
-      { label: "Careers", href: "https://www.linkedin.com/in/smart-dental-innovations-017331382/" }
+      { label: "Contact Us", route: "contact" },
+      { label: "About Us", route: "about" },
+      { label: "Careers", external: "https://www.linkedin.com/in/smart-dental-innovations-017331382/" }
     ]
   },
   {
     title: "CONTACT WITH US",
     links: [
-      { label: "Buying Guide", href: "/buying-guide" },
-      { label: "Bulk Price Inquiry", href: "/contact-us" }
+      { label: "Buying Guide", route: "about" },
+      { label: "Bulk Price Inquiry", route: "contact" }
     ]
   },
   {
     title: "HELP",
     links: [
-      { label: "Orders", href: "/orders" },
-      { label: "Refunds", href: "/orders" },
-      { label: "Payments", href: "/orders" }
+      { label: "Orders", route: "orders", requireAuth: true },
+      { label: "Refunds", route: "orders", requireAuth: true },
+      { label: "Payments", route: "orders", requireAuth: true }
     ]
   },
   {
     title: "POLICY",
     links: [
-      { label: "Return Policy", href: "/return-policy" },
-      { label: "Term Of Use", href: "/terms-and-conditions" },
-      { label: "Privacy", href: "/privacy-policy" },
-      { label: "Sitemap", href: "/sitemap.xml" }
+      { label: "Return Policy", route: "policy", params: { type: "return" } },
+      { label: "Term Of Use", route: "policy", params: { type: "terms" } },
+      { label: "Privacy", route: "policy", params: { type: "privacy" } },
+      { label: "Sitemap", external: "/sitemap.xml" }
     ]
   }
 ];
 
 export function Footer() {
+  const { navigate, openModal } = useUI();
+  const handleLink = (link) => {
+    if (link.external) {
+      window.open(link.external, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (link.requireAuth) {
+      try {
+        const raw = localStorage.getItem("sdi:auth");
+        const u = raw ? JSON.parse(raw) : null;
+        if (!u) { openModal("auth"); return; }
+      } catch { openModal("auth"); return; }
+    }
+    if (link.route) navigate(link.route, link.params || null);
+  };
   return (
     <footer className="w-full bg-[var(--background-secondary,#f8f9fa)] text-[var(--text-primary,#212529)] border-t border-gray-200">
       <TopBar />
@@ -50,11 +66,16 @@ export function Footer() {
                 <h6 className="text-[13px] sm:text-[14px] font-bold tracking-wider text-gray-900 uppercase mb-3 sm:mb-4">
                   {section.title}
                 </h6>
-                <div className="flex flex-col gap-2 sm:gap-2.5">
+                <div className="flex flex-col items-start gap-2 sm:gap-2.5">
                   {section.links.map((link) => (
-                    <a key={link.label} href={link.href} className="text-[12px] sm:text-[13px] text-gray-600 font-medium hover:text-[var(--main,#1976d2)] transition-colors no-underline">
+                    <button
+                      key={link.label}
+                      type="button"
+                      onClick={() => handleLink(link)}
+                      className="text-left text-[12px] sm:text-[13px] text-gray-600 font-medium hover:text-[var(--main,#1976d2)] transition-colors bg-transparent border-0 p-0 cursor-pointer"
+                    >
                       {link.label}
-                    </a>
+                    </button>
                   ))}
                 </div>
               </div>

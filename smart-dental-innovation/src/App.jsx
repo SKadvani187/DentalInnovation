@@ -31,7 +31,9 @@ import OrdersPage from "./components/pages/OrdersPage";
 import WishlistPage from "./components/pages/WishlistPage";
 import AddressPage from "./components/pages/AddressPage";
 import OfferZonePage from "./components/pages/OfferZonePage";
+import PolicyPage from "./components/pages/PolicyPage";
 import ToastHost from "./components/ui/ToastHost";
+import WhatsAppFab from "./components/layout/WhatsAppFab";
 
 import {
   bestsellers,
@@ -92,6 +94,8 @@ function Shell() {
           <AddressPage />
         ) : view.name === "offers" ? (
           <OfferZonePage />
+        ) : view.name === "policy" ? (
+          <PolicyPage />
         ) : (
           <>
             <HeroCarousel />
@@ -121,6 +125,7 @@ function Shell() {
       <AuthModal />
       <SearchModal />
       <BulkQuoteModal />
+      <WhatsAppFab />
       <ToastHost />
     </>
   );

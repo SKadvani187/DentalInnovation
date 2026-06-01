@@ -6,10 +6,67 @@ import ProductCard from "../home/ProductCard";
 import Footer from "../layout/Footer";
 
 export default function SearchModal() {
-  const { modal, closeModal } = useUI();
+  const { modal, closeModal, searchSeed, setSearchSeed, searchImageFile, setSearchImageFile } = useUI();
   const open = modal === "search";
   const [query, setQuery] = useState("");
+  const [listening, setListening] = useState(false);
+  const [imageSearch, setImageSearch] = useState(null); // { name, preview, tokens }
   const inputRef = useRef(null);
+  const fileRef = useRef(null);
+
+  const startVoice = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    const rec = new SR();
+    rec.lang = "en-IN";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    setListening(true);
+    rec.onresult = (ev) => setQuery(ev.results?.[0]?.[0]?.transcript || "");
+    rec.onerror = () => setListening(false);
+    rec.onend = () => setListening(false);
+    try { rec.start(); } catch { setListening(false); }
+  };
+
+  const ingestImageFile = (file) => {
+    if (!file) return;
+    const baseRaw = file.name.replace(/\.[^.]+$/, "");
+    const base = baseRaw.toLowerCase();
+    const STOPWORDS = new Set(["ai", "img", "image", "png", "jpg", "jpeg", "webp", "the", "and", "of", "to", "in", "on", "for", "copy", "v1", "v2"]);
+    const tokens = base
+      .replace(/[()_\-\s]+/g, " ")
+      .split(" ")
+      .map((t) => t.trim())
+      .filter((t) => t.length >= 3 && !STOPWORDS.has(t) && !/^\d+$/.test(t));
+    const preview = URL.createObjectURL(file);
+    setImageSearch({ name: file.name, base, tokens, preview });
+    setQuery("");
+  };
+
+  const onImagePicked = (e) => {
+    const file = e.target.files?.[0];
+    if (file) ingestImageFile(file);
+    e.target.value = "";
+  };
+
+  const clearImageSearch = () => {
+    if (imageSearch?.preview) URL.revokeObjectURL(imageSearch.preview);
+    setImageSearch(null);
+  };
+
+  useEffect(() => {
+    if (open && searchImageFile) {
+      ingestImageFile(searchImageFile);
+      setSearchImageFile(null);
+    }
+  }, [open, searchImageFile, setSearchImageFile]);
+
+  useEffect(() => {
+    if (open && searchSeed) {
+      setQuery(searchSeed);
+      setSearchSeed("");
+    }
+  }, [open, searchSeed, setSearchSeed]);
 
   useEffect(() => {
     if (!open) return;
@@ -25,19 +82,44 @@ export default function SearchModal() {
   }, [open, closeModal]);
 
   useEffect(() => {
-    if (!open) setQuery("");
+    if (!open) {
+      setQuery("");
+      clearImageSearch();
+    }
   }, [open]);
 
   const results = useMemo(() => {
+    if (imageSearch) {
+      const toks = imageSearch.tokens;
+      const baseSlug = imageSearch.base.replace(/[^a-z0-9]+/g, "_");
+      const baseNorm = imageSearch.base.replace(/[^a-z0-9]+/g, "");
+      const scored = allProducts.map((p) => {
+        const url = (p.image || "").toLowerCase();
+        const allUrls = [url];
+        const urlsNorm = allUrls.map((u) => u.replace(/[^a-z0-9]+/g, ""));
+        let score = 0;
+        if (allUrls.some((u) => u.includes(baseSlug))) score += 100;
+        if (urlsNorm.some((u) => u.includes(baseNorm))) score += 80;
+        const nameHay = `${p.name} ${p.category || ""}`.toLowerCase();
+        for (const t of toks) {
+          if (nameHay.includes(t)) score += 2;
+        }
+        return { p, score };
+      });
+      const strong = scored.filter((s) => s.score >= 80).sort((a, b) => b.score - a.score);
+      if (strong.length) return strong.map((s) => s.p);
+      const weak = scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score).slice(0, 12);
+      return weak.map((s) => s.p);
+    }
     const q = query.trim().toLowerCase();
     if (!q) return allProducts;
     return allProducts.filter((p) => {
       const hay = `${p.name} ${p.category || ""} ${p.warranty || ""}`.toLowerCase();
       return q.split(/\s+/).every((tok) => hay.includes(tok));
     });
-  }, [query]);
+  }, [query, imageSearch]);
 
-  const showInitial = !query.trim();
+  const showInitial = !query.trim() && !imageSearch;
   const count = results.length;
 
   return createPortal(
@@ -86,15 +168,66 @@ export default function SearchModal() {
               </svg>
             </button>
           )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={onImagePicked}
+          />
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            aria-label="Search by image"
+            className="w-7 h-7 rounded-full hover:bg-gray-200 flex items-center justify-center text-gray-600"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.9 13.98l2.1 2.53 3.1-3.99c.2-.26.6-.26.8.01l3.51 4.68c.25.33.01.8-.4.8H6.02c-.42 0-.65-.48-.39-.81L8.12 13.98c.19-.25.57-.26.78 0z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={startVoice}
+            aria-label="Voice search"
+            className={`w-7 h-7 rounded-full flex items-center justify-center transition ${listening ? "bg-red-100 text-red-600 animate-pulse" : "hover:bg-gray-200 text-gray-600"}`}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z" />
+            </svg>
+          </button>
         </div>
       </header>
+
+      {imageSearch && (
+        <div className="bg-blue-50 border-b border-blue-100 px-4 sm:px-6 py-2 flex items-center gap-3">
+          <img
+            src={imageSearch.preview}
+            alt="search"
+            className="w-10 h-10 rounded-md object-cover border border-blue-200 shrink-0"
+          />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-brand-ink truncate">Image search: {imageSearch.name}</p>
+            <p className="text-[11px] text-brand-muted">{count} visually matched product{count === 1 ? "" : "s"}</p>
+          </div>
+          <button
+            onClick={clearImageSearch}
+            className="text-xs text-[#3684bf] font-semibold hover:underline shrink-0"
+          >
+            Clear
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto bg-white">
         <div className="px-4 sm:px-6 py-5">
           {count === 0 ? (
             <div className="bg-gray-100 rounded-2xl py-16 px-6 text-center mt-4">
               <h3 className="text-2xl font-bold text-brand-ink mb-2">No Results Found</h3>
-              <p className="text-sm text-brand-muted">No products found for "{query}"</p>
+              <p className="text-sm text-brand-muted">
+                {imageSearch
+                  ? `No visually matching products for "${imageSearch.name}". Try a different image or browse categories.`
+                  : `No products found for "${query}"`}
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">

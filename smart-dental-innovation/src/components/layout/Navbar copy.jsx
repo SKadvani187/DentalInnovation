@@ -5,9 +5,12 @@ import { useCart } from "../../context/CartContext";
 import { pricePresets } from "../../data/site";
 
 export default function NavigationHeader() {
-  const { openModal, navigate } = useUI();
+  const { openModal, navigate, openSearch, openSearchWithImage, view } = useUI();
+  const currentView = view?.name;
   const { user, logout } = useAuth();
   const { itemCount } = useCart();
+  const fileRef = useRef(null);
+  const [listening, setListening] = useState(false);
   const [priceOpen, setPriceOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobilePriceOpen, setMobilePriceOpen] = useState(false);
@@ -27,7 +30,10 @@ export default function NavigationHeader() {
     return () => { document.body.style.overflow = ""; };
   }, [mobileOpen]);
 
-  const subNavButtonStyle = "text-[15px] font-semibold flex items-center gap-[5px] whitespace-nowrap border-0 border-solid border-[var(--border-color-light)] px-[10px] py-[2px] rounded-[8px] bg-none cursor-pointer";
+  const subNavBase = "relative text-[15px] font-semibold flex items-center gap-[5px] whitespace-nowrap px-[12px] py-[6px] rounded-[8px] cursor-pointer transition-colors duration-200 after:content-[''] after:absolute after:left-3 after:right-3 after:-bottom-[2px] after:h-[2px] after:bg-[#1976d2] after:transition-transform after:duration-200 after:rounded-full";
+  const subNavInactive = "bg-transparent text-[var(--text-primary)] hover:text-[#1976d2] hover:bg-[#1976d2]/10 after:scale-x-0 hover:after:scale-x-100";
+  const subNavActive = "bg-[#1976d2]/12 text-[#1976d2] after:scale-x-100";
+  const navClass = (active) => `${subNavBase} ${active ? subNavActive : subNavInactive}`;
 
   const SEARCH_PHRASES = [
     "Search over 1,000 Dental Products",
@@ -57,6 +63,36 @@ export default function NavigationHeader() {
   const currentPhrase = SEARCH_PHRASES[phraseIdx];
 
   const goAndClose = (fn) => () => { setMobileOpen(false); fn(); };
+
+  const startVoice = (e) => {
+    e.stopPropagation();
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { openSearch(""); return; }
+    const rec = new SR();
+    rec.lang = "en-IN";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    setListening(true);
+    rec.onresult = (ev) => {
+      const text = ev.results?.[0]?.[0]?.transcript || "";
+      openSearch(text);
+    };
+    rec.onerror = () => setListening(false);
+    rec.onend = () => setListening(false);
+    try { rec.start(); } catch { setListening(false); }
+  };
+
+  const startImage = (e) => {
+    e.stopPropagation();
+    fileRef.current?.click();
+  };
+
+  const onImagePicked = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    openSearchWithImage(file);
+    e.target.value = "";
+  };
 
   return (
     <div className="sticky top-0 flex flex-col z-[1000] w-full">
@@ -92,12 +128,19 @@ export default function NavigationHeader() {
         </div>
 
         {/* Desktop centered search */}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={onImagePicked}
+        />
         <div
-          onClick={() => openModal("search")}
+          onClick={() => openSearch("")}
           role="button"
           tabIndex={0}
-          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && openModal("search")}
-          className="hidden md:flex absolute left-1/2 -translate-x-1/2 w-[45%] lg:w-[40%] h-[44px] lg:h-[52px] border border-solid border-[var(--text-primary-2)] rounded-[100px] min-w-[260px] items-center px-[16px] lg:px-[20px] gap-[10px] bg-[var(--background-primary)] cursor-pointer transition-all duration-300 hover:shadow-md"
+          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && openSearch("")}
+          className="hidden md:flex absolute left-1/2 -translate-x-1/2 w-[45%] lg:w-[40%] h-[44px] lg:h-[52px] border border-solid border-[var(--text-primary-2)] rounded-[100px] min-w-[260px] items-center pl-[16px] lg:pl-[20px] pr-2 gap-[10px] bg-[var(--background-primary)] cursor-pointer transition-all duration-300 hover:shadow-md"
         >
           <svg viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-[18px] lg:h-[20px] shrink-0">
             <path
@@ -105,7 +148,7 @@ export default function NavigationHeader() {
               stroke="black"
             />
           </svg>
-          <div className="inline-flex flex-wrap perspective-[1000px] min-h-[1.2em] overflow-hidden text-sm lg:text-base whitespace-nowrap">
+          <div className="flex-1 inline-flex flex-wrap perspective-[1000px] min-h-[1.2em] overflow-hidden text-sm lg:text-base whitespace-nowrap">
             <div key={`${phraseIdx}-${phase}`} className="inline-flex flex-nowrap">
               {currentPhrase.split("").map((char, index) => (
                 <span
@@ -118,11 +161,34 @@ export default function NavigationHeader() {
               ))}
             </div>
           </div>
+
+          <div className="flex items-center gap-1 shrink-0 ml-auto">
+            <button
+              type="button"
+              onClick={startImage}
+              aria-label="Search by image"
+              className="w-8 h-8 lg:w-9 lg:h-9 rounded-full hover:bg-gray-100 flex items-center justify-center text-[var(--text-primary)]"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.9 13.98l2.1 2.53 3.1-3.99c.2-.26.6-.26.8.01l3.51 4.68c.25.33.01.8-.4.8H6.02c-.42 0-.65-.48-.39-.81L8.12 13.98c.19-.25.57-.26.78 0z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={startVoice}
+              aria-label="Voice search"
+              className={`w-8 h-8 lg:w-9 lg:h-9 rounded-full flex items-center justify-center transition ${listening ? "bg-red-100 text-red-600 animate-pulse" : "hover:bg-gray-100 text-[var(--text-primary)]"}`}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Mobile search icon */}
         <button
-          onClick={() => openModal("search")}
+          onClick={() => openSearch("")}
           className="md:hidden w-9 h-9 ml-auto flex items-center justify-center text-[var(--text-primary)] shrink-0"
           aria-label="Search"
         >
@@ -187,18 +253,18 @@ export default function NavigationHeader() {
       </div>
 
       {/* ROW 2: Sub-Navigation (desktop only) */}
-      <div className="hidden lg:flex h-[40px] bg-[rgba(var(--background-primary-rgb),0.7)] backdrop-blur-[30px] border-0 border-b border-solid border-[rgba(var(--border-color-1-rgb),0.2)] items-center justify-center gap-[24px] xl:gap-[45px] w-full overflow-visible px-[10px] no-scrollbar">
-        <button onClick={() => navigate("category")} className={subNavButtonStyle}>Category</button>
-        <button onClick={() => navigate("offers")} className={subNavButtonStyle}>Offer Zone</button>
-        <button onClick={() => navigate("combos")} className={subNavButtonStyle}>Combos</button>
-        <button onClick={() => navigate("gvp")} className={subNavButtonStyle}>Great Value Products</button>
+      <div className="hidden lg:flex h-[46px] bg-white/85 backdrop-blur-[30px] border-0 border-b border-solid border-gray-200 items-center justify-center gap-3 xl:gap-6 w-full overflow-visible px-[10px] no-scrollbar shadow-[0_1px_0_rgba(0,0,0,0.02)]">
+        <button onClick={() => navigate("category")} className={navClass(currentView === "category")}>Category</button>
+        <button onClick={() => navigate("offers")} className={navClass(currentView === "offers")}>Offer Zone</button>
+        <button onClick={() => navigate("combos")} className={navClass(currentView === "combos")}>Combos</button>
+        <button onClick={() => navigate("gvp")} className={navClass(currentView === "gvp")}>Great Value Products</button>
 
         <div
           className="relative"
           onMouseEnter={openPrice}
           onMouseLeave={schedulePriceClose}
         >
-          <button className={subNavButtonStyle}>
+          <button className={navClass(priceOpen)}>
             <img
               src="https://merchant-cdn.storedum.com/istockphoto-1309295716-612x612.jpg"
               alt=""
@@ -236,10 +302,10 @@ export default function NavigationHeader() {
           </div>
         </div>
 
-        <button onClick={() => navigate("product", { id: "ev-001" })} className={subNavButtonStyle}>Events</button>
-        <button onClick={() => (user ? navigate("wishlist") : openModal("auth"))} className={subNavButtonStyle}>Wishlist</button>
-        <button onClick={() => navigate("about")} className={subNavButtonStyle}>About Us</button>
-        <button onClick={() => navigate("contact")} className={subNavButtonStyle}>Contact Us</button>
+        <button onClick={() => navigate("events")} className={navClass(currentView === "events")}>Events</button>
+        <button onClick={() => (user ? navigate("wishlist") : openModal("auth"))} className={navClass(currentView === "wishlist")}>Wishlist</button>
+        <button onClick={() => navigate("about")} className={navClass(currentView === "about")}>About Us</button>
+        <button onClick={() => navigate("contact")} className={navClass(currentView === "contact")}>Contact Us</button>
       </div>
 
       {/* Mobile drawer */}
