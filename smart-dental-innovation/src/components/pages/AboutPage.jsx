@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { useUI } from "../../context/UIContext";
 
 export default function AboutPage() {
@@ -6,14 +7,256 @@ export default function AboutPage() {
       <HeroSection />
       <OurStory />
       <StatsStrip />
+      <Milestones />
       <CoreValues />
+      <Leadership />
       <WhyTrust />
       <MissionVision />
+      <Testimonials />
+      <Certifications />
       <WhatWeOffer />
       <ReadyCTA />
       <ContactStrip />
       <SocialStrip />
     </div>
+  );
+}
+
+function useCountUp(target, duration = 1600) {
+  const [val, setVal] = useState(0);
+  const ref = useRef(null);
+  const started = useRef(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting && !started.current) {
+          started.current = true;
+          const start = performance.now();
+          const tick = (now) => {
+            const t = Math.min(1, (now - start) / duration);
+            const eased = 1 - Math.pow(1 - t, 3);
+            setVal(Math.round(target * eased));
+            if (t < 1) requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        }
+      });
+    }, { threshold: 0.4 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [target, duration]);
+  return [ref, val];
+}
+
+function Milestones() {
+  const items = [
+    { year: "2019", title: "Founded in Surat", text: "Started as a small dental supply venture with a focus on imported handpieces." },
+    { year: "2021", title: "1,000+ products", text: "Catalogue expanded to cover Endodontics, Implantology, Restorative & more." },
+    { year: "2023", title: "Pan-India shipping", text: "Reached 500+ pincodes with reliable 5–7 day delivery and free shipping ₹20k+." },
+    { year: "2025", title: "Division of Younique", text: "Joined Younique Dental Innovations to scale manufacturer-direct sourcing." },
+    { year: "2026", title: "1000+ clinics served", text: "Trusted partner to over a thousand dental clinics across 28 states." },
+  ];
+  return (
+    <section className="bg-white py-16 lg:py-24">
+      <div className="max-w-[1400px] mx-auto px-4">
+        <div className="text-center mb-12">
+          <SectionLabel>Our Journey</SectionLabel>
+          <h2 className="mt-4 text-4xl lg:text-5xl font-bold text-brand-ink" style={{ fontFamily: "'El Messiri', serif" }}>
+            Milestones <span className="italic text-[#5fb6ff]">that matter</span>
+          </h2>
+          <p className="mt-3 text-brand-muted max-w-xl mx-auto">
+            From a small Surat office to serving clinics nationwide — here's how far we've come.
+          </p>
+        </div>
+
+        <div className="relative">
+          <div className="hidden md:block absolute left-1/2 top-0 bottom-0 w-[2px] bg-gradient-to-b from-[#5fb6ff] via-[#3684bf] to-[#0b1d3a]" />
+          <ol className="space-y-8 md:space-y-12">
+            {items.map((m, i) => {
+              const left = i % 2 === 0;
+              return (
+                <li key={m.year} className="md:grid md:grid-cols-2 md:gap-10 items-center">
+                  <div className={`${left ? "md:order-1 md:text-right md:pr-10" : "md:order-2 md:pl-10"}`}>
+                    <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm hover:shadow-lg hover:border-[#3684bf] transition inline-block max-w-md">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-[#3684bf] mb-1">{m.year}</div>
+                      <h3 className="text-lg font-bold text-brand-ink mb-1">{m.title}</h3>
+                      <p className="text-sm text-brand-muted leading-relaxed">{m.text}</p>
+                    </div>
+                  </div>
+                  <div className={`hidden md:flex ${left ? "md:order-2" : "md:order-1 justify-end"} relative items-center`}>
+                    <div className={`absolute ${left ? "left-0" : "right-0"} w-5 h-5 rounded-full bg-[#3684bf] border-4 border-white shadow-md z-10 -translate-x-1/2`} style={left ? { left: 0, transform: "translateX(-50%)" } : { right: 0, transform: "translateX(50%)" }} />
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Leadership() {
+  const team = [
+    { name: "Dr. Rakesh Patel", role: "Founder & CEO", bio: "20+ years in dental supplies. Vision-driven leader.", img: "https://merchant-cdn.storedum.com/ai_img_44.png" },
+    { name: "Dr. Priya Shah", role: "Chief Clinical Officer", bio: "BDS, MDS Endodontics. Curates clinical product range.", img: "https://merchant-cdn.storedum.com/ai_img_40_(5).png" },
+    { name: "Hiren Mehta", role: "Head of Operations", bio: "10+ years logistics & supply chain expertise.", img: "https://merchant-cdn.storedum.com/ai_img_42_(1).png" },
+    { name: "Ankit Joshi", role: "Customer Success Lead", bio: "Ensures every clinic gets white-glove support.", img: "https://merchant-cdn.storedum.com/ai_img_31_(2).png" },
+  ];
+  return (
+    <section className="bg-[#eef5fb] py-16 lg:py-24">
+      <div className="max-w-[1400px] mx-auto px-4">
+        <div className="text-center mb-12">
+          <SectionLabel>The People</SectionLabel>
+          <h2 className="mt-4 text-4xl lg:text-5xl font-bold text-brand-ink" style={{ fontFamily: "'El Messiri', serif" }}>
+            Meet the <span className="italic text-[#5fb6ff]">Team</span>
+          </h2>
+          <p className="mt-3 text-brand-muted max-w-xl mx-auto">
+            Clinicians, engineers, and operators working to make modern dentistry accessible.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {team.map((p) => (
+            <div key={p.name} className="group bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all">
+              <div className="aspect-[4/3] bg-gradient-to-br from-[#0b1d3a] to-[#3684bf] flex items-center justify-center overflow-hidden">
+                <img src={p.img} alt={p.name} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-105 transition-transform duration-300" />
+              </div>
+              <div className="p-5">
+                <h3 className="font-bold text-brand-ink">{p.name}</h3>
+                <p className="text-xs font-semibold text-[#3684bf] uppercase tracking-wider mb-2">{p.role}</p>
+                <p className="text-sm text-brand-muted leading-relaxed">{p.bio}</p>
+                <div className="mt-3 flex items-center gap-2">
+                  {["linkedin", "email"].map((s) => (
+                    <span key={s} className="w-7 h-7 rounded-full bg-gray-100 hover:bg-[#3684bf] hover:text-white flex items-center justify-center text-gray-500 cursor-pointer transition">
+                      {s === "linkedin" ? (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20.45 20.45h-3.55v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.44-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.45v6.29zM5.34 7.43a2.06 2.06 0 11-.01-4.13 2.06 2.06 0 01.01 4.13zM7.12 20.45H3.55V9h3.57v11.45z" /></svg>
+                      ) : (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" /></svg>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Testimonials() {
+  const reviews = [
+    {
+      name: "Dr. Amit Sharma",
+      clinic: "Sharma Dental Care, Mumbai",
+      stars: 5,
+      text: "Switched all my supplies to SDI last year. Their handpieces are buttery smooth and warranty claims took 3 days — fastest I've ever seen.",
+    },
+    {
+      name: "Dr. Kavita Reddy",
+      clinic: "Smile Studio, Hyderabad",
+      stars: 5,
+      text: "The bulk pricing for our new clinic setup saved us nearly ₹2L. Sales team understood exactly what a fresh clinic needs.",
+    },
+    {
+      name: "Dr. Ravi Kumar",
+      clinic: "Kumar Family Dentistry, Pune",
+      stars: 4,
+      text: "RF Cautery they recommended is a game-changer. Patients heal faster and procedures are cleaner. Wish I'd switched sooner.",
+    },
+    {
+      name: "Dr. Neha Iyer",
+      clinic: "Iyer Endodontics, Chennai",
+      stars: 5,
+      text: "Endodontic files are top quality and delivery is always on time. Customer support actually answers — rare these days.",
+    },
+  ];
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setIdx((i) => (i + 1) % reviews.length), 6000);
+    return () => clearInterval(t);
+  }, [reviews.length]);
+
+  const r = reviews[idx];
+
+  return (
+    <section className="bg-white py-16 lg:py-24 relative overflow-hidden">
+      <div className="absolute top-0 left-0 w-72 h-72 bg-[#3684bf]/5 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+      <div className="absolute bottom-0 right-0 w-80 h-80 bg-[#5fb6ff]/5 rounded-full blur-3xl translate-x-1/2 translate-y-1/2 pointer-events-none" />
+
+      <div className="max-w-[900px] mx-auto px-4 text-center relative">
+        <SectionLabel>Trusted by Dentists</SectionLabel>
+        <h2 className="mt-4 text-3xl lg:text-4xl font-bold text-brand-ink" style={{ fontFamily: "'El Messiri', serif" }}>
+          What clinicians <span className="italic text-[#5fb6ff]">say</span>
+        </h2>
+
+        <div className="mt-10 bg-white border border-gray-100 rounded-2xl p-8 sm:p-10 shadow-md relative">
+          <svg className="absolute top-5 left-5 w-10 h-10 text-[#5fb6ff]/40" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M14 17h3l2-4V7h-6v6h3zM6 17h3l2-4V7H5v6h3z" />
+          </svg>
+          <div className="flex justify-center items-center gap-1 mb-4">
+            {[...Array(5)].map((_, i) => (
+              <svg key={i} width="20" height="20" viewBox="0 0 24 24" fill={i < r.stars ? "#fbbf24" : "#e5e7eb"}>
+                <path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+              </svg>
+            ))}
+          </div>
+          <p className="text-base sm:text-lg text-brand-ink leading-relaxed font-medium">
+            "{r.text}"
+          </p>
+          <div className="mt-6">
+            <p className="font-bold text-brand-ink">{r.name}</p>
+            <p className="text-xs text-brand-muted">{r.clinic}</p>
+          </div>
+        </div>
+
+        <div className="flex justify-center items-center gap-2 mt-6">
+          {reviews.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setIdx(i)}
+              aria-label={`Review ${i + 1}`}
+              className={`h-2 rounded-full transition-all ${i === idx ? "w-8 bg-[#3684bf]" : "w-2 bg-gray-300 hover:bg-gray-400"}`}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Certifications() {
+  const items = [
+    { label: "ISO 13485:2016", desc: "Medical Device Quality", icon: "📋" },
+    { label: "CE Marked", desc: "European Conformity", icon: "✅" },
+    { label: "FDA Listed", desc: "US Compliance", icon: "🇺🇸" },
+    { label: "MDR Compliant", desc: "EU Medical Device Reg.", icon: "🛡️" },
+    { label: "GST Registered", desc: "Tax-compliant invoicing", icon: "📄" },
+    { label: "Made in India", desc: "Atmanirbhar Bharat", icon: "🇮🇳" },
+  ];
+  return (
+    <section className="bg-[#0b1d3a] py-12 lg:py-16">
+      <div className="max-w-[1400px] mx-auto px-4">
+        <div className="text-center mb-8">
+          <SectionLabel>Certified & Trusted</SectionLabel>
+          <h2 className="mt-4 text-2xl lg:text-3xl font-bold text-white" style={{ fontFamily: "'El Messiri', serif" }}>
+            Quality you can <span className="italic text-[#5fb6ff]">verify</span>
+          </h2>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+          {items.map((c) => (
+            <div key={c.label} className="bg-[#0f2547]/80 border border-[#1f3a66] rounded-xl p-4 text-center hover:border-[#5fb6ff] transition group">
+              <div className="text-2xl mb-2 transition group-hover:scale-110">{c.icon}</div>
+              <p className="text-xs font-bold text-white">{c.label}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">{c.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -218,29 +461,36 @@ function PromiseRow({ title, text }) {
 
 function StatsStrip() {
   const items = [
-    { value: "1000", suffix: "+", label: "Dental Products", icon: <><rect x="3" y="5" width="18" height="13" rx="1.5" /><path d="M3 18l4 3h10l4-3" /></> },
-    { value: "203k", suffix: "+", label: "Social Followers", icon: <><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.5" /><path d="M3 20c0-3 3-5 6-5s6 2 6 5M14 20c0-2 2-4 5-4" /></> },
-    { value: "4.5", suffix: "★", label: "Average Rating", icon: <path d="M12 2l3 6.3 7 1-5 4.9 1.2 7L12 17.8 5.8 21.2 7 14.2l-5-4.9 7-1z" /> },
-    { value: "100", suffix: "%", label: "Original & Verified", icon: <path d="M12 2L3 6v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V6l-9-4z" /> },
+    { target: 1000, suffix: "+", label: "Dental Products", format: (v) => v.toLocaleString("en-IN"), icon: <><rect x="3" y="5" width="18" height="13" rx="1.5" /><path d="M3 18l4 3h10l4-3" /></> },
+    { target: 203, suffix: "k+", label: "Social Followers", format: (v) => v.toLocaleString("en-IN"), icon: <><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.5" /><path d="M3 20c0-3 3-5 6-5s6 2 6 5M14 20c0-2 2-4 5-4" /></> },
+    { target: 45, suffix: "★", label: "Average Rating", format: (v) => (v / 10).toFixed(1), icon: <path d="M12 2l3 6.3 7 1-5 4.9 1.2 7L12 17.8 5.8 21.2 7 14.2l-5-4.9 7-1z" /> },
+    { target: 100, suffix: "%", label: "Original & Verified", format: (v) => v.toString(), icon: <path d="M12 2L3 6v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V6l-9-4z" /> },
   ];
   return (
     <section className="bg-[#0b1d3a] py-14">
       <div className="max-w-[1400px] mx-auto px-4 grid grid-cols-2 lg:grid-cols-4 gap-6 lg:divide-x lg:divide-[#1f3a66]">
         {items.map((s) => (
-          <div key={s.label} className="text-center px-4">
-            <div className="inline-flex w-12 h-12 rounded-lg bg-[#0f2547] border border-[#1f3a66] items-center justify-center mb-4 text-[#5fb6ff]">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                {s.icon}
-              </svg>
-            </div>
-            <div className="text-4xl font-bold text-white" style={{ fontFamily: "'El Messiri', serif" }}>
-              {s.value}<span className="text-[#5fb6ff]">{s.suffix}</span>
-            </div>
-            <div className="text-sm text-gray-300 mt-1">{s.label}</div>
-          </div>
+          <CountStat key={s.label} stat={s} />
         ))}
       </div>
     </section>
+  );
+}
+
+function CountStat({ stat }) {
+  const [ref, val] = useCountUp(stat.target, 1800);
+  return (
+    <div ref={ref} className="text-center px-4">
+      <div className="inline-flex w-12 h-12 rounded-lg bg-[#0f2547] border border-[#1f3a66] items-center justify-center mb-4 text-[#5fb6ff]">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          {stat.icon}
+        </svg>
+      </div>
+      <div className="text-4xl font-bold text-white tabular-nums" style={{ fontFamily: "'El Messiri', serif" }}>
+        {stat.format(val)}<span className="text-[#5fb6ff]">{stat.suffix}</span>
+      </div>
+      <div className="text-sm text-gray-300 mt-1">{stat.label}</div>
+    </div>
   );
 }
 
