@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { allProducts, findProductById } from "../../data/products";
-import { combos } from "../../data/combos";
-import { events } from "../../data/events";
 import { useUI } from "../../context/UIContext";
 import { useCart } from "../../context/CartContext";
 import { useWishlist } from "../../context/WishlistContext";
-import { payments, company, tierOffers, productDefaults, sampleReviews as SAMPLE_REVIEWS, productBenefits, productContent } from "../../data/site";
 import { categories } from "../../data/categories";
+import { useProducts, useCombos, useEvents } from "../../hooks/useApiData";
+import { useSettings } from "../../context/SettingsContext";
 
 const fmt = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 
@@ -15,6 +14,11 @@ export default function ProductDetailPage() {
   const { view, navigate, openModal, setSelectedProduct, showToast } = useUI();
   const { addToCart, items, updateQty, removeFromCart } = useCart();
   const { has, toggle } = useWishlist();
+
+  const { data: apiProducts } = useProducts();
+  const { data: combos } = useCombos();
+  const { data: events } = useEvents();
+  const { company, tierOffers, productDefaults, sampleReviews: SAMPLE_REVIEWS, productContent } = useSettings();
 
   const id = view?.params?.id;
   const product = useMemo(() => {
@@ -42,11 +46,13 @@ export default function ProductDetailPage() {
       };
     }
     return (
+      apiProducts.find((p) => p.id === id) ||
       findProductById(id) ||
       combos.find((c) => c.id === id) ||
+      apiProducts[0] ||
       allProducts[0]
     );
-  }, [id]);
+  }, [id, apiProducts, combos, events]);
 
   const cartItem = items.find((i) => i.id === product.id && !i.variant);
   const qty = cartItem?.qty || 0;
@@ -422,13 +428,14 @@ export default function ProductDetailPage() {
                 return (
                   <div
                     key={tier.minQty}
-                    className={`grid grid-cols-2 text-sm border-t border-gray-100 transition ${isActive ? "bg-orange-50" : ""}`}
+                    className={`grid grid-cols-2 text-sm border-t transition ${isActive ? "bg-orange-100 border-orange-200" : "border-gray-100"}`}
                   >
-                    <div className="px-3 py-3 border-r border-gray-200 text-brand-ink">
+                    <div className={`px-3 py-3 border-r relative ${isActive ? "border-orange-200 text-orange-700 font-semibold" : "border-gray-200 text-brand-ink"}`}>
+                      {isActive && <span className="absolute left-0 top-0 bottom-0 w-1 bg-orange-500" />}
                       {tier.label} for{" "}
                       <span className="font-bold">{fmt(Math.round(product.price * (1 - tier.rate)))}</span> each
                     </div>
-                    <div className="px-3 py-3 font-bold">{Math.round(tier.rate * 100)}%</div>
+                    <div className={`px-3 py-3 font-bold ${isActive ? "text-orange-700" : ""}`}>{Math.round(tier.rate * 100)}%</div>
                   </div>
                 );
               })}
@@ -715,12 +722,13 @@ function AvailableVariants({ product }) {
   const { addToCart } = useCart();
   const { openModal, navigate } = useUI();
   const [tab, setTab] = useState("All");
+  const { data: allProducts } = useProducts();
 
   const variantList = useMemo(() => {
     return allProducts
       .filter((p) => p.id !== product.id && p.category === product.category)
       .slice(0, 5);
-  }, [product]);
+  }, [product, allProducts]);
 
   if (variantList.length === 0) return null;
 
@@ -1092,6 +1100,7 @@ function PaymentOptionsModal({ items, initialId, onClose }) {
 }
 
 function SmartBenefitsCard() {
+  const { productBenefits } = useSettings();
   const { navigate } = useUI();
   const icons = {
     shield: <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" />,
@@ -1152,6 +1161,7 @@ function RatingsReviewsCard({ product }) {
 }
 
 function ReviewsModal({ product, onClose }) {
+  const { sampleReviews: SAMPLE_REVIEWS } = useSettings();
   const rating = product.rating || 0;
   const totalReviews = product.reviews ?? SAMPLE_REVIEWS.length;
   const distribution = useMemo(() => {
@@ -1269,6 +1279,7 @@ function ReviewsModal({ product, onClose }) {
 function RelatedProducts({ product }) {
   const { navigate, openModal } = useUI();
   const { addToCart } = useCart();
+  const { data: allProducts } = useProducts();
   const scroller = useRef(null);
 
   const onAdd = (p) => {
@@ -1278,7 +1289,7 @@ function RelatedProducts({ product }) {
 
   const list = useMemo(() => {
     return allProducts.filter((p) => p.id !== product.id).slice(0, 8);
-  }, [product]);
+  }, [product, allProducts]);
 
   const scroll = (dir) => {
     scroller.current?.scrollBy({ left: dir * 320, behavior: "smooth" });

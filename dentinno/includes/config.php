@@ -10,13 +10,36 @@ define('DB_CHARSET', 'utf8mb4');
 
 // App Settings
 define('APP_NAME', 'DentInno CRM');
-define('APP_URL', 'http://localhost/dentinno');
+define('APP_URL', 'http://localhost:8088');
 define('APP_VERSION', '1.0.0');
 define('TIMEZONE', 'Asia/Kolkata');
 
 // Session Settings
 define('SESSION_NAME', 'dentinno_session');
 define('SESSION_LIFETIME', 3600); // 1 hour
+
+// ---- OTP Settings ----
+// Channel: 'sms' (Fast2SMS) or 'email' (SMTP). Switch here to change delivery.
+define('OTP_CHANNEL', 'sms');
+define('OTP_TTL', 300);            // OTP valid for 5 minutes (seconds)
+define('OTP_MAX_ATTEMPTS', 5);    // send+verify attempts before block
+define('OTP_BLOCK_MINUTES', 60);  // block duration after limit (1 hour)
+define('OTP_RESEND_COOLDOWN', 30);// min seconds between resends
+define('OTP_DEV_RETURN', true);   // DEV: return OTP in API response (set false in prod)
+define('OTP_SSL_INSECURE', true); // DEV-only: skip SSL verify (local AV/proxy MITM). SET false IN PRODUCTION.
+
+// Fast2SMS (https://www.fast2sms.com/ -> Dev API -> API Key). Paste your key:
+define('FAST2SMS_API_KEY', 'Li3OedADUckqG0gmfuhxSCWKVIwXJ1HRnEB4Mvbl76ytoQZYjNAtYFvI73NyxMLhO4ul9Skw1VbXazR6');   // <-- PASTE FAST2SMS KEY HERE
+define('FAST2SMS_SENDER_ID', 'TXTIND');
+define('FAST2SMS_ROUTE', 'q');    // 'q'=Quick SMS (no verification needed). 'otp'=needs account verification.
+
+// Email OTP via SMTP (used when OTP_CHANNEL='email'). Gmail app password recommended.
+define('SMTP_HOST', 'smtp.gmail.com');
+define('SMTP_PORT', 587);
+define('SMTP_USER', '');          // <-- your gmail address
+define('SMTP_PASS', '');          // <-- gmail app password
+define('SMTP_FROM', 'no-reply@smartdentalinnovations.com');
+define('SMTP_FROM_NAME', 'Smart Dental Innovations');
 
 date_default_timezone_set(TIMEZONE);
 

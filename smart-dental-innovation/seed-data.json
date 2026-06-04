@@ -1,0 +1,3281 @@
+{
+  "categories": [
+    {
+      "id": "unique",
+      "title": "Unique Products",
+      "img": "https://d2ypw3u7ezpmac.cloudfront.net/3e834044-f328-4ede-9d34-631335023a02.webp"
+    },
+    {
+      "id": "restorative",
+      "title": "Restorative",
+      "img": "https://d2ypw3u7ezpmac.cloudfront.net/plain_image_2_40_(5).png"
+    },
+    {
+      "id": "endodontics",
+      "title": "Endodontics",
+      "img": "https://d2ypw3u7ezpmac.cloudfront.net/WhatsApp_Image_2026-03-05_at_4.32.25_PM.jpeg"
+    },
+    {
+      "id": "implantology",
+      "title": "Implantology",
+      "img": "https://d2ypw3u7ezpmac.cloudfront.net/plain_image_2_42_(9).png"
+    },
+    {
+      "id": "mirrors",
+      "title": "Mirrors",
+      "img": "https://d2ypw3u7ezpmac.cloudfront.net/plain_image_2_43_(3).png"
+    },
+    {
+      "id": "handpiece",
+      "title": "Handpiece",
+      "img": "https://d2ypw3u7ezpmac.cloudfront.net/plain_image_2_45_(6).png"
+    },
+    {
+      "id": "implant-component",
+      "title": "Implant Component",
+      "img": "https://d2ypw3u7ezpmac.cloudfront.net/plain_image_2_47_(7).png"
+    },
+    {
+      "id": "new",
+      "title": "New Products",
+      "img": "https://d2ypw3u7ezpmac.cloudfront.net/plain_image_2_48_(7).png"
+    },
+    {
+      "id": "scrub",
+      "title": "Smartmed Scrub",
+      "img": "https://d2ypw3u7ezpmac.cloudfront.net/plain_image_2_49_(1).png"
+    },
+    {
+      "id": "accessories",
+      "title": "Accessories",
+      "img": "https://d2ypw3u7ezpmac.cloudfront.net/plain_image_2_50_(5).png"
+    },
+    {
+      "id": "burs",
+      "title": "Dental Burs",
+      "img": "https://d2ypw3u7ezpmac.cloudfront.net/plain_image_2_51.png"
+    },
+    {
+      "id": "clinic-setup",
+      "title": "New Clinic Setup",
+      "img": "https://d2ypw3u7ezpmac.cloudfront.net/plain_images_63_(7).png"
+    },
+    {
+      "id": "photography",
+      "title": "Dental Photography"
+    },
+    {
+      "id": "dentact",
+      "title": "DentAct"
+    },
+    {
+      "id": "general",
+      "title": "General Dentistry"
+    },
+    {
+      "id": "periodontology",
+      "title": "Periodontology"
+    },
+    {
+      "id": "oral-surgery",
+      "title": "Oral Surgery"
+    },
+    {
+      "id": "matrix",
+      "title": "Matrix System"
+    }
+  ],
+  "products": [
+    {
+      "id": "p-001",
+      "name": "Radio Frequency Advance Cautery, 2 Year Warranty",
+      "image": "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 21000,
+      "price": 19000,
+      "discount": 10,
+      "rating": 4.7,
+      "reviews": 312,
+      "category": "unique",
+      "warranty": "2 Year Warranty",
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 19000,
+          "mrp": 21000,
+          "discount": 10
+        },
+        {
+          "label": "4 mm",
+          "price": 9500,
+          "mrp": 10500,
+          "discount": 10
+        }
+      ]
+    },
+    {
+      "id": "p-002",
+      "name": "Electric Portable Micromotor LED",
+      "image": "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 18500,
+      "price": 15999,
+      "discount": 14,
+      "rating": 4.6,
+      "reviews": 240,
+      "category": "handpiece",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 16000,
+          "mrp": 18500,
+          "discount": 14
+        },
+        {
+          "label": "4 mm",
+          "price": 8000,
+          "mrp": 9250,
+          "discount": 14
+        },
+        {
+          "label": "6 mm",
+          "price": 8000,
+          "mrp": 9250,
+          "discount": 14
+        }
+      ]
+    },
+    {
+      "id": "p-003",
+      "name": "Endomotor with Apex Locator",
+      "image": "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 24999,
+      "price": 21500,
+      "discount": 14,
+      "rating": 4.8,
+      "reviews": 187,
+      "category": "endodontics",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 21500,
+          "mrp": 25000,
+          "discount": 14
+        },
+        {
+          "label": "4 mm",
+          "price": 10750,
+          "mrp": 12500,
+          "discount": 14
+        },
+        {
+          "label": "6 mm",
+          "price": 10750,
+          "mrp": 12500,
+          "discount": 14
+        },
+        {
+          "label": "8 mm",
+          "price": 12900,
+          "mrp": 15000,
+          "discount": 14
+        }
+      ]
+    },
+    {
+      "id": "p-004",
+      "name": "Straight Long Handpiece NSK Style",
+      "image": "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 7800,
+      "price": 6499,
+      "discount": 17,
+      "rating": 4.5,
+      "reviews": 142,
+      "category": "handpiece",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": []
+    },
+    {
+      "id": "p-005",
+      "name": "Composite Filling Kit Premium",
+      "image": "https://merchant-cdn.storedum.com/WhatsApp_Image_2026-03-07_at_12.34.31_PM.jpeg",
+      "images": [
+        "https://merchant-cdn.storedum.com/WhatsApp_Image_2026-03-07_at_12.34.31_PM.jpeg",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 4500,
+      "price": 3299,
+      "discount": 27,
+      "rating": 4.6,
+      "reviews": 421,
+      "category": "restorative",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 3300,
+          "mrp": 4500,
+          "discount": 27
+        },
+        {
+          "label": "4 mm",
+          "price": 1650,
+          "mrp": 2250,
+          "discount": 27
+        },
+        {
+          "label": "6 mm",
+          "price": 1650,
+          "mrp": 2250,
+          "discount": 27
+        },
+        {
+          "label": "8 mm",
+          "price": 1980,
+          "mrp": 2700,
+          "discount": 27
+        },
+        {
+          "label": "10 mm",
+          "price": 2310,
+          "mrp": 3150,
+          "discount": 27
+        },
+        {
+          "label": "12 mm",
+          "price": 2800,
+          "mrp": 3830,
+          "discount": 27
+        }
+      ]
+    },
+    {
+      "id": "p-006",
+      "name": "Dental Mirror Set Anti-Fog 12pc",
+      "image": "https://merchant-cdn.storedum.com/dq3oxgejdhsf5sv5ym37_(7).webp",
+      "images": [
+        "https://merchant-cdn.storedum.com/dq3oxgejdhsf5sv5ym37_(7).webp",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 1899,
+      "price": 1299,
+      "discount": 32,
+      "rating": 4.4,
+      "reviews": 88,
+      "category": "mirrors",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 1300,
+          "mrp": 1900,
+          "discount": 32
+        },
+        {
+          "label": "4 mm",
+          "price": 650,
+          "mrp": 950,
+          "discount": 32
+        },
+        {
+          "label": "6 mm",
+          "price": 650,
+          "mrp": 950,
+          "discount": 32
+        },
+        {
+          "label": "8 mm",
+          "price": 780,
+          "mrp": 1140,
+          "discount": 32
+        },
+        {
+          "label": "10 mm",
+          "price": 910,
+          "mrp": 1330,
+          "discount": 32
+        },
+        {
+          "label": "12 mm",
+          "price": 1100,
+          "mrp": 1610,
+          "discount": 32
+        },
+        {
+          "label": "Pro",
+          "price": 1430,
+          "mrp": 2090,
+          "discount": 32
+        }
+      ]
+    },
+    {
+      "id": "p-007",
+      "name": "Implant Surgical Drill Kit",
+      "image": "https://merchant-cdn.storedum.com/ai_img_6_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_6_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 32500,
+      "price": 28999,
+      "discount": 11,
+      "rating": 4.7,
+      "reviews": 64,
+      "category": "implantology",
+      "warranty": null,
+      "inStock": false,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 29000,
+          "mrp": 32500,
+          "discount": 11
+        }
+      ]
+    },
+    {
+      "id": "p-008",
+      "name": "Carbide Bur Assorted Pack 100pc",
+      "image": "https://merchant-cdn.storedum.com/ai_img_9_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_9_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 2200,
+      "price": 1499,
+      "discount": 32,
+      "rating": 4.3,
+      "reviews": 256,
+      "category": "burs",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": []
+    },
+    {
+      "id": "p-009",
+      "name": "Smartmed Scrub Premium Cotton",
+      "image": "https://merchant-cdn.storedum.com/ai_img_40_(5).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_40_(5).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 1499,
+      "price": 999,
+      "discount": 33,
+      "rating": 4.5,
+      "reviews": 198,
+      "category": "scrub",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 1000,
+          "mrp": 1500,
+          "discount": 33
+        },
+        {
+          "label": "4 mm",
+          "price": 500,
+          "mrp": 750,
+          "discount": 33
+        },
+        {
+          "label": "6 mm",
+          "price": 500,
+          "mrp": 750,
+          "discount": 33
+        }
+      ]
+    },
+    {
+      "id": "p-010",
+      "name": "Apex Locator Mini Digital",
+      "image": "https://merchant-cdn.storedum.com/dentoscope-10-mm-1000x1000_(4).webpv1759486811width1946",
+      "images": [
+        "https://merchant-cdn.storedum.com/dentoscope-10-mm-1000x1000_(4).webpv1759486811width1946",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 8999,
+      "price": 6999,
+      "discount": 22,
+      "rating": 4.6,
+      "reviews": 110,
+      "category": "endodontics",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 7000,
+          "mrp": 9000,
+          "discount": 22
+        },
+        {
+          "label": "4 mm",
+          "price": 3500,
+          "mrp": 4500,
+          "discount": 22
+        },
+        {
+          "label": "6 mm",
+          "price": 3500,
+          "mrp": 4500,
+          "discount": 22
+        },
+        {
+          "label": "8 mm",
+          "price": 4200,
+          "mrp": 5400,
+          "discount": 22
+        }
+      ]
+    },
+    {
+      "id": "p-011",
+      "name": "Light Cure LED Wireless",
+      "image": "https://merchant-cdn.storedum.com/ai_img_42_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_42_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 6500,
+      "price": 4999,
+      "discount": 23,
+      "rating": 4.7,
+      "reviews": 273,
+      "category": "restorative",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 5000,
+          "mrp": 6500,
+          "discount": 23
+        },
+        {
+          "label": "4 mm",
+          "price": 2500,
+          "mrp": 3250,
+          "discount": 23
+        },
+        {
+          "label": "6 mm",
+          "price": 2500,
+          "mrp": 3250,
+          "discount": 23
+        },
+        {
+          "label": "8 mm",
+          "price": 3000,
+          "mrp": 3900,
+          "discount": 23
+        },
+        {
+          "label": "10 mm",
+          "price": 3500,
+          "mrp": 4550,
+          "discount": 23
+        }
+      ]
+    },
+    {
+      "id": "p-012",
+      "name": "Autoclave 18L Class B",
+      "image": "https://merchant-cdn.storedum.com/ai_img_35_(2).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_35_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 78000,
+      "price": 64999,
+      "discount": 17,
+      "rating": 4.8,
+      "reviews": 41,
+      "category": "clinic-setup",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": []
+    },
+    {
+      "id": "n-001",
+      "name": "Bio-Active Glass Ionomer Cement",
+      "image": "https://merchant-cdn.storedum.com/ai_img_39_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_39_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 3299,
+      "price": 2499,
+      "discount": 24,
+      "rating": 4.5,
+      "reviews": 32,
+      "category": "restorative",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 2500,
+          "mrp": 3300,
+          "discount": 24
+        },
+        {
+          "label": "4 mm",
+          "price": 1250,
+          "mrp": 1650,
+          "discount": 24
+        }
+      ]
+    },
+    {
+      "id": "n-002",
+      "name": "Titanium Implant Driver Set",
+      "image": "https://merchant-cdn.storedum.com/ai_img_22_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_22_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 12999,
+      "price": 9999,
+      "discount": 23,
+      "rating": 4.7,
+      "reviews": 18,
+      "category": "implantology",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 10000,
+          "mrp": 13000,
+          "discount": 23
+        },
+        {
+          "label": "4 mm",
+          "price": 5000,
+          "mrp": 6500,
+          "discount": 23
+        },
+        {
+          "label": "6 mm",
+          "price": 5000,
+          "mrp": 6500,
+          "discount": 23
+        }
+      ]
+    },
+    {
+      "id": "n-003",
+      "name": "Rotary Endo File NiTi 6pc",
+      "image": "https://merchant-cdn.storedum.com/ai_img_(2).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 1899,
+      "price": 1299,
+      "discount": 32,
+      "rating": 4.6,
+      "reviews": 54,
+      "category": "endodontics",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 1300,
+          "mrp": 1900,
+          "discount": 32
+        },
+        {
+          "label": "4 mm",
+          "price": 650,
+          "mrp": 950,
+          "discount": 32
+        },
+        {
+          "label": "6 mm",
+          "price": 650,
+          "mrp": 950,
+          "discount": 32
+        },
+        {
+          "label": "8 mm",
+          "price": 780,
+          "mrp": 1140,
+          "discount": 32
+        }
+      ]
+    },
+    {
+      "id": "n-004",
+      "name": "Diamond Bur Premium FG Pack",
+      "image": "https://merchant-cdn.storedum.com/ai_img_10_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_10_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 1499,
+      "price": 999,
+      "discount": 33,
+      "rating": 4.4,
+      "reviews": 71,
+      "category": "burs",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": []
+    },
+    {
+      "id": "n-005",
+      "name": "Surgical LED Loupes 3.5x",
+      "image": "https://merchant-cdn.storedum.com/ai_img_30_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_30_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 24999,
+      "price": 18999,
+      "discount": 24,
+      "rating": 4.8,
+      "reviews": 22,
+      "category": "accessories",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 19000,
+          "mrp": 25000,
+          "discount": 24
+        },
+        {
+          "label": "4 mm",
+          "price": 9500,
+          "mrp": 12500,
+          "discount": 24
+        },
+        {
+          "label": "6 mm",
+          "price": 9500,
+          "mrp": 12500,
+          "discount": 24
+        },
+        {
+          "label": "8 mm",
+          "price": 11400,
+          "mrp": 15000,
+          "discount": 24
+        },
+        {
+          "label": "10 mm",
+          "price": 13300,
+          "mrp": 17500,
+          "discount": 24
+        },
+        {
+          "label": "12 mm",
+          "price": 16150,
+          "mrp": 21250,
+          "discount": 24
+        }
+      ]
+    },
+    {
+      "id": "n-006",
+      "name": "Ultrasonic Scaler Piezo Tip Set",
+      "image": "https://merchant-cdn.storedum.com/ai_img_31_(2).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_31_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 4999,
+      "price": 3499,
+      "discount": 30,
+      "rating": 4.5,
+      "reviews": 95,
+      "category": "accessories",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 3500,
+          "mrp": 5000,
+          "discount": 30
+        },
+        {
+          "label": "4 mm",
+          "price": 1750,
+          "mrp": 2500,
+          "discount": 30
+        },
+        {
+          "label": "6 mm",
+          "price": 1750,
+          "mrp": 2500,
+          "discount": 30
+        },
+        {
+          "label": "8 mm",
+          "price": 2100,
+          "mrp": 3000,
+          "discount": 30
+        },
+        {
+          "label": "10 mm",
+          "price": 2450,
+          "mrp": 3500,
+          "discount": 30
+        },
+        {
+          "label": "12 mm",
+          "price": 2970,
+          "mrp": 4250,
+          "discount": 30
+        },
+        {
+          "label": "Pro",
+          "price": 3850,
+          "mrp": 5500,
+          "discount": 30
+        }
+      ]
+    },
+    {
+      "id": "n-007",
+      "name": "Disposable Dental Tray 50pc",
+      "image": "https://merchant-cdn.storedum.com/ai_img_32_(2).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_32_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 999,
+      "price": 699,
+      "discount": 30,
+      "rating": 4.3,
+      "reviews": 142,
+      "category": "accessories",
+      "warranty": null,
+      "inStock": false,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 700,
+          "mrp": 1000,
+          "discount": 30
+        }
+      ]
+    },
+    {
+      "id": "n-008",
+      "name": "Curing Light Premium Cordless",
+      "image": "https://merchant-cdn.storedum.com/ai_img_33_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_33_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 7999,
+      "price": 5999,
+      "discount": 25,
+      "rating": 4.7,
+      "reviews": 86,
+      "category": "restorative",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": []
+    },
+    {
+      "id": "n-009",
+      "name": "Surgical Suction Tip Pack",
+      "image": "https://merchant-cdn.storedum.com/ai_img_23_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_23_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 599,
+      "price": 399,
+      "discount": 33,
+      "rating": 4.4,
+      "reviews": 167,
+      "category": "accessories",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 400,
+          "mrp": 600,
+          "discount": 33
+        },
+        {
+          "label": "4 mm",
+          "price": 200,
+          "mrp": 300,
+          "discount": 33
+        },
+        {
+          "label": "6 mm",
+          "price": 200,
+          "mrp": 300,
+          "discount": 33
+        }
+      ]
+    },
+    {
+      "id": "n-010",
+      "name": "Orthodontic Bracket Set",
+      "image": "https://merchant-cdn.storedum.com/ai_img_27_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_27_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 5999,
+      "price": 4499,
+      "discount": 25,
+      "rating": 4.6,
+      "reviews": 31,
+      "category": "unique",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 4500,
+          "mrp": 6000,
+          "discount": 25
+        },
+        {
+          "label": "4 mm",
+          "price": 2250,
+          "mrp": 3000,
+          "discount": 25
+        },
+        {
+          "label": "6 mm",
+          "price": 2250,
+          "mrp": 3000,
+          "discount": 25
+        },
+        {
+          "label": "8 mm",
+          "price": 2700,
+          "mrp": 3600,
+          "discount": 25
+        }
+      ]
+    },
+    {
+      "id": "n-011",
+      "name": "Implant Healing Abutment 5pc",
+      "image": "https://merchant-cdn.storedum.com/ai_img_44.png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_44.png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 4999,
+      "price": 3499,
+      "discount": 30,
+      "rating": 4.7,
+      "reviews": 24,
+      "category": "implant-component",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 3500,
+          "mrp": 5000,
+          "discount": 30
+        },
+        {
+          "label": "4 mm",
+          "price": 1750,
+          "mrp": 2500,
+          "discount": 30
+        },
+        {
+          "label": "6 mm",
+          "price": 1750,
+          "mrp": 2500,
+          "discount": 30
+        },
+        {
+          "label": "8 mm",
+          "price": 2100,
+          "mrp": 3000,
+          "discount": 30
+        },
+        {
+          "label": "10 mm",
+          "price": 2450,
+          "mrp": 3500,
+          "discount": 30
+        }
+      ]
+    },
+    {
+      "id": "n-012",
+      "name": "Anti-Microbial Surgical Mask 100pc",
+      "image": "https://merchant-cdn.storedum.com/ai_img_26_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_26_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 899,
+      "price": 599,
+      "discount": 33,
+      "rating": 4.5,
+      "reviews": 312,
+      "category": "accessories",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": []
+    },
+    {
+      "id": "i-001",
+      "name": "Dental Implant Internal Hex 4.0mm",
+      "image": "https://merchant-cdn.storedum.com/smarthexdriverkit-02_(4).jpgv1748423646width1946",
+      "images": [
+        "https://merchant-cdn.storedum.com/smarthexdriverkit-02_(4).jpgv1748423646width1946",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 8999,
+      "price": 6999,
+      "discount": 22,
+      "rating": 4.7,
+      "reviews": 87,
+      "category": "implantology",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 7000,
+          "mrp": 9000,
+          "discount": 22
+        },
+        {
+          "label": "4 mm",
+          "price": 3500,
+          "mrp": 4500,
+          "discount": 22
+        }
+      ]
+    },
+    {
+      "id": "i-002",
+      "name": "Implant Surgical Kit Premium Box",
+      "image": "https://merchant-cdn.storedum.com/plain_image_2_6_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/plain_image_2_6_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 39999,
+      "price": 32999,
+      "discount": 18,
+      "rating": 4.8,
+      "reviews": 28,
+      "category": "implantology",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 33000,
+          "mrp": 40000,
+          "discount": 18
+        },
+        {
+          "label": "4 mm",
+          "price": 16500,
+          "mrp": 20000,
+          "discount": 18
+        },
+        {
+          "label": "6 mm",
+          "price": 16500,
+          "mrp": 20000,
+          "discount": 18
+        }
+      ]
+    },
+    {
+      "id": "i-003",
+      "name": "Implant Cover Screw Pack 10pc",
+      "image": "https://merchant-cdn.storedum.com/ChatGPT_Image_Apr_20_2026_11_18_56_AM.png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ChatGPT_Image_Apr_20_2026_11_18_56_AM.png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 2999,
+      "price": 1999,
+      "discount": 33,
+      "rating": 4.5,
+      "reviews": 41,
+      "category": "implant-component",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 2000,
+          "mrp": 3000,
+          "discount": 33
+        },
+        {
+          "label": "4 mm",
+          "price": 1000,
+          "mrp": 1500,
+          "discount": 33
+        },
+        {
+          "label": "6 mm",
+          "price": 1000,
+          "mrp": 1500,
+          "discount": 33
+        },
+        {
+          "label": "8 mm",
+          "price": 1200,
+          "mrp": 1800,
+          "discount": 33
+        }
+      ]
+    },
+    {
+      "id": "i-004",
+      "name": "Implant Hex Driver Long",
+      "image": "https://merchant-cdn.storedum.com/ai_img_7_(4).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_7_(4).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 1899,
+      "price": 1299,
+      "discount": 32,
+      "rating": 4.6,
+      "reviews": 56,
+      "category": "implant-component",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": []
+    },
+    {
+      "id": "h-001",
+      "name": "High-Speed Air Turbine Handpiece",
+      "image": "https://merchant-cdn.storedum.com/47_(8).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/47_(8).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 5999,
+      "price": 4499,
+      "discount": 25,
+      "rating": 4.6,
+      "reviews": 152,
+      "category": "handpiece",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 4500,
+          "mrp": 6000,
+          "discount": 25
+        },
+        {
+          "label": "4 mm",
+          "price": 2250,
+          "mrp": 3000,
+          "discount": 25
+        }
+      ]
+    },
+    {
+      "id": "h-002",
+      "name": "Low-Speed Contra Angle 1:1",
+      "image": "https://merchant-cdn.storedum.com/plain_image_2_23_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/plain_image_2_23_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 4999,
+      "price": 3699,
+      "discount": 26,
+      "rating": 4.5,
+      "reviews": 98,
+      "category": "handpiece",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 3700,
+          "mrp": 5000,
+          "discount": 26
+        },
+        {
+          "label": "4 mm",
+          "price": 1850,
+          "mrp": 2500,
+          "discount": 26
+        },
+        {
+          "label": "6 mm",
+          "price": 1850,
+          "mrp": 2500,
+          "discount": 26
+        }
+      ]
+    },
+    {
+      "id": "h-003",
+      "name": "Electric Micromotor Brushless",
+      "image": "https://merchant-cdn.storedum.com/Screenshot_2026-03-19_112934_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/Screenshot_2026-03-19_112934_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 22999,
+      "price": 18999,
+      "discount": 17,
+      "rating": 4.8,
+      "reviews": 36,
+      "category": "handpiece",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 19000,
+          "mrp": 23000,
+          "discount": 17
+        },
+        {
+          "label": "4 mm",
+          "price": 9500,
+          "mrp": 11500,
+          "discount": 17
+        },
+        {
+          "label": "6 mm",
+          "price": 9500,
+          "mrp": 11500,
+          "discount": 17
+        },
+        {
+          "label": "8 mm",
+          "price": 11400,
+          "mrp": 13800,
+          "discount": 17
+        }
+      ]
+    },
+    {
+      "id": "h-004",
+      "name": "Surgical Handpiece 20:1",
+      "image": "https://merchant-cdn.storedum.com/e98d8f04-103a-45c7-8604-f95001eb6cb5_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/e98d8f04-103a-45c7-8604-f95001eb6cb5_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 18999,
+      "price": 14999,
+      "discount": 21,
+      "rating": 4.7,
+      "reviews": 24,
+      "category": "handpiece",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": []
+    },
+    {
+      "id": "h-005",
+      "name": "Implant Motor + Handpiece Set",
+      "image": "https://merchant-cdn.storedum.com/ChatGPT_Image_Feb_6_2026_04_59_03_PM.png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ChatGPT_Image_Feb_6_2026_04_59_03_PM.png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 49999,
+      "price": 39999,
+      "discount": 20,
+      "rating": 4.8,
+      "reviews": 19,
+      "category": "handpiece",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 40000,
+          "mrp": 50000,
+          "discount": 20
+        },
+        {
+          "label": "4 mm",
+          "price": 20000,
+          "mrp": 25000,
+          "discount": 20
+        },
+        {
+          "label": "6 mm",
+          "price": 20000,
+          "mrp": 25000,
+          "discount": 20
+        },
+        {
+          "label": "8 mm",
+          "price": 24000,
+          "mrp": 30000,
+          "discount": 20
+        },
+        {
+          "label": "10 mm",
+          "price": 28000,
+          "mrp": 35000,
+          "discount": 20
+        },
+        {
+          "label": "12 mm",
+          "price": 34000,
+          "mrp": 42500,
+          "discount": 20
+        }
+      ]
+    },
+    {
+      "id": "h-006",
+      "name": "Air Scaler Handpiece",
+      "image": "https://merchant-cdn.storedum.com/plain_image_2_40_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/plain_image_2_40_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 7999,
+      "price": 5999,
+      "discount": 25,
+      "rating": 4.5,
+      "reviews": 67,
+      "category": "handpiece",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 6000,
+          "mrp": 8000,
+          "discount": 25
+        },
+        {
+          "label": "4 mm",
+          "price": 3000,
+          "mrp": 4000,
+          "discount": 25
+        },
+        {
+          "label": "6 mm",
+          "price": 3000,
+          "mrp": 4000,
+          "discount": 25
+        },
+        {
+          "label": "8 mm",
+          "price": 3600,
+          "mrp": 4800,
+          "discount": 25
+        },
+        {
+          "label": "10 mm",
+          "price": 4200,
+          "mrp": 5600,
+          "discount": 25
+        },
+        {
+          "label": "12 mm",
+          "price": 5100,
+          "mrp": 6800,
+          "discount": 25
+        },
+        {
+          "label": "Pro",
+          "price": 6600,
+          "mrp": 8800,
+          "discount": 25
+        }
+      ]
+    },
+    {
+      "id": "h-007",
+      "name": "Hygiene Polisher Handpiece",
+      "image": "https://merchant-cdn.storedum.com/ChatGPT_Image_Feb_6_2026_04_29_14_PM.png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ChatGPT_Image_Feb_6_2026_04_29_14_PM.png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 4499,
+      "price": 3299,
+      "discount": 27,
+      "rating": 4.4,
+      "reviews": 88,
+      "category": "handpiece",
+      "warranty": null,
+      "inStock": false,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 3300,
+          "mrp": 4500,
+          "discount": 27
+        }
+      ]
+    },
+    {
+      "id": "h-008",
+      "name": "Endodontic Handpiece Reciprocating",
+      "image": "https://merchant-cdn.storedum.com/84_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/84_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 14999,
+      "price": 11999,
+      "discount": 20,
+      "rating": 4.7,
+      "reviews": 41,
+      "category": "handpiece",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": []
+    },
+    {
+      "id": "m-001",
+      "name": "Sectional Matrix Band Pack 100pc",
+      "image": "https://merchant-cdn.storedum.com/plain_image_2.png",
+      "images": [
+        "https://merchant-cdn.storedum.com/plain_image_2.png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 1999,
+      "price": 1399,
+      "discount": 30,
+      "rating": 4.5,
+      "reviews": 124,
+      "category": "restorative",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 1400,
+          "mrp": 2000,
+          "discount": 30
+        },
+        {
+          "label": "4 mm",
+          "price": 700,
+          "mrp": 1000,
+          "discount": 30
+        }
+      ]
+    },
+    {
+      "id": "m-002",
+      "name": "Matrix Ring Premium NiTi",
+      "image": "https://merchant-cdn.storedum.com/1330_1_(4).webpv1744436024width1946",
+      "images": [
+        "https://merchant-cdn.storedum.com/1330_1_(4).webpv1744436024width1946",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 4499,
+      "price": 3299,
+      "discount": 27,
+      "rating": 4.7,
+      "reviews": 56,
+      "category": "restorative",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 3300,
+          "mrp": 4500,
+          "discount": 27
+        },
+        {
+          "label": "4 mm",
+          "price": 1650,
+          "mrp": 2250,
+          "discount": 27
+        },
+        {
+          "label": "6 mm",
+          "price": 1650,
+          "mrp": 2250,
+          "discount": 27
+        }
+      ]
+    },
+    {
+      "id": "m-003",
+      "name": "Matrix Forceps Anatomical",
+      "image": "https://merchant-cdn.storedum.com/ai_img_16_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_16_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 1899,
+      "price": 1299,
+      "discount": 32,
+      "rating": 4.6,
+      "reviews": 38,
+      "category": "restorative",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 1300,
+          "mrp": 1900,
+          "discount": 32
+        },
+        {
+          "label": "4 mm",
+          "price": 650,
+          "mrp": 950,
+          "discount": 32
+        },
+        {
+          "label": "6 mm",
+          "price": 650,
+          "mrp": 950,
+          "discount": 32
+        },
+        {
+          "label": "8 mm",
+          "price": 780,
+          "mrp": 1140,
+          "discount": 32
+        }
+      ]
+    },
+    {
+      "id": "m-004",
+      "name": "Wedge Plastic Assorted 200pc",
+      "image": "https://merchant-cdn.storedum.com/automatic-wooden-wedges-500x500_(4).webpv1739864668width1946",
+      "images": [
+        "https://merchant-cdn.storedum.com/automatic-wooden-wedges-500x500_(4).webpv1739864668width1946",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 999,
+      "price": 699,
+      "discount": 30,
+      "rating": 4.4,
+      "reviews": 178,
+      "category": "restorative",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": []
+    },
+    {
+      "id": "m-005",
+      "name": "Tofflemire Matrix Retainer",
+      "image": "https://merchant-cdn.storedum.com/ChatGPT_Image_Mar_12_2026_06_14_55_PM.png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ChatGPT_Image_Mar_12_2026_06_14_55_PM.png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 1499,
+      "price": 999,
+      "discount": 33,
+      "rating": 4.5,
+      "reviews": 92,
+      "category": "restorative",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 1000,
+          "mrp": 1500,
+          "discount": 33
+        },
+        {
+          "label": "4 mm",
+          "price": 500,
+          "mrp": 750,
+          "discount": 33
+        },
+        {
+          "label": "6 mm",
+          "price": 500,
+          "mrp": 750,
+          "discount": 33
+        },
+        {
+          "label": "8 mm",
+          "price": 600,
+          "mrp": 900,
+          "discount": 33
+        },
+        {
+          "label": "10 mm",
+          "price": 700,
+          "mrp": 1050,
+          "discount": 33
+        },
+        {
+          "label": "12 mm",
+          "price": 850,
+          "mrp": 1270,
+          "discount": 33
+        }
+      ]
+    },
+    {
+      "id": "m-006",
+      "name": "Universal Matrix Band Roll",
+      "image": "https://merchant-cdn.storedum.com/download-500x500_(4).webpv1739853341width1946",
+      "images": [
+        "https://merchant-cdn.storedum.com/download-500x500_(4).webpv1739853341width1946",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 599,
+      "price": 399,
+      "discount": 33,
+      "rating": 4.3,
+      "reviews": 211,
+      "category": "restorative",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 400,
+          "mrp": 600,
+          "discount": 33
+        },
+        {
+          "label": "4 mm",
+          "price": 200,
+          "mrp": 300,
+          "discount": 33
+        },
+        {
+          "label": "6 mm",
+          "price": 200,
+          "mrp": 300,
+          "discount": 33
+        },
+        {
+          "label": "8 mm",
+          "price": 240,
+          "mrp": 360,
+          "discount": 33
+        },
+        {
+          "label": "10 mm",
+          "price": 280,
+          "mrp": 420,
+          "discount": 33
+        },
+        {
+          "label": "12 mm",
+          "price": 340,
+          "mrp": 510,
+          "discount": 33
+        },
+        {
+          "label": "Pro",
+          "price": 440,
+          "mrp": 660,
+          "discount": 33
+        }
+      ]
+    },
+    {
+      "id": "m-007",
+      "name": "Anatomical Sectional Matrix Kit",
+      "image": "https://merchant-cdn.storedum.com/download-25-500x500_(4).webpv1739856285width1946",
+      "images": [
+        "https://merchant-cdn.storedum.com/download-25-500x500_(4).webpv1739856285width1946",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 3999,
+      "price": 2999,
+      "discount": 25,
+      "rating": 4.6,
+      "reviews": 47,
+      "category": "restorative",
+      "warranty": null,
+      "inStock": false,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 3000,
+          "mrp": 4000,
+          "discount": 25
+        }
+      ]
+    },
+    {
+      "id": "m-008",
+      "name": "Composite Placement Kit",
+      "image": "https://merchant-cdn.storedum.com/plain_image_2_32_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/plain_image_2_32_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 2999,
+      "price": 2199,
+      "discount": 27,
+      "rating": 4.5,
+      "reviews": 81,
+      "category": "restorative",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": []
+    },
+    {
+      "id": "e-001",
+      "name": "Rotary File ProTaper Universal",
+      "image": "https://merchant-cdn.storedum.com/plain_image_2_53_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/plain_image_2_53_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 2999,
+      "price": 2199,
+      "discount": 27,
+      "rating": 4.7,
+      "reviews": 142,
+      "category": "endodontics",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 2200,
+          "mrp": 3000,
+          "discount": 27
+        },
+        {
+          "label": "4 mm",
+          "price": 1100,
+          "mrp": 1500,
+          "discount": 27
+        }
+      ]
+    },
+    {
+      "id": "e-002",
+      "name": "GP Points 6% Taper 60pc",
+      "image": "https://merchant-cdn.storedum.com/plain_images_68_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/plain_images_68_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 599,
+      "price": 399,
+      "discount": 33,
+      "rating": 4.5,
+      "reviews": 318,
+      "category": "endodontics",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 400,
+          "mrp": 600,
+          "discount": 33
+        },
+        {
+          "label": "4 mm",
+          "price": 200,
+          "mrp": 300,
+          "discount": 33
+        },
+        {
+          "label": "6 mm",
+          "price": 200,
+          "mrp": 300,
+          "discount": 33
+        }
+      ]
+    },
+    {
+      "id": "e-003",
+      "name": "Endo Irrigation Syringe 30pc",
+      "image": "https://merchant-cdn.storedum.com/154.png",
+      "images": [
+        "https://merchant-cdn.storedum.com/154.png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 499,
+      "price": 349,
+      "discount": 30,
+      "rating": 4.4,
+      "reviews": 156,
+      "category": "endodontics",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 350,
+          "mrp": 500,
+          "discount": 30
+        },
+        {
+          "label": "4 mm",
+          "price": 170,
+          "mrp": 250,
+          "discount": 32
+        },
+        {
+          "label": "6 mm",
+          "price": 170,
+          "mrp": 250,
+          "discount": 32
+        },
+        {
+          "label": "8 mm",
+          "price": 210,
+          "mrp": 300,
+          "discount": 30
+        }
+      ]
+    },
+    {
+      "id": "e-004",
+      "name": "Apex Locator Mini Touch",
+      "image": "https://merchant-cdn.storedum.com/Copy_of_plain_image_2_30_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/Copy_of_plain_image_2_30_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 12999,
+      "price": 9999,
+      "discount": 23,
+      "rating": 4.8,
+      "reviews": 41,
+      "category": "endodontics",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": []
+    },
+    {
+      "id": "e-005",
+      "name": "Hand File K Stainless 21mm",
+      "image": "https://merchant-cdn.storedum.com/19.2_21mm_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/19.2_21mm_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 399,
+      "price": 249,
+      "discount": 38,
+      "rating": 4.3,
+      "reviews": 487,
+      "category": "endodontics",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 250,
+          "mrp": 400,
+          "discount": 38
+        },
+        {
+          "label": "4 mm",
+          "price": 120,
+          "mrp": 200,
+          "discount": 40
+        },
+        {
+          "label": "6 mm",
+          "price": 120,
+          "mrp": 200,
+          "discount": 40
+        },
+        {
+          "label": "8 mm",
+          "price": 150,
+          "mrp": 240,
+          "discount": 38
+        },
+        {
+          "label": "10 mm",
+          "price": 170,
+          "mrp": 280,
+          "discount": 39
+        },
+        {
+          "label": "12 mm",
+          "price": 210,
+          "mrp": 340,
+          "discount": 38
+        }
+      ]
+    },
+    {
+      "id": "e-006",
+      "name": "Endo Sealer Bioceramic",
+      "image": "https://merchant-cdn.storedum.com/274_(2).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/274_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 1499,
+      "price": 999,
+      "discount": 33,
+      "rating": 4.7,
+      "reviews": 92,
+      "category": "endodontics",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 1000,
+          "mrp": 1500,
+          "discount": 33
+        },
+        {
+          "label": "4 mm",
+          "price": 500,
+          "mrp": 750,
+          "discount": 33
+        },
+        {
+          "label": "6 mm",
+          "price": 500,
+          "mrp": 750,
+          "discount": 33
+        },
+        {
+          "label": "8 mm",
+          "price": 600,
+          "mrp": 900,
+          "discount": 33
+        },
+        {
+          "label": "10 mm",
+          "price": 700,
+          "mrp": 1050,
+          "discount": 33
+        },
+        {
+          "label": "12 mm",
+          "price": 850,
+          "mrp": 1270,
+          "discount": 33
+        },
+        {
+          "label": "Pro",
+          "price": 1100,
+          "mrp": 1650,
+          "discount": 33
+        }
+      ]
+    },
+    {
+      "id": "e-007",
+      "name": "Endo Activator Sonic",
+      "image": "https://merchant-cdn.storedum.com/FB2-03_(4).jpgv1750241250width1946",
+      "images": [
+        "https://merchant-cdn.storedum.com/FB2-03_(4).jpgv1750241250width1946",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 4999,
+      "price": 3499,
+      "discount": 30,
+      "rating": 4.6,
+      "reviews": 38,
+      "category": "endodontics",
+      "warranty": null,
+      "inStock": false,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": [
+        {
+          "label": "Generic",
+          "price": 3500,
+          "mrp": 5000,
+          "discount": 30
+        }
+      ]
+    },
+    {
+      "id": "e-008",
+      "name": "Paper Points Pack Sterile",
+      "image": "https://merchant-cdn.storedum.com/WhatsAppImage2025-11-20at12.59.57PM_(1).jpgv1763623816width1946",
+      "images": [
+        "https://merchant-cdn.storedum.com/WhatsAppImage2025-11-20at12.59.57PM_(1).jpgv1763623816width1946",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 299,
+      "price": 199,
+      "discount": 33,
+      "rating": 4.4,
+      "reviews": 264,
+      "category": "endodontics",
+      "warranty": null,
+      "inStock": true,
+      "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
+      "variants": []
+    }
+  ],
+  "premiumCategories": [
+    {
+      "id": "p-002",
+      "title": "Electric Portable Micromotor",
+      "description": "The Electric Portable Micromotor is a compact, pen-style rotary device with 3-speed power control, designed for efficient sanding, polishing, drilling, cutting, carving, and grinding with low heat generation and smooth performance.",
+      "imgSrc": "https://d2ypw3u7ezpmac.cloudfront.net/1_2_-removebg-preview.png"
+    },
+    {
+      "id": "p-003",
+      "title": "Endomotor",
+      "description": "The Endo Motor by Smart Dental Innovations is a compact, rechargeable motor engineered for efficient and safe root canal procedures. With auto-reverse & auto-forward functions, bright LED illumination, and compatibility with 16:1 contra-angle handpieces, it ensures smooth instrumentation, reduced file separation, and enhanced clinical control during RCT.",
+      "imgSrc": "https://d2ypw3u7ezpmac.cloudfront.net/1766209325816-removebg-preview.png"
+    },
+    {
+      "id": "p-004",
+      "title": "Straight Long Handpiece",
+      "description": "A high-performance surgical straight long handpiece designed for implantology and advanced surgical procedures, delivering smooth rotation, firm bur holding, and exceptional control.",
+      "imgSrc": "https://d2ypw3u7ezpmac.cloudfront.net/plain_images_19_1.png"
+    }
+  ],
+  "combos": [
+    {
+      "id": "c-001",
+      "name": "Trial Pack Combo",
+      "image": "https://merchant-cdn.storedum.com/plain_images_19_1.png",
+      "images": [
+        "https://merchant-cdn.storedum.com/plain_images_19_1.png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/plain_image_2_53_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_22_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_42_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp"
+      ],
+      "mrp": 2100,
+      "price": 1199,
+      "discount": 43,
+      "category": "combo",
+      "inStock": true,
+      "description": "Carefully curated combo pack for dental clinics — better value than individual items.",
+      "variants": []
+    },
+    {
+      "id": "c-002",
+      "name": "Implant S Pro + Smart Hex Driver Kit",
+      "image": "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_6_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_35_(2).png",
+        "https://merchant-cdn.storedum.com/WhatsApp_Image_2026-03-07_at_12.34.31_PM.jpeg",
+        "https://merchant-cdn.storedum.com/plain_images_68_(1).png"
+      ],
+      "mrp": 72000,
+      "price": 69990,
+      "discount": 3,
+      "category": "combo",
+      "inStock": true,
+      "description": "Carefully curated combo pack for dental clinics — better value than individual items.",
+      "variants": []
+    },
+    {
+      "id": "c-003",
+      "name": "Implant s lite + Implant handpiece",
+      "image": "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png",
+        "https://merchant-cdn.storedum.com/ai_img_9_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_40_(5).png",
+        "https://merchant-cdn.storedum.com/dq3oxgejdhsf5sv5ym37_(7).webp",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp"
+      ],
+      "mrp": 40000,
+      "price": 39480,
+      "discount": 1,
+      "category": "combo",
+      "inStock": true,
+      "description": "Carefully curated combo pack for dental clinics — better value than individual items.",
+      "variants": []
+    },
+    {
+      "id": "c-004",
+      "name": "Smart Pack + GP Point, 1 GP Point Free",
+      "image": "https://merchant-cdn.storedum.com/plain_images_68_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/plain_images_68_(1).png",
+        "https://merchant-cdn.storedum.com/plain_image_2_53_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_22_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_42_(1).png",
+        "https://merchant-cdn.storedum.com/plain_images_19_1.png",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png"
+      ],
+      "mrp": 9000,
+      "price": 7990,
+      "discount": 11,
+      "category": "combo",
+      "inStock": true,
+      "description": "Carefully curated combo pack for dental clinics — better value than individual items.",
+      "variants": []
+    },
+    {
+      "id": "c-005",
+      "name": "Endo Master Combo: Motor + Apex Locator",
+      "image": "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/ai_img_6_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_35_(2).png",
+        "https://merchant-cdn.storedum.com/WhatsApp_Image_2026-03-07_at_12.34.31_PM.jpeg",
+        "https://merchant-cdn.storedum.com/plain_images_68_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp"
+      ],
+      "mrp": 35000,
+      "price": 28999,
+      "discount": 17,
+      "category": "combo",
+      "inStock": true,
+      "description": "Carefully curated combo pack for dental clinics — better value than individual items.",
+      "variants": []
+    },
+    {
+      "id": "c-006",
+      "name": "Restorative Starter Combo Pack",
+      "image": "https://merchant-cdn.storedum.com/ai_img_42_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_42_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_9_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_40_(5).png",
+        "https://merchant-cdn.storedum.com/dq3oxgejdhsf5sv5ym37_(7).webp",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png"
+      ],
+      "mrp": 8500,
+      "price": 5499,
+      "discount": 35,
+      "category": "combo",
+      "inStock": true,
+      "description": "Carefully curated combo pack for dental clinics — better value than individual items.",
+      "variants": []
+    },
+    {
+      "id": "c-007",
+      "name": "Implant Surgery Combo Box",
+      "image": "https://merchant-cdn.storedum.com/ai_img_6_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_6_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_22_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_42_(1).png",
+        "https://merchant-cdn.storedum.com/plain_images_19_1.png",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png"
+      ],
+      "mrp": 89999,
+      "price": 74999,
+      "discount": 17,
+      "category": "combo",
+      "inStock": true,
+      "description": "Carefully curated combo pack for dental clinics — better value than individual items.",
+      "variants": []
+    },
+    {
+      "id": "c-008",
+      "name": "Composite Filling Combo, 5 Shades",
+      "image": "https://merchant-cdn.storedum.com/WhatsApp_Image_2026-03-07_at_12.34.31_PM.jpeg",
+      "images": [
+        "https://merchant-cdn.storedum.com/WhatsApp_Image_2026-03-07_at_12.34.31_PM.jpeg",
+        "https://merchant-cdn.storedum.com/ai_img_35_(2).png",
+        "https://merchant-cdn.storedum.com/plain_images_68_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/plain_image_2_53_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp"
+      ],
+      "mrp": 6500,
+      "price": 4299,
+      "discount": 34,
+      "category": "combo",
+      "inStock": true,
+      "description": "Carefully curated combo pack for dental clinics — better value than individual items.",
+      "variants": []
+    },
+    {
+      "id": "c-009",
+      "name": "Handpiece Duo: High + Low Speed",
+      "image": "https://merchant-cdn.storedum.com/47_(8).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/47_(8).png",
+        "https://merchant-cdn.storedum.com/ai_img_40_(5).png",
+        "https://merchant-cdn.storedum.com/dq3oxgejdhsf5sv5ym37_(7).webp",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_6_(1).png"
+      ],
+      "mrp": 11500,
+      "price": 8499,
+      "discount": 26,
+      "category": "combo",
+      "inStock": true,
+      "description": "Carefully curated combo pack for dental clinics — better value than individual items.",
+      "variants": []
+    },
+    {
+      "id": "c-010",
+      "name": "Bur Mega Combo, 200pc Assorted",
+      "image": "https://merchant-cdn.storedum.com/ai_img_9_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_9_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_42_(1).png",
+        "https://merchant-cdn.storedum.com/plain_images_19_1.png",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png",
+        "https://merchant-cdn.storedum.com/47_(8).png",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp"
+      ],
+      "mrp": 4500,
+      "price": 2799,
+      "discount": 38,
+      "category": "combo",
+      "inStock": true,
+      "description": "Carefully curated combo pack for dental clinics — better value than individual items.",
+      "variants": []
+    },
+    {
+      "id": "c-011",
+      "name": "Scrub Trio Combo, Premium Cotton",
+      "image": "https://merchant-cdn.storedum.com/ai_img_40_(5).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_40_(5).png",
+        "https://merchant-cdn.storedum.com/WhatsApp_Image_2026-03-07_at_12.34.31_PM.jpeg",
+        "https://merchant-cdn.storedum.com/plain_images_68_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_2_(3).png",
+        "https://merchant-cdn.storedum.com/plain_image_2_53_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_22_(1).png"
+      ],
+      "mrp": 4499,
+      "price": 2899,
+      "discount": 36,
+      "category": "combo",
+      "inStock": true,
+      "description": "Carefully curated combo pack for dental clinics — better value than individual items.",
+      "variants": []
+    },
+    {
+      "id": "c-012",
+      "name": "Clinic Setup Essentials Combo",
+      "image": "https://merchant-cdn.storedum.com/ai_img_35_(2).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_35_(2).png",
+        "https://merchant-cdn.storedum.com/dq3oxgejdhsf5sv5ym37_(7).webp",
+        "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "https://merchant-cdn.storedum.com/ai_img_5_(2).png",
+        "https://merchant-cdn.storedum.com/ai_img_6_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_1_(2).png"
+      ],
+      "mrp": 95000,
+      "price": 79999,
+      "discount": 16,
+      "category": "combo",
+      "inStock": true,
+      "description": "Carefully curated combo pack for dental clinics — better value than individual items.",
+      "variants": []
+    }
+  ],
+  "events": [
+    {
+      "id": "ev-001",
+      "name": "The Complete Exodontia Mastery Program",
+      "type": "Course",
+      "brand": "Smart Dental Innovations",
+      "breadcrumb": [
+        "Home",
+        "Products",
+        "Implantology"
+      ],
+      "extraCategories": [
+        "Implantology",
+        "Orthodontics",
+        "General Dentistry",
+        "Endodontics"
+      ],
+      "rating": 0,
+      "reviews": 0,
+      "mrp": 19980,
+      "price": 3000,
+      "image": "https://merchant-cdn.storedum.com/ai_img_6_(1).png",
+      "images": [
+        "https://merchant-cdn.storedum.com/ai_img_6_(1).png",
+        "https://merchant-cdn.storedum.com/ai_img_22_(1).png",
+        "https://merchant-cdn.storedum.com/plain_image_2_53_(1).png"
+      ],
+      "videoThumb": "https://merchant-cdn.storedum.com/ai_img_42_(1).png",
+      "videoUrl": "https://www.youtube.com/watch?v=9RJuESYo6jw",
+      "description": "This masterclass is designed to simplify extractions and boost your clinical confidence — with practical, real-world techniques for routine, surgical, and implant-friendly cases."
+    },
+    {
+      "id": "ev-002",
+      "name": "Advanced Implantology Hands-On Workshop",
+      "type": "Course",
+      "brand": "Smart Dental Innovations",
+      "breadcrumb": [
+        "Home",
+        "Products",
+        "Implantology"
+      ],
+      "extraCategories": [
+        "Implantology",
+        "Oral Surgery",
+        "Periodontology"
+      ],
+      "rating": 4.8,
+      "reviews": 24,
+      "mrp": 29999,
+      "price": 9999,
+      "image": "https://merchant-cdn.storedum.com/ai_img_22_(1).png",
+      "description": "Live cadaveric and model-based hands-on training in implant placement, sinus lift, and bone grafting. Faculty-led by top oral surgeons."
+    },
+    {
+      "id": "ev-003",
+      "name": "RCT Endodontic Excellence Live Course",
+      "type": "Course",
+      "brand": "Smart Dental Innovations",
+      "breadcrumb": [
+        "Home",
+        "Products",
+        "Endodontics"
+      ],
+      "extraCategories": [
+        "Endodontics",
+        "Restorative"
+      ],
+      "rating": 4.7,
+      "reviews": 41,
+      "mrp": 14999,
+      "price": 4999,
+      "image": "https://merchant-cdn.storedum.com/plain_image_2_53_(1).png",
+      "description": "Step-by-step rotary endodontic protocols, apex location, irrigation, and obturation. Real case demos with troubleshooting tips."
+    }
+  ],
+  "offers": [
+    {
+      "id": "offer-1",
+      "title": "Youni X File",
+      "subtitle": "(MOQ 20 Pack)",
+      "theme": "orange",
+      "accent": "#f97316",
+      "gradient": "linear-gradient(135deg, #fff5eb, #fdf2f8)",
+      "mainProduct": {
+        "productId": "n-003",
+        "name": "Youni X File (Pack Of 20)",
+        "variant": "Any Size",
+        "image": "https://merchant-cdn.storedum.com/ai_img_(2).png",
+        "price": 10600,
+        "mrp": 12000
+      },
+      "freeItems": [],
+      "specialPrice": 10600,
+      "totalMrp": 12000,
+      "youSave": 1400,
+      "validTill": "2026-05-31",
+      "cta": "linear-gradient(to right, #fb923c, #f97316)"
+    },
+    {
+      "id": "offer-2",
+      "title": "i Diamond Bur",
+      "subtitle": "You'll Get Super Tourque Push Button Led Handpiece",
+      "theme": "blue",
+      "accent": "#3b82f6",
+      "gradient": "linear-gradient(135deg, #eff6ff, #ecfdf5)",
+      "mainProduct": {
+        "productId": "p-008",
+        "name": "I Diamond Burs (100 Pcs)",
+        "variant": "Any Size",
+        "image": "https://merchant-cdn.storedum.com/ai_img_9_(1).png",
+        "price": 3800,
+        "mrp": 3999
+      },
+      "freeItems": [
+        {
+          "name": "Super Tourque Push Button Led Handpiece",
+          "mrp": 2400,
+          "image": "https://merchant-cdn.storedum.com/ai_img_5_(2).png"
+        }
+      ],
+      "specialPrice": 3800,
+      "totalMrp": 6399,
+      "youSave": 2400,
+      "saveExtra": "Handpiece",
+      "validTill": "2026-05-31",
+      "cta": "linear-gradient(to right, #2563eb, #10b981)"
+    },
+    {
+      "id": "offer-3",
+      "title": "RF Advance Cautery",
+      "subtitle": "You'll Get Super Tourque Push Button Led Handpiece And Antifog Mirror (Pack Of 25)",
+      "theme": "pink",
+      "accent": "#ec4899",
+      "gradient": "linear-gradient(135deg, #fce7f3, #fff7ed)",
+      "mainProduct": {
+        "productId": "p-001",
+        "name": "Radio Frequency Advance Cautery",
+        "variant": "2 Year Warranty",
+        "image": "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "price": 19000,
+        "mrp": 21000,
+        "rating": 5,
+        "reviews": 4
+      },
+      "freeItems": [
+        {
+          "name": "Super Torque Push Button Handpiece",
+          "mrp": 1400,
+          "image": "https://merchant-cdn.storedum.com/ai_img_5_(2).png"
+        },
+        {
+          "name": "Antifog Mirror (Pack Of 25)",
+          "mrp": 1000,
+          "image": "https://merchant-cdn.storedum.com/dq3oxgejdhsf5sv5ym37_(7).webp"
+        }
+      ],
+      "specialPrice": 19000,
+      "totalMrp": 23400,
+      "youSave": 2400,
+      "validTill": "2026-05-31",
+      "cta": "linear-gradient(to right, #f472b6, #fb923c)"
+    },
+    {
+      "id": "offer-4",
+      "title": "Youni X File",
+      "subtitle": "(MOQ 50 Pack)",
+      "theme": "purple",
+      "accent": "#a855f7",
+      "gradient": "linear-gradient(135deg, #f5f3ff, #fdf4ff)",
+      "mainProduct": {
+        "productId": "n-003",
+        "name": "Youni X File (Pack Of 50)",
+        "variant": "Any Size",
+        "image": "https://merchant-cdn.storedum.com/ai_img_(2).png",
+        "price": 24000,
+        "mrp": 30000
+      },
+      "freeItems": [],
+      "specialPrice": 24000,
+      "totalMrp": 30000,
+      "youSave": 6000,
+      "validTill": "2026-05-31",
+      "cta": "linear-gradient(to right, #064e3b, #c026d3)"
+    },
+    {
+      "id": "offer-5",
+      "title": "Antifog Mirror",
+      "subtitle": "You'll Get I Diamond Burs (5 Pcs) - TF 11",
+      "theme": "yellow",
+      "accent": "#eab308",
+      "gradient": "linear-gradient(135deg, #fef9c3, #fff7ed)",
+      "mainProduct": {
+        "productId": "p-006",
+        "name": "Antifog Mirror (Pack Of 50)",
+        "variant": "",
+        "image": "https://merchant-cdn.storedum.com/dq3oxgejdhsf5sv5ym37_(7).webp",
+        "price": 1000,
+        "mrp": 2000
+      },
+      "freeItems": [
+        {
+          "name": "I Diamond Burs (5 Pcs)",
+          "variant": "TF 11",
+          "mrp": 380,
+          "image": "https://merchant-cdn.storedum.com/ai_img_9_(1).png"
+        }
+      ],
+      "specialPrice": 1000,
+      "totalMrp": 2380,
+      "youSave": 190,
+      "validTill": "2026-05-31",
+      "cta": "linear-gradient(to right, #c4b5fd, #eab308)"
+    },
+    {
+      "id": "offer-6",
+      "title": "RF Smart Cautery",
+      "subtitle": "You'll Get Super Tourque Push Button Led Handpiece And Antifog Mirror (Pack Of 25)",
+      "theme": "maroon",
+      "accent": "#991b1b",
+      "gradient": "linear-gradient(135deg, #fee2e2, #f3e8ff)",
+      "mainProduct": {
+        "productId": "p-001",
+        "name": "Radio Frequency Smart Cautery",
+        "variant": "2 Year Warranty",
+        "image": "https://merchant-cdn.storedum.com/ai_img_(1).webp",
+        "price": 16500,
+        "mrp": 17900,
+        "rating": 5,
+        "reviews": 3
+      },
+      "freeItems": [
+        {
+          "name": "Super Torque Push Button Handpiece",
+          "mrp": 1400,
+          "image": "https://merchant-cdn.storedum.com/ai_img_5_(2).png"
+        },
+        {
+          "name": "Antifog Mirror (Pack Of 25)",
+          "mrp": 1000,
+          "image": "https://merchant-cdn.storedum.com/dq3oxgejdhsf5sv5ym37_(7).webp"
+        }
+      ],
+      "specialPrice": 16500,
+      "totalMrp": 20300,
+      "youSave": 2400,
+      "validTill": "2026-05-31",
+      "cta": "linear-gradient(to right, #7f1d1d, #a855f7)"
+    }
+  ],
+  "testimonials": [
+    {
+      "id": "t-1",
+      "name": "Aaradhya Dubey",
+      "avatar": "https://i.pravatar.cc/100?img=47",
+      "productImage": "https://picsum.photos/seed/review-1/300/300",
+      "text": "I recently used this implant hex driver and was impressed by its quality. It felt sturdy in hand, the grip was precise, and torque transfer was smooth. Highly recommended for daily implant cases."
+    },
+    {
+      "id": "t-2",
+      "name": "Dr. Rohan Mehta",
+      "avatar": "https://i.pravatar.cc/100?img=12",
+      "productImage": "https://picsum.photos/seed/review-2/300/300",
+      "text": "The endomotor is a game changer. Apex locator readings are stable and the torque control is reliable. My RCT chair time has dropped noticeably since I switched."
+    },
+    {
+      "id": "t-3",
+      "name": "Dr. Priya Sharma",
+      "avatar": "https://i.pravatar.cc/100?img=32",
+      "productImage": "https://picsum.photos/seed/review-3/300/300",
+      "text": "Ordered the RF Cautery for soft tissue work. Cuts cleanly, minimal bleeding, patients report quick healing. Build quality on the handle feels premium."
+    },
+    {
+      "id": "t-4",
+      "name": "Dr. Kabir Singh",
+      "avatar": "https://i.pravatar.cc/100?img=15",
+      "productImage": "https://picsum.photos/seed/review-4/300/300",
+      "text": "Fast shipping, fair pricing, and the after-sales response was on point. Will keep restocking accessories from here for my new clinic setup."
+    }
+  ],
+  "featured": [
+    {
+      "id": "f-rf",
+      "title": "RF Advance Cautery",
+      "tagline": "Precision Radio-Frequency for Modern Practice",
+      "description": "Bipolar + monopolar modes, foot-pedal control, autoclavable handle. Includes Active Handle, Hand Piece Pencil, Bio Polar Tweezer.",
+      "image": "https://merchant-cdn.storedum.com/new_website_banner_mobile_2.png",
+      "bullets": [
+        "Active Handle",
+        "Hand Piece Pencil",
+        "Bio Polar Tweezer"
+      ],
+      "price": 19000,
+      "mrp": 21000,
+      "productId": "p-001"
+    },
+    {
+      "id": "f-mm",
+      "title": "Electric Portable Micromotor",
+      "tagline": "Cordless. LED. Built for chairside speed.",
+      "description": "Brushless motor delivers 40,000 RPM with low vibration. LED tip illuminates the operating field for fine detail work.",
+      "image": "https://picsum.photos/seed/micromotor-feat/600/600",
+      "bullets": [
+        "40,000 RPM",
+        "LED Tip",
+        "Cordless 4h Battery"
+      ],
+      "price": 15999,
+      "mrp": 18500,
+      "productId": "p-002"
+    },
+    {
+      "id": "f-em",
+      "title": "Endomotor",
+      "tagline": "Apex locator + reciprocating motion in one device.",
+      "description": "Built-in apex locator, programmable speed/torque per file system, OLED display, and rechargeable battery.",
+      "image": "https://picsum.photos/seed/endomotor-feat/600/600",
+      "bullets": [
+        "Apex Locator Built-in",
+        "Reciprocating + Rotary",
+        "OLED Display"
+      ],
+      "price": 21500,
+      "mrp": 24999,
+      "productId": "p-003"
+    },
+    {
+      "id": "f-sh",
+      "title": "Straight Long Handpiece",
+      "tagline": "Lab-grade durability for surgical access.",
+      "description": "1:1 ratio, push-button bur change, autoclavable to 135°C. Long shank designed for surgical and prosthodontic procedures.",
+      "image": "https://picsum.photos/seed/straight-hp-feat/600/600",
+      "bullets": [
+        "1:1 Ratio",
+        "Push-Button Bur",
+        "Autoclavable 135°C"
+      ],
+      "price": 6499,
+      "mrp": 7800,
+      "productId": "p-004"
+    }
+  ],
+  "site": {
+    "company": {
+      "name": "Smart Dental Innovations",
+      "shortName": "Dentinno",
+      "parent": "Younique Dental Innovations",
+      "tagline": "Innovating Dentistry, One Tool at a Time",
+      "description": "A division of Younique Dental Innovations, we are Surat's premier destination for advanced dental products — designed to empower clinicians, elevate care, and deliver clinical excellence in every procedure.",
+      "city": "Surat",
+      "state": "Gujarat",
+      "pincode": "395006",
+      "address": "Third Floor, Swastik Plaza, 308, Savlia Cir, Yogi Chowk Ground, Chikuwadi, Varachha, Surat, Gujarat 395006",
+      "addressShort": "Third Floor, Swastik Plaza, Varachha, Surat, Gujarat 395006",
+      "email": "info@smartdentalinnovations.com",
+      "emailSales": "smartdentalinnovations.web@gmail.com",
+      "phone": "+91 92653 18584",
+      "phoneSales": "+91 93287 62586",
+      "hours": "Mon to Sat (10:00 AM to 7:00 PM)"
+    },
+    "stats": [
+      {
+        "value": "1000",
+        "suffix": "+",
+        "label": "Products"
+      },
+      {
+        "value": "203k",
+        "suffix": "+",
+        "label": "Followers"
+      },
+      {
+        "value": "4.5",
+        "suffix": "★",
+        "label": "Avg Rating"
+      },
+      {
+        "value": "100",
+        "suffix": "%",
+        "label": "Original"
+      }
+    ],
+    "socials": [
+      {
+        "id": "facebook",
+        "label": "Facebook",
+        "url": "https://facebook.com"
+      },
+      {
+        "id": "instagram",
+        "label": "Instagram",
+        "url": "https://instagram.com"
+      },
+      {
+        "id": "youtube",
+        "label": "YouTube",
+        "url": "https://youtube.com"
+      },
+      {
+        "id": "google",
+        "label": "Google",
+        "url": "https://google.com"
+      },
+      {
+        "id": "linkedin",
+        "label": "LinkedIn",
+        "url": "https://linkedin.com"
+      }
+    ],
+    "payments": [
+      {
+        "id": "cod",
+        "label": "COD"
+      },
+      {
+        "id": "netbanking",
+        "label": "Net Banking"
+      },
+      {
+        "id": "upi",
+        "label": "UPI"
+      },
+      {
+        "id": "partial",
+        "label": "Partial Payment"
+      },
+      {
+        "id": "card",
+        "label": "Credit / Debit cards",
+        "span": 2
+      }
+    ],
+    "fbtItems": [
+      {
+        "id": "fbt-1",
+        "name": "Radio Frequency Advance Cautery",
+        "warranty": "5 Year warranty",
+        "mrp": 24000,
+        "price": 23000,
+        "discount": 8,
+        "image": "https://merchant-cdn.storedum.com/ai_img_(1).webp"
+      },
+      {
+        "id": "fbt-2",
+        "name": "RF Smart Cautery",
+        "warranty": "2 Year warranty",
+        "mrp": 17900,
+        "price": 16500,
+        "discount": 8,
+        "image": "https://merchant-cdn.storedum.com/ai_img_1_(2).png"
+      },
+      {
+        "id": "fbt-3",
+        "name": "R.F Mini Cautery",
+        "warranty": "2 Year warranty",
+        "mrp": 14900,
+        "price": 13900,
+        "discount": 7,
+        "image": "https://merchant-cdn.storedum.com/ai_img_2_(3).png"
+      }
+    ],
+    "freeGifts": {
+      "threshold": 5000,
+      "items": [
+        {
+          "id": "g-1",
+          "name": "Antifog Mirror (Pack Of 25)",
+          "mrp": 1000,
+          "image": "https://merchant-cdn.storedum.com/dq3oxgejdhsf5sv5ym37_(7).webp"
+        },
+        {
+          "id": "g-2",
+          "name": "Super Torque Push Button Handpiece",
+          "mrp": 1400,
+          "image": "https://merchant-cdn.storedum.com/47_(8).png"
+        }
+      ]
+    },
+    "bulkRule": {
+      "minQty": 2,
+      "rate": 0.1
+    },
+    "coupons": [
+      {
+        "code": "SDI100",
+        "title": "Flat ₹100 off",
+        "desc": "Min order ₹1,500. Auto-eligible.",
+        "minSubtotal": 1500,
+        "discount": {
+          "type": "flat",
+          "value": 100
+        }
+      },
+      {
+        "code": "WELCOME10",
+        "title": "10% off (up to ₹500)",
+        "desc": "First order or any cart above ₹2,000.",
+        "minSubtotal": 2000,
+        "discount": {
+          "type": "percent",
+          "value": 10,
+          "max": 500
+        }
+      },
+      {
+        "code": "DENTAL15",
+        "title": "Flat 15% off",
+        "desc": "On orders above ₹10,000.",
+        "minSubtotal": 10000,
+        "discount": {
+          "type": "percent",
+          "value": 15,
+          "max": 3000
+        }
+      },
+      {
+        "code": "FREESHIP",
+        "title": "Free shipping",
+        "desc": "Removes delivery charges. Min ₹500.",
+        "minSubtotal": 500,
+        "discount": {
+          "type": "flat",
+          "value": 0
+        },
+        "perk": "shipping"
+      }
+    ],
+    "sortOptions": [
+      {
+        "id": "all",
+        "label": "All Products"
+      },
+      {
+        "id": "price-asc",
+        "label": "Price: Low to High"
+      },
+      {
+        "id": "price-desc",
+        "label": "Price: High to Low"
+      },
+      {
+        "id": "discount",
+        "label": "Top Discount"
+      },
+      {
+        "id": "rating",
+        "label": "Top Rated"
+      }
+    ],
+    "pricePresets": [
+      {
+        "label": "Below ₹499",
+        "max": 499
+      },
+      {
+        "label": "Below ₹999",
+        "max": 999
+      },
+      {
+        "label": "Below ₹1999",
+        "max": 1999
+      }
+    ],
+    "priceBounds": {
+      "min": 10,
+      "max": 500000
+    },
+    "tierOffers": [
+      {
+        "minQty": 2,
+        "rate": 0.05,
+        "label": "Buy 2 or above"
+      },
+      {
+        "minQty": 5,
+        "rate": 0.08,
+        "label": "Buy 5 or above"
+      }
+    ],
+    "productDefaults": {
+      "reviews": 0,
+      "rating": 5,
+      "deliveryDays": "3–5 business days",
+      "breadcrumbExtraCount": 5
+    },
+    "sectionToCategory": {
+      "Bestsellers": null,
+      "New Arrivals": "new",
+      "Implantology": "implantology",
+      "Handpiece": "handpiece",
+      "Matrix System": "matrix",
+      "Endodontics": "endodontics"
+    },
+    "sampleReviews": [
+      {
+        "id": "r1",
+        "name": "Dr. Patel",
+        "stars": 5,
+        "date": "2 weeks ago",
+        "text": "Excellent build quality and precision. My clinic team loves it."
+      },
+      {
+        "id": "r2",
+        "name": "Dr. Mehta",
+        "stars": 5,
+        "date": "1 month ago",
+        "text": "Best purchase for our endo procedures. Fast delivery too."
+      },
+      {
+        "id": "r3",
+        "name": "Dr. Shah",
+        "stars": 4,
+        "date": "2 months ago",
+        "text": "Works as advertised. Good value for money."
+      }
+    ],
+    "productBenefits": [
+      {
+        "id": "secure",
+        "label": "Secure Payment",
+        "icon": "shield"
+      },
+      {
+        "id": "cancel",
+        "label": "Hassle Free Cancellation*",
+        "icon": "x"
+      },
+      {
+        "id": "replace",
+        "label": "7 Days Replacement*",
+        "icon": "refresh"
+      },
+      {
+        "id": "genuine",
+        "label": "100% Genuine",
+        "icon": "check"
+      }
+    ],
+    "productContent": {
+      "highlights": [
+        {
+          "title": "Key Features",
+          "text": "High-frequency alternating current for precise soft-tissue cutting and coagulation, smooth scalpel-like incisions, multiple intensity levels, and bipolar capability."
+        },
+        {
+          "title": "Clinical Applications",
+          "text": "Suitable for gingivectomy, frenectomy, biopsy, hemostasis, and other electrosurgical procedures."
+        },
+        {
+          "title": "Electrodes & Accessories",
+          "text": "Comes with a selection of interchangeable electrodes (needle, loop, ball) for flexibility in different surgical needs."
+        }
+      ],
+      "accordions": [
+        {
+          "id": "desc",
+          "title": "Description",
+          "body": "Premium dental product engineered for clinical excellence and patient outcomes."
+        },
+        {
+          "id": "spec",
+          "title": "Key Specifications",
+          "body": "Power: 200W. Frequency: 3.5 MHz. Intensity Levels: 6. Display: LED. Foot control included."
+        },
+        {
+          "id": "use",
+          "title": "Directions to Use",
+          "body": "Connect handpiece, set intensity, ground plate to patient, activate via foot switch or hand switch."
+        },
+        {
+          "id": "pack",
+          "title": "Packaging Info",
+          "body": "Main unit, handpiece pencil, bipolar tweezer, electrodes set, foot switch, manual, warranty card."
+        },
+        {
+          "id": "warr",
+          "title": "Warranty",
+          "body": "Manufacturer warranty as per product. Standard 2-year warranty unless specified."
+        }
+      ],
+      "faqs": [
+        {
+          "id": "f1",
+          "q": "Does the device come with different electrodes?",
+          "a": "Yes, it includes a variety of interchangeable electrodes like needle, loop, and ball types to suit different surgical needs."
+        },
+        {
+          "id": "f2",
+          "q": "What is radio frequency advance cautery used for?",
+          "a": "The radio frequency advance cautery is used for precise soft-tissue cutting and coagulation in dental procedures. It helps achieve minimal tissue damage and excellent hemostasis."
+        },
+        {
+          "id": "f3",
+          "q": "Is foot control included?",
+          "a": "Yes, includes both foot and hand switch options for flexibility."
+        },
+        {
+          "id": "f4",
+          "q": "Does it support bipolar mode?",
+          "a": "Yes, supports both monopolar and bipolar modes."
+        },
+        {
+          "id": "f5",
+          "q": "What is the warranty period?",
+          "a": "Standard 2-year manufacturer warranty. Extended warranty available on select models."
+        }
+      ]
+    },
+    "heroSlides": [
+      {
+        "src": "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_5_1.webp",
+        "productId": "p-001"
+      },
+      {
+        "src": "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_10.webp",
+        "productId": "p-002"
+      },
+      {
+        "src": "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_9_(3).webp",
+        "productId": "p-003"
+      },
+      {
+        "src": "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_9_1.webp",
+        "productId": "p-007"
+      },
+      {
+        "src": "https://merchant-cdn.storedum.com/Smart_Hex_driver.png",
+        "productId": "i-001"
+      },
+      {
+        "src": "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_8.webp",
+        "productId": "p-010"
+      },
+      {
+        "src": "https://merchant-cdn.storedum.com/new_Website_slider_344_x_1080_px_5_(1).png",
+        "productId": "n-003"
+      }
+    ],
+    "banners": {
+      "promo": {
+        "leftId": "i-001",
+        "topRightId": "i-002",
+        "bottomRightId": "i-003",
+        "leftImg": "https://merchant-cdn.storedum.com/new_website_banner_mobile_2.png",
+        "topRightImg": "https://merchant-cdn.storedum.com/new_website_banner_desktop_(2).webp",
+        "bottomRightImg": "https://merchant-cdn.storedum.com/new_website_banner_desktop.png",
+        "leftImgM": "https://merchant-cdn.storedum.com/new_website_banner_mobile_2_(1).png",
+        "topRightImgM": "https://merchant-cdn.storedum.com/new_banner_2.webp",
+        "bottomRightImgM": "https://merchant-cdn.storedum.com/new_website_banner_mobile_1_1.webp"
+      },
+      "patti": {
+        "desktop": "https://merchant-cdn.storedum.com/website_patti_slider_desktop_(2).png",
+        "mobile": "https://merchant-cdn.storedum.com/Quick_Service_Support.png"
+      }
+    },
+    "trustBadges": [
+      {
+        "icon": "fa-solid fa-cube",
+        "label": "Products",
+        "dynamic": "productCount"
+      },
+      {
+        "icon": "fa-solid fa-hand-holding-medical",
+        "label": "Quick Service Support"
+      },
+      {
+        "icon": "fa-solid fa-circle-check",
+        "label": "100% Original"
+      },
+      {
+        "icon": "fa-solid fa-shield-halved",
+        "label": "Best Price"
+      }
+    ],
+    "rfSection": {
+      "title": "RF Advance Cautery",
+      "productId": "p-001",
+      "image": "https://merchant-cdn.storedum.com/Untitled_design_6_(1).png",
+      "descShort": "High-performance surgical unit for precise, bloodless soft-tissue management with clean scalpel-like cutting and superior coagulation.",
+      "description": "The Radio Frequency Advance Electro Cautery by Younique Dental Innovations is a high-performance surgical unit designed to deliver precise, smooth, and bloodless soft-tissue management in dental procedures. Powered by advanced high-frequency radio waves, it enables clean scalpel-like cutting with excellent coagulation, ensuring faster healing and superior clinical outcomes.",
+      "features": [
+        {
+          "image": "https://merchant-cdn.storedum.com/Untitled_design_9_(5).png",
+          "title": "Active Handle",
+          "desc": "A durable and ergonomically designed cautery active handle that ensures precise energy delivery and comfortable control during electrosurgical procedures."
+        },
+        {
+          "image": "https://merchant-cdn.storedum.com/Untitled_design_10_(15).png",
+          "title": "Hand Piece Pencil",
+          "desc": "A lightweight, ergonomically designed cautery hand switch pencil that provides precise, fingertip control for safe and efficient electrosurgical procedures."
+        },
+        {
+          "image": "https://merchant-cdn.storedum.com/Untitled_design_11_(11).png",
+          "title": "Bio Polar Tweezer",
+          "desc": "A high-precision bipolar cautery tweezer designed for controlled coagulation with minimal thermal spread and maximum surgical accuracy."
+        }
+      ]
+    }
+  },
+  "counts": {
+    "categories": 18,
+    "products": 52,
+    "combos": 12,
+    "events": 3,
+    "offers": 6,
+    "testimonials": 4
+  }
+}

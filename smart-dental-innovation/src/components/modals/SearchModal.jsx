@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useUI } from "../../context/UIContext";
-import { allProducts } from "../../data/products";
+import { useProducts } from "../../hooks/useApiData";
 import ProductCard from "../home/ProductCard";
 import Footer from "../layout/Footer";
 
 export default function SearchModal() {
   const { modal, closeModal, searchSeed, setSearchSeed, searchImageFile, setSearchImageFile } = useUI();
+  const { data: allProducts } = useProducts();
   const open = modal === "search";
   const [query, setQuery] = useState("");
   const [listening, setListening] = useState(false);
@@ -117,7 +118,7 @@ export default function SearchModal() {
       const hay = `${p.name} ${p.category || ""} ${p.warranty || ""}`.toLowerCase();
       return q.split(/\s+/).every((tok) => hay.includes(tok));
     });
-  }, [query, imageSearch]);
+  }, [query, imageSearch, allProducts]);
 
   const showInitial = !query.trim() && !imageSearch;
   const count = results.length;

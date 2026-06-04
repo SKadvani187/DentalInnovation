@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
-import { combos } from "../../data/combos";
 import { categoryFilters as CATEGORY_FILTERS } from "../../data/categories";
 import { sortOptions as SORT_OPTIONS } from "../../data/site";
 import { useCart } from "../../context/CartContext";
 import { useUI } from "../../context/UIContext";
+import { useCombos } from "../../hooks/useApiData";
 
 const fmt = (n) => `₹${n.toLocaleString("en-IN")}`;
 
@@ -14,6 +14,7 @@ export default function CombosPage() {
   const [sort, setSort] = useState("all");
   const [sortOpen, setSortOpen] = useState(false);
   const [selectedCat, setSelectedCat] = useState(null);
+  const { data: combos } = useCombos();
 
   const list = useMemo(() => {
     const items = [...combos];
@@ -24,7 +25,7 @@ export default function CombosPage() {
       default: break;
     }
     return items;
-  }, [sort]);
+  }, [sort, combos]);
 
   return (
     <div className="max-w-[1400px] mx-auto px-4 py-6">

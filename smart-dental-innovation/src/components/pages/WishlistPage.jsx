@@ -3,7 +3,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useUI } from "../../context/UIContext";
 import { useWishlist } from "../../context/WishlistContext";
 import { useCart } from "../../context/CartContext";
-import { allProducts } from "../../data/products";
+import { useProducts, useCombos } from "../../hooks/useApiData";
 
 const fmt = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 
@@ -12,10 +12,12 @@ export default function WishlistPage() {
   const { navigate, openModal } = useUI();
   const { ids, remove } = useWishlist();
   const { addToCart } = useCart();
+  const { data: allProducts } = useProducts();
+  const { data: combos } = useCombos();
 
   const items = useMemo(
-    () => ids.map((id) => allProducts.find((p) => p.id === id)).filter(Boolean),
-    [ids]
+    () => ids.map((id) => allProducts.find((p) => p.id === id) || combos.find((c) => c.id === id)).filter(Boolean),
+    [ids, allProducts, combos]
   );
 
   if (!user) {

@@ -118,8 +118,8 @@ const PRODUCTS = [
 
 export function ProsthodonticsCarousel() {
   const scrollRef = useRef(null);
-  const { navigate, openModal } = useUI();
-  const { addToCart } = useCart();
+  const { navigate, openModal, showToast } = useUI();
+  const { addToCart, items, updateQty, removeFromCart } = useCart();
   const open = (p) => navigate("product", { id: p.productId });
   const onAdd = (e, p) => {
     e.stopPropagation();
@@ -127,7 +127,16 @@ export function ProsthodonticsCarousel() {
       { id: p.productId, name: p.name, image: p.image, price: p.priceNum, mrp: p.mrpNum, category: "prosthodontics" },
       1
     );
+    showToast?.("Added to cart!", "success");
     openModal("cart");
+  };
+  const cartQty = (p) => items.find((i) => i.id === p.productId && !i.variant)?.qty || 0;
+  const changeQty = (e, p, delta) => {
+    e.stopPropagation();
+    const cur = items.find((i) => i.id === p.productId && !i.variant);
+    if (!cur) return;
+    if (cur.qty + delta <= 0) removeFromCart(cur.key);  // qty 0 -> remove, card reverts to ADD
+    else updateQty(cur.key, cur.qty + delta);
   };
 
   // Scroll handler — step adapts to viewport
@@ -223,14 +232,22 @@ export function ProsthodonticsCarousel() {
                   {product.discount}
                 </div>
 
-                {/* Base aligned Add Action Button */}
+                {/* Base aligned Add Action Button / qty stepper */}
                 <div className="mt-auto pt-3">
-                  <button
-                    onClick={(e) => onAdd(e, product)}
-                    className="w-full py-1.5 bg-white border border-[#1976d2] text-[#1976d2] rounded text-[13px] font-bold hover:bg-[#1976d2] hover:text-white transition-colors cursor-pointer"
-                  >
-                    ADD
-                  </button>
+                  {cartQty(product) > 0 ? (
+                    <div className="w-full flex items-center justify-between bg-[#1976d2] text-white rounded text-[13px] font-bold overflow-hidden">
+                      <button onClick={(e) => changeQty(e, product, -1)} className="px-3 py-1.5 hover:bg-[#1565c0]">−</button>
+                      <span>{cartQty(product)} in cart</span>
+                      <button onClick={(e) => changeQty(e, product, 1)} className="px-3 py-1.5 hover:bg-[#1565c0]">+</button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={(e) => onAdd(e, product)}
+                      className="w-full py-1.5 bg-white border border-[#1976d2] text-[#1976d2] rounded text-[13px] font-bold hover:bg-[#1976d2] hover:text-white transition-colors cursor-pointer"
+                    >
+                      ADD
+                    </button>
+                  )}
                 </div>
               </div>
 

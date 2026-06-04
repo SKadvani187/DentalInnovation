@@ -1,19 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
 import { useUI } from "../../context/UIContext";
-
-const slides = [
-  { src: "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_5_1.webp", productId: "p-001" },
-  { src: "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_10.webp", productId: "p-002" },
-  { src: "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_9_(3).webp", productId: "p-003" },
-  { src: "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_9_1.webp", productId: "p-007" },
-  { src: "https://merchant-cdn.storedum.com/Smart_Hex_driver.png", productId: "i-001" },
-  { src: "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_8.webp", productId: "p-010" },
-  { src: "https://merchant-cdn.storedum.com/new_Website_slider_344_x_1080_px_5_(1).png", productId: "n-003" },
-];
+import { useSettings } from "../../context/SettingsContext";
+import { heroSlides as staticSlides } from "../../data/site";
 
 export default function HeroCarousel() {
   const { navigate } = useUI();
+  const { heroSlides } = useSettings();
+  const slides = (heroSlides && heroSlides.length) ? heroSlides : staticSlides;
   const go = (id) => navigate("product", { id });
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
   const [selected, setSelected] = useState(0);

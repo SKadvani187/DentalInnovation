@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useUI } from "../../context/UIContext";
+import api from "../../lib/api";
+
+const fmt = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 
 const ORDER_TYPES = [
   { id: "all", label: "All Orders" },
@@ -28,13 +31,26 @@ const ORDER_TYPE_VISIBLE = 5;
 const DATE_VISIBLE = 3;
 
 export default function OrdersPage() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { navigate, openModal } = useUI();
   const [tab, setTab] = useState("orders");
   const [orderType, setOrderType] = useState("all");
   const [dateFilter, setDateFilter] = useState("30d");
   const [orderExpanded, setOrderExpanded] = useState(false);
   const [dateExpanded, setDateExpanded] = useState(false);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!token) return;
+    let alive = true;
+    setLoading(true);
+    api.myOrders()
+      .then((list) => { if (alive) setOrders(list || []); })
+      .catch((err) => console.warn("[orders] fetch failed:", err.message))
+      .finally(() => alive && setLoading(false));
+    return () => { alive = false; };
+  }, [token]);
 
   if (!user) {
     return (
@@ -52,6 +68,7 @@ export default function OrdersPage() {
 
   const visibleOrderTypes = orderExpanded ? ORDER_TYPES : ORDER_TYPES.slice(0, ORDER_TYPE_VISIBLE);
   const visibleDates = dateExpanded ? DATE_FILTERS : DATE_FILTERS.slice(0, DATE_VISIBLE);
+  const filteredOrders = orderType === "all" ? orders : orders.filter((o) => o.status === orderType);
 
   return (
     <div className="max-w-[1200px] mx-auto px-4 py-6">
@@ -118,10 +135,20 @@ export default function OrdersPage() {
             <Tab active={tab === "refunds"} onClick={() => setTab("refunds")}>MY REFUNDS</Tab>
           </div>
 
-          <EmptyState
-            tab={tab}
-            onStart={() => navigate(tab === "orders" ? "category" : "contact")}
-          />
+          {tab === "orders" && filteredOrders.length > 0 ? (
+            <div className="space-y-4">
+              {filteredOrders.map((o) => (
+                <OrderCard key={o.orderId} order={o} />
+              ))}
+            </div>
+          ) : loading ? (
+            <div className="py-12 text-center text-brand-muted">Loading orders…</div>
+          ) : (
+            <EmptyState
+              tab={tab}
+              onStart={() => navigate(tab === "orders" ? "category" : "contact")}
+            />
+          )}
         </section>
       </div>
     </div>
@@ -151,6 +178,42 @@ function Tab({ active, onClick, children }) {
       {children}
       {active && <span className="absolute left-0 right-0 -bottom-px h-0.5 bg-[#3684bf]" />}
     </button>
+  );
+}
+
+function OrderCard({ order }) {
+  const date = order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
+  const statusColor = {
+    delivered: "bg-green-100 text-green-700",
+    shipped: "bg-blue-100 text-blue-700",
+    pending: "bg-amber-100 text-amber-700",
+    processing: "bg-purple-100 text-purple-700",
+    confirmed: "bg-indigo-100 text-indigo-700",
+    cancelled: "bg-red-100 text-red-700",
+  }[order.status] || "bg-gray-100 text-gray-700";
+
+  return (
+    <div className="border border-gray-200 rounded-xl p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className="font-bold text-brand-ink">{order.orderId}</p>
+          <p className="text-xs text-brand-muted">{date}</p>
+        </div>
+        <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase ${statusColor}`}>{order.status}</span>
+      </div>
+      <div className="space-y-1.5 mb-3">
+        {order.items.map((it, i) => (
+          <div key={i} className="flex items-center justify-between text-sm">
+            <span className="text-brand-ink">{it.name}{it.variant ? ` (${it.variant})` : ""} × {it.qty}</span>
+            <span className="text-brand-muted">{fmt(it.total)}</span>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center justify-between border-t border-gray-100 pt-3 text-sm">
+        <span className="text-brand-muted">{order.paymentMethod?.toUpperCase()} · {order.paymentStatus}</span>
+        <span className="font-bold text-brand-ink">{fmt(order.total)}</span>
+      </div>
+    </div>
   );
 }
 

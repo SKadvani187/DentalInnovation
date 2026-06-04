@@ -1,6 +1,57 @@
 // Site-wide config — single source of truth for company info, contact, social, marketing copy.
 // Edit here to update across all pages.
 
+// RF Cautery showcase section (home). Admin-managed via Settings → RF Cautery Section.
+export const rfSection = {
+  title: "RF Advance Cautery",
+  productId: "p-001",
+  image: "https://merchant-cdn.storedum.com/Untitled_design_6_(1).png",
+  descShort: "High-performance surgical unit for precise, bloodless soft-tissue management with clean scalpel-like cutting and superior coagulation.",
+  description: "The Radio Frequency Advance Electro Cautery by Younique Dental Innovations is a high-performance surgical unit designed to deliver precise, smooth, and bloodless soft-tissue management in dental procedures. Powered by advanced high-frequency radio waves, it enables clean scalpel-like cutting with excellent coagulation, ensuring faster healing and superior clinical outcomes.",
+  features: [
+    { image: "https://merchant-cdn.storedum.com/Untitled_design_9_(5).png", title: "Active Handle", desc: "A durable and ergonomically designed cautery active handle that ensures precise energy delivery and comfortable control during electrosurgical procedures." },
+    { image: "https://merchant-cdn.storedum.com/Untitled_design_10_(15).png", title: "Hand Piece Pencil", desc: "A lightweight, ergonomically designed cautery hand switch pencil that provides precise, fingertip control for safe and efficient electrosurgical procedures." },
+    { image: "https://merchant-cdn.storedum.com/Untitled_design_11_(11).png", title: "Bio Polar Tweezer", desc: "A high-precision bipolar cautery tweezer designed for controlled coagulation with minimal thermal spread and maximum surgical accuracy." },
+  ],
+};
+
+// Trust badges strip (home, under category grid). Admin-managed via Settings.
+// {dynamic:'productCount'} pulls the live product count; else label is shown as-is.
+export const trustBadges = [
+  { icon: "fa-solid fa-cube", label: "Products", dynamic: "productCount" },
+  { icon: "fa-solid fa-hand-holding-medical", label: "Quick Service Support" },
+  { icon: "fa-solid fa-circle-check", label: "100% Original" },
+  { icon: "fa-solid fa-shield-halved", label: "Best Price" },
+];
+
+// Home secondary banners — admin-managed via Settings → Banners.
+export const banners = {
+  promo: {
+    leftId: "i-001", topRightId: "i-002", bottomRightId: "i-003",
+    leftImg: "https://merchant-cdn.storedum.com/new_website_banner_mobile_2.png",
+    topRightImg: "https://merchant-cdn.storedum.com/new_website_banner_desktop_(2).webp",
+    bottomRightImg: "https://merchant-cdn.storedum.com/new_website_banner_desktop.png",
+    leftImgM: "https://merchant-cdn.storedum.com/new_website_banner_mobile_2_(1).png",
+    topRightImgM: "https://merchant-cdn.storedum.com/new_banner_2.webp",
+    bottomRightImgM: "https://merchant-cdn.storedum.com/new_website_banner_mobile_1_1.webp",
+  },
+  patti: {
+    desktop: "https://merchant-cdn.storedum.com/website_patti_slider_desktop_(2).png",
+    mobile: "https://merchant-cdn.storedum.com/Quick_Service_Support.png",
+  },
+};
+
+// Home hero carousel slides (image + product link). Admin-managed via Settings → Banners.
+export const heroSlides = [
+  { src: "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_5_1.webp", productId: "p-001" },
+  { src: "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_10.webp", productId: "p-002" },
+  { src: "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_9_(3).webp", productId: "p-003" },
+  { src: "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_9_1.webp", productId: "p-007" },
+  { src: "https://merchant-cdn.storedum.com/Smart_Hex_driver.png", productId: "i-001" },
+  { src: "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_8.webp", productId: "p-010" },
+  { src: "https://merchant-cdn.storedum.com/new_Website_slider_344_x_1080_px_5_(1).png", productId: "n-003" },
+];
+
 export const company = {
   name: "Smart Dental Innovations",
   shortName: "Dentinno",

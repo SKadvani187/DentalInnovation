@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTestimonials } from '../../hooks/useApiData';
 
 const REVIEWS_DATA = [
   {
@@ -40,6 +41,19 @@ const REVIEWS_DATA = [
 ];
 
 export default function ReviewsSection() {
+  const { data: testimonials } = useTestimonials();
+  // Map DB testimonials -> this section's card shape; fall back to static showcase.
+  const reviews = (testimonials && testimonials.length)
+    ? testimonials.map((t, i) => ({
+        id: t.id || i,
+        reviewer: t.name,
+        avatar: t.avatar,
+        productName: t.productName || "",
+        productImage: t.productImage,
+        comment: t.text,
+        rating: t.rating || 5,
+      }))
+    : REVIEWS_DATA;
   return (
     /* EXACT SIDE SPACING FROM SCREENSHOT: Padding rules matching website layout boundaries */
     <div className="w-full px-4 sm:px-8 md:px-12 py-10 bg-[var(--background-primary)]">
@@ -52,7 +66,7 @@ export default function ReviewsSection() {
 
         {/* 4-Column desktop track / Touch swipe tracking for mobile layout viewports */}
         <div className="w-full flex sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-[30px] overflow-x-auto sm:overflow-x-visible snap-x snap-mandatory scrollbar-none pb-6">
-          {REVIEWS_DATA.map((review) => (
+          {reviews.map((review) => (
             <div
               key={review.id}
               className="w-[85vw] min-w-[260px] sm:w-full sm:min-w-0 shrink-0 snap-center relative flex flex-col items-center"

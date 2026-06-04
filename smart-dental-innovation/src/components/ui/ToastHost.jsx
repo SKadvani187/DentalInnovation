@@ -23,7 +23,7 @@ export default function ToastHost() {
   const { toasts, dismissToast } = useUI();
   if (!toasts.length) return null;
   return createPortal(
-    <div className="fixed top-4 right-4 z-[1300] flex flex-col gap-2 pointer-events-none">
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[1300] flex flex-col items-center gap-2 pointer-events-none">
       {toasts.map((t) => (
         <div
           key={t.id}

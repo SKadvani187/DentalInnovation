@@ -1,23 +1,24 @@
 import { useEffect, useRef, useState } from "react";
-import { events } from "../../data/events";
 import { useUI } from "../../context/UIContext";
 import { useCart } from "../../context/CartContext";
 import { useWishlist } from "../../context/WishlistContext";
+import { useEvents } from "../../hooks/useApiData";
 
 const fmt = (n) => `₹${n.toLocaleString("en-IN")}`;
 
 export default function EventsPage() {
   const { view, navigate } = useUI();
+  const { data: events } = useEvents();
   const id = view?.params?.id;
   const event = events.find((e) => e.id === id) || events[0];
 
   if (!id) {
-    return <EventsList onPick={(e) => navigate("events", { id: e.id })} />;
+    return <EventsList events={events} onPick={(e) => navigate("events", { id: e.id })} />;
   }
   return <EventDetail event={event} />;
 }
 
-function EventsList({ onPick }) {
+function EventsList({ events, onPick }) {
   return (
     <div className="max-w-[1400px] mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-brand-ink mb-6">Events & Courses</h1>

@@ -21,16 +21,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $features   = !empty($d['features']) ? json_encode($d['features']) : null;
         $key_specs  = !empty($d['key_specifications']) ? json_encode($d['key_specifications']) : null;
         $images_json = !empty($d['images']) ? json_encode($d['images']) : null;
+        $hover_image = !empty($d['hover_image']) ? $d['hover_image'] : null;
         if (!empty($d['id'])) {
-            db()->execute("UPDATE products SET name=?,category_id=?,price=?,discount_price=?,discount_percent=?,stock=?,short_description=?,full_description=?,features=?,packing_info=?,key_specifications=?,directions_for_use=?,additional_information=?,warranty_info=?,images=?,weight_kg=?,is_active=?,is_featured=? WHERE id=?",
-                [$d['name'],$d['category_id']?:null,$d['price'],$disc_price,$disc_pct,$d['stock'],$d['short_description'],$d['full_description'],$features,$d['packing_info'],$key_specs,$d['directions_for_use'],$d['additional_information'],$d['warranty_info'],$images_json,$d['weight_kg']?:null,$d['is_active']??1,$d['is_featured']??0,$d['id']]);
+            db()->execute("UPDATE products SET name=?,category_id=?,price=?,discount_price=?,discount_percent=?,stock=?,short_description=?,full_description=?,features=?,packing_info=?,key_specifications=?,directions_for_use=?,additional_information=?,warranty_info=?,images=?,hover_image=?,weight_kg=?,is_active=?,is_featured=? WHERE id=?",
+                [$d['name'],$d['category_id']?:null,$d['price'],$disc_price,$disc_pct,$d['stock'],$d['short_description'],$d['full_description'],$features,$d['packing_info'],$key_specs,$d['directions_for_use'],$d['additional_information'],$d['warranty_info'],$images_json,$hover_image,$d['weight_kg']?:null,$d['is_active']??1,$d['is_featured']??0,$d['id']]);
             $pid = $d['id'];
             echo json_encode(['success' => true, 'message' => 'Product updated', 'id' => $pid]);
         } else {
             $slug = generateSlug($d['name']) . '-' . time();
             $sku  = 'SKU-' . strtoupper(substr(md5($d['name']), 0, 6));
-            $pid = db()->insert("INSERT INTO products (name,slug,sku,category_id,price,discount_price,discount_percent,stock,short_description,full_description,features,packing_info,key_specifications,directions_for_use,additional_information,warranty_info,images,weight_kg,is_active,is_featured) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                [$d['name'],$slug,$sku,$d['category_id']?:null,$d['price'],$disc_price,$disc_pct,$d['stock'],$d['short_description'],$d['full_description'],$features,$d['packing_info'],$key_specs,$d['directions_for_use'],$d['additional_information'],$d['warranty_info'],$images_json,$d['weight_kg']?:null,$d['is_active']??1,$d['is_featured']??0]);
+            $pid = db()->insert("INSERT INTO products (name,slug,sku,category_id,price,discount_price,discount_percent,stock,short_description,full_description,features,packing_info,key_specifications,directions_for_use,additional_information,warranty_info,images,hover_image,weight_kg,is_active,is_featured) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                [$d['name'],$slug,$sku,$d['category_id']?:null,$d['price'],$disc_price,$disc_pct,$d['stock'],$d['short_description'],$d['full_description'],$features,$d['packing_info'],$key_specs,$d['directions_for_use'],$d['additional_information'],$d['warranty_info'],$images_json,$hover_image,$d['weight_kg']?:null,$d['is_active']??1,$d['is_featured']??0]);
             echo json_encode(['success' => true, 'message' => 'Product added', 'id' => $pid]);
         }
         if (isset($d['faqs']) && $pid) {
@@ -259,6 +260,16 @@ include __DIR__ . '/../includes/header.php';
           <input type="file" id="imgUploadInput" accept="image/*" multiple style="display:none" onchange="uploadImages(this.files)">
           <div id="imgPreviewGrid" class="img-preview-grid"></div>
           <input type="hidden" id="prod_images_json" value="[]">
+
+          <!-- HOVER IMAGE (white background, shown on hover in storefront) -->
+          <label class="form-label" style="margin-top:18px;">Hover Image <small class="text-muted">(white background — shown when customer hovers the product on the storefront)</small></label>
+          <div class="drop-zone" id="hoverDropZone" onclick="document.getElementById('hoverUploadInput').click()">
+            <i class="fa-solid fa-wand-magic-sparkles" style="font-size:1.8rem;color:var(--gold-primary);margin-bottom:8px;display:block;"></i>
+            <div style="color:var(--text-secondary);font-size:.85rem;">Click to upload hover image</div>
+          </div>
+          <input type="file" id="hoverUploadInput" accept="image/*" style="display:none" onchange="uploadHoverImage(this.files)">
+          <div id="hoverPreview" style="margin-top:10px;"></div>
+          <input type="hidden" id="prod_hover_image" value="">
         </div>
 
         <!-- FAQS -->
@@ -377,6 +388,23 @@ if(dz){
   dz.addEventListener('drop',e=>{e.preventDefault();dz.style.borderColor='var(--border-active)';uploadImages(e.dataTransfer.files);});
 }
 
+// Hover image (single)
+async function uploadHoverImage(files){
+  const file=files[0];if(!file)return;
+  const fd=new FormData();fd.append('product_image',file);
+  try{
+    const res=await fetch('products.php',{method:'POST',body:fd});
+    const data=await res.json();
+    if(data.success){document.getElementById('prod_hover_image').value=data.url;renderHover();}
+    else showToast(data.message,'danger');
+  }catch(e){showToast('Upload error','danger');}
+}
+function renderHover(){
+  const url=document.getElementById('prod_hover_image').value;
+  const box=document.getElementById('hoverPreview');
+  box.innerHTML=url?`<div class="img-thumb" style="width:90px;height:90px;"><img src="${url}" loading="lazy" style="background:#fff;"><button class="del-img" onclick="document.getElementById('prod_hover_image').value='';renderHover()"><i class="fa-solid fa-xmark"></i></button></div>`:'';
+}
+
 // Open modal
 function openProductModal(p=null){
   document.getElementById('prod_id').value=p?.id||'';
@@ -411,6 +439,9 @@ function openProductModal(p=null){
   // Images
   uploadedImages=p?.images?(typeof p.images==='string'?JSON.parse(p.images):p.images):[];
   renderImgs();
+  // Hover image
+  document.getElementById('prod_hover_image').value=p?.hover_image||'';
+  renderHover();
   // Reset tabs
   document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',i===0));
   document.querySelectorAll('.tab-pane').forEach((p,i)=>p.classList.toggle('active',i===0));
@@ -437,7 +468,8 @@ async function saveProduct(){
   const featText=document.getElementById('prod_features').value;
   const features=featText.split('\n').map(l=>l.replace(/^[•\-*]\s*/,'')).filter(l=>l.trim());
   let images=[];try{images=JSON.parse(document.getElementById('prod_images_json').value);}catch(e){}
-  const payload={action:'save',id:document.getElementById('prod_id').value,name,price,stock,
+  const hover_image=document.getElementById('prod_hover_image').value;
+  const payload={action:'save',id:document.getElementById('prod_id').value,name,price,stock,hover_image,
     category_id:document.getElementById('prod_category').value,
     short_description:document.getElementById('prod_short_desc').value,
     full_description:document.getElementById('prod_full_desc').value,

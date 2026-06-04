@@ -1,13 +1,17 @@
-import { featured } from "../../data/featured";
 import { findProductById } from "../../data/products";
 import { useCart } from "../../context/CartContext";
 import { useUI } from "../../context/UIContext";
+import { useProducts } from "../../hooks/useApiData";
+import { useSettings } from "../../context/SettingsContext";
 
 const fmt = (n) => `₹${n.toLocaleString("en-IN")}`;
 
 export default function FeaturedCards() {
   const { addToCart } = useCart();
   const { openProduct } = useUI();
+  const { data: allProducts } = useProducts();
+  const { featured } = useSettings();
+  const resolve = (pid) => allProducts.find((p) => p.id === pid) || findProductById(pid);
 
   return (
     <section className="max-w-[1400px] mx-auto px-3 sm:px-6 py-6 sm:py-10">
@@ -20,7 +24,7 @@ export default function FeaturedCards() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         {featured.map((f, i) => {
-          const product = findProductById(f.productId);
+          const product = resolve(f.productId);
           return (
             <div
               key={f.id}

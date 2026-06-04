@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { allProducts } from "../../data/products";
-import { combos } from "../../data/combos";
-import { categoryFilters as CATEGORY_FILTERS } from "../../data/categories";
+import { categoryFilters as STATIC_FILTERS } from "../../data/categories";
 import { sortOptions as SORT_OPTIONS, priceBounds } from "../../data/site";
 import { useCart } from "../../context/CartContext";
 import { useUI } from "../../context/UIContext";
+import { useProducts, useCombos, useCategories } from "../../hooks/useApiData";
 
 const PRICE_MIN = priceBounds.min;
 const PRICE_MAX = priceBounds.max;
@@ -24,6 +23,15 @@ export default function CategoryPage() {
   const [expanded, setExpanded] = useState(false);
   const [priceMin, setPriceMin] = useState(PRICE_MIN);
   const [priceMax, setPriceMax] = useState(initialPriceMax);
+
+  const { data: allProducts } = useProducts();
+  const { data: combos } = useCombos();
+  const { data: catData } = useCategories();
+  // API categories -> {id,label}; fall back to static filters.
+  const CATEGORY_FILTERS = useMemo(
+    () => (catData?.length ? catData.map((c) => ({ id: c.id, label: c.title })) : STATIC_FILTERS),
+    [catData]
+  );
 
   useEffect(() => {
     if (view?.params?.priceMax) {
@@ -48,7 +56,7 @@ export default function CategoryPage() {
       default: break;
     }
     return list;
-  }, [selectedCat, sort, priceMin, priceMax, isGvp]);
+  }, [selectedCat, sort, priceMin, priceMax, isGvp, allProducts, combos]);
 
   const visibleCats = expanded ? CATEGORY_FILTERS : CATEGORY_FILTERS.slice(0, COLLAPSE_COUNT);
 

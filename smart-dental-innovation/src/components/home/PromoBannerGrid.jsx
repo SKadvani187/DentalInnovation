@@ -1,12 +1,14 @@
 import React from 'react';
 import { useUI } from '../../context/UIContext';
+import { useSettings } from '../../context/SettingsContext';
 
-export default function PromoBannerGrid({
-  leftId = "i-001",
-  topRightId = "i-002",
-  bottomRightId = "i-003",
-} = {}) {
+export default function PromoBannerGrid(props = {}) {
   const { navigate } = useUI();
+  const { banners } = useSettings();
+  const promo = banners?.promo || {};
+  const leftId = props.leftId ?? promo.leftId ?? "i-001";
+  const topRightId = props.topRightId ?? promo.topRightId ?? "i-002";
+  const bottomRightId = props.bottomRightId ?? promo.bottomRightId ?? "i-003";
   const go = (id) => navigate("product", { id });
 
   return (
@@ -26,7 +28,7 @@ export default function PromoBannerGrid({
               loading="lazy"
               decoding="async"
               className="absolute inset-0 h-full w-full object-cover text-transparent transition-transform duration-300 group-hover:scale-[1.02]"
-              src="https://merchant-cdn.storedum.com/new_website_banner_mobile_2.png"
+              src={promo.leftImg || "https://merchant-cdn.storedum.com/new_website_banner_mobile_2.png"}
             />
           </div>
 
@@ -43,7 +45,7 @@ export default function PromoBannerGrid({
                 loading="lazy"
                 decoding="async"
                 className="absolute inset-0 h-full w-full object-cover text-transparent transition-transform duration-300 group-hover:scale-[1.02]"
-                src="https://merchant-cdn.storedum.com/new_website_banner_desktop_(2).webp"
+                src={promo.topRightImg || "https://merchant-cdn.storedum.com/new_website_banner_desktop_(2).webp"}
               />
             </div>
 
@@ -57,7 +59,7 @@ export default function PromoBannerGrid({
                 loading="lazy"
                 decoding="async"
                 className="absolute inset-0 h-full w-full object-cover text-transparent transition-transform duration-300 group-hover:scale-[1.02]"
-                src="https://merchant-cdn.storedum.com/new_website_banner_desktop.png"
+                src={promo.bottomRightImg || "https://merchant-cdn.storedum.com/new_website_banner_desktop.png"}
               />
             </div>
 
@@ -78,7 +80,7 @@ export default function PromoBannerGrid({
               loading="lazy"
               decoding="async"
               className="absolute inset-0 h-full w-full object-cover text-transparent"
-              src="https://merchant-cdn.storedum.com/new_website_banner_mobile_2_(1).png"
+              src={promo.leftImgM || "https://merchant-cdn.storedum.com/new_website_banner_mobile_2_(1).png"}
             />
           </div>
 
@@ -93,7 +95,7 @@ export default function PromoBannerGrid({
               loading="lazy"
               decoding="async"
               className="absolute inset-0 h-full w-full object-cover text-transparent"
-              src="https://merchant-cdn.storedum.com/new_banner_2.webp"
+              src={promo.topRightImgM || "https://merchant-cdn.storedum.com/new_banner_2.webp"}
             />
           </div>
 
@@ -108,7 +110,7 @@ export default function PromoBannerGrid({
               loading="lazy"
               decoding="async"
               className="absolute inset-0 h-full w-full object-cover text-transparent"
-              src="https://merchant-cdn.storedum.com/new_website_banner_mobile_1_1.webp"
+              src={promo.bottomRightImgM || "https://merchant-cdn.storedum.com/new_website_banner_mobile_1_1.webp"}
             />
           </div>
 

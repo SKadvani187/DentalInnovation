@@ -1,10 +1,13 @@
 import { useRef } from "react";
-import { categoryTiles as categories } from "../../data/categories";
+import { categoryTiles as staticTiles } from "../../data/categories";
 import { useUI } from "../../context/UIContext";
 
-export default function CategoryGrid() {
+export default function CategoryGrid({ items }) {
   const scroller = useRef(null);
   const { navigate } = useUI();
+
+  // Use API-provided categories when given; show only those with images (home grid).
+  const categories = items ? items.filter((c) => c.img) : staticTiles;
 
   const scroll = (dir) => {
     const el = scroller.current;
@@ -30,7 +33,7 @@ export default function CategoryGrid() {
                   src={c.img}
                   alt={c.title}
                   loading="lazy"
-                  className="w-full h-full object-contain p-3 sm:p-4 transition-transform duration-300 group-hover:scale-110"
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                 />
               </div>
               <p className="mt-4 text-sm sm:text-base text-center font-semibold text-brand-ink leading-tight line-clamp-2 transition-colors duration-200 group-hover:text-[#3684bf]">

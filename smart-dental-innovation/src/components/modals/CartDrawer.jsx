@@ -5,7 +5,8 @@ import { useUI } from "../../context/UIContext";
 import { useCart } from "../../context/CartContext";
 import { useWishlist } from "../../context/WishlistContext";
 import { useAuth } from "../../context/AuthContext";
-import { fbtItems as FBT_ITEMS, freeGifts, bulkRule, coupons as COUPONS } from "../../data/site";
+import { useSettings } from "../../context/SettingsContext";
+import api from "../../lib/api";
 
 const fmt = (n) => `₹${Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -17,13 +18,13 @@ const cartIcon = (
   </svg>
 );
 
-const FREE_GIFTS = freeGifts.items;
-
 export default function CartDrawer() {
   const { modal, closeModal, openModal } = useUI();
   const { items, updateQty, removeFromCart, subtotal, itemCount } = useCart();
   const { user } = useAuth();
   const { toggle: toggleWish } = useWishlist();
+  const { fbtItems: FBT_ITEMS, freeGifts, bulkRule, coupons: COUPONS } = useSettings();
+  const FREE_GIFTS = freeGifts.items;
   const [priceOpen, setPriceOpen] = useState(true);
   const [confirmRemove, setConfirmRemove] = useState(null);
   const [view, setView] = useState("cart");
@@ -67,6 +68,8 @@ export default function CartDrawer() {
   const deliveryCharges = couponShippingWaived ? 0 : baseDelivery;
   const couponDiscount = (() => {
     if (!appliedCoupon || subtotal < appliedCoupon.minSubtotal) return 0;
+    // Backend-validated discount takes precedence.
+    if (typeof appliedCoupon.serverDiscount === "number") return appliedCoupon.serverDiscount;
     const d = appliedCoupon.discount;
     if (d.type === "flat") return d.value;
     if (d.type === "percent") {
@@ -97,15 +100,32 @@ export default function CartDrawer() {
     setView("cart");
   };
 
-  const onCouponInputSubmit = () => {
+  const onCouponInputSubmit = async () => {
     const code = couponCode.trim().toUpperCase();
     if (!code) return;
-    const match = COUPONS.find((c) => c.code === code);
-    if (!match) {
+    // Validate against the backend (source of truth).
+    try {
+      const res = await api.validateCoupon(code, Math.round(subtotal));
+      if (res.valid) {
+        // Normalize to the shape the cart's discount calc expects.
+        setAppliedCoupon({
+          code: res.code,
+          minSubtotal: 0,
+          discount: { type: res.type === "percent" ? "percent" : "flat", value: res.value },
+          serverDiscount: res.discount,
+        });
+        setCouponMsg(res.message || `${code} applied.`);
+        setView("cart");
+        return;
+      }
+      setCouponMsg(res.message || `Invalid coupon "${code}".`);
+    } catch (err) {
+      // Fallback to static list if API down.
+      console.warn("[coupon] API fallback:", err.message);
+      const match = COUPONS.find((c) => c.code === code);
+      if (match) return applyCoupon(match);
       setCouponMsg(`Invalid coupon "${code}".`);
-      return;
     }
-    applyCoupon(match);
   };
 
   const closeAll = () => {
@@ -467,6 +487,7 @@ function RemoveConfirmDialog({ item, onCancel, onRemove, onWishlist }) {
 
 function FrequentlyBought() {
   const { addToCart } = useCart();
+  const { fbtItems: FBT_ITEMS } = useSettings();
   const scroller = useRef(null);
 
   const onAdd = (item) => {

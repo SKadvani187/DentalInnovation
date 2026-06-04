@@ -55,6 +55,18 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
                 <i class="fa-solid fa-layer-group"></i>
                 <span>Categories</span>
             </a>
+            <a href="<?= APP_URL ?>/pages/combos.php" class="nav-item <?= $current_page === 'combos' ? 'active' : '' ?>">
+                <i class="fa-solid fa-boxes-packing"></i>
+                <span>Combos</span>
+            </a>
+            <a href="<?= APP_URL ?>/pages/offers.php" class="nav-item <?= $current_page === 'offers' ? 'active' : '' ?>">
+                <i class="fa-solid fa-tags"></i>
+                <span>Offers</span>
+            </a>
+            <a href="<?= APP_URL ?>/pages/testimonials.php" class="nav-item <?= $current_page === 'testimonials' ? 'active' : '' ?>">
+                <i class="fa-solid fa-quote-left"></i>
+                <span>Testimonials</span>
+            </a>
         </div>
 
         <div class="nav-section">

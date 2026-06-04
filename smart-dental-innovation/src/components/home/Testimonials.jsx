@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
-import { testimonials } from "../../data/testimonials";
+import { testimonials as staticTestimonials } from "../../data/testimonials";
 
-export default function Testimonials() {
+export default function Testimonials({ items }) {
+  const testimonials = items && items.length ? items : staticTestimonials;
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true, align: "start" });
   const [selected, setSelected] = useState(0);
 

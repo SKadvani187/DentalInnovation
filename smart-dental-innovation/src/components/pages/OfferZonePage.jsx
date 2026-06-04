@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { offerZone } from "../../data/offers";
 import { useCart } from "../../context/CartContext";
 import { useUI } from "../../context/UIContext";
+import { useOffers } from "../../hooks/useApiData";
 
 const fmt = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 
@@ -44,6 +44,7 @@ const SORTS = [
 export default function OfferZonePage() {
   const [filter, setFilter] = useState("all");
   const [sort, setSort] = useState("trending");
+  const { data: offerZone } = useOffers();
 
   const stats = useMemo(() => {
     const totalSaved = offerZone.reduce((s, o) => s + (o.youSave || 0), 0);
@@ -53,7 +54,7 @@ export default function OfferZonePage() {
     }).length;
     const withFreeGift = offerZone.filter((o) => o.freeItems?.length > 0).length;
     return { count: offerZone.length, totalSaved, endingToday, withFreeGift };
-  }, []);
+  }, [offerZone]);
 
   const heroDeadline = useMemo(() => {
     const future = offerZone
@@ -61,7 +62,7 @@ export default function OfferZonePage() {
       .filter((t) => t > Date.now())
       .sort((a, b) => a - b)[0];
     return future ? new Date(future).toISOString() : null;
-  }, []);
+  }, [offerZone]);
 
   const filtered = useMemo(() => {
     let list = [...offerZone];
@@ -94,7 +95,7 @@ export default function OfferZonePage() {
         break;
     }
     return list;
-  }, [filter, sort]);
+  }, [filter, sort, offerZone]);
 
   return (
     <div className="bg-gradient-to-b from-[#fff9f3] via-white to-white min-h-screen">

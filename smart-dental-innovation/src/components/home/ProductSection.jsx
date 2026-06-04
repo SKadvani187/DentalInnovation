@@ -1,5 +1,6 @@
 import ProductCard from "./ProductCard";
 import { useUI } from "../../context/UIContext";
+import { useSettings } from "../../context/SettingsContext";
 import { sectionToCategory as TITLE_TO_CATEGORY } from "../../data/site";
 
 export default function ProductSection({ title, eyebrow, products, accent = "navy" }) {
@@ -42,8 +43,16 @@ export default function ProductSection({ title, eyebrow, products, accent = "nav
   );
 }
 
-export function RFCauterySection({ productId = "p-001" } = {}){
+export function RFCauterySection(props = {}){
   const { navigate } = useUI();
+  const { rfSection } = useSettings();
+  const rf = rfSection || {};
+  const productId = props.productId ?? rf.productId ?? "p-001";
+  const title = rf.title || "RF Advance Cautery";
+  const image = rf.image || "https://merchant-cdn.storedum.com/Untitled_design_6_(1).png";
+  const descShort = rf.descShort || "High-performance surgical unit for precise, bloodless soft-tissue management.";
+  const description = rf.description || descShort;
+  const features = rf.features?.length ? rf.features : [];
   const onView = () => navigate("product", { id: productId });
   return (
     <div className="px-2 sm:px-0">
@@ -51,8 +60,8 @@ export function RFCauterySection({ productId = "p-001" } = {}){
       <div className="sm:hidden bg-[#007AFF]/10 px-4 py-8">
         <div className="flex flex-col items-center text-center">
           <img
-            src="https://merchant-cdn.storedum.com/Untitled_design_6_(1).png"
-            alt="RF Advance Cautery"
+            src={image}
+            alt={title}
             onClick={onView}
             className="w-[55%] max-w-[220px] cursor-pointer"
           />
@@ -60,10 +69,10 @@ export function RFCauterySection({ productId = "p-001" } = {}){
             onClick={onView}
             className="font-montserrat text-2xl font-extrabold uppercase text-[#08070D] mt-4 leading-tight tracking-tight cursor-pointer"
           >
-            RF Advance Cautery
+            {title}
           </h3>
           <p className="font-montserrat text-sm text-[#5a6472] mt-2 leading-relaxed">
-            High-performance surgical unit for precise, bloodless soft-tissue management with clean scalpel-like cutting and superior coagulation.
+            {descShort}
           </p>
           <button
             type="button"
@@ -89,8 +98,8 @@ export function RFCauterySection({ productId = "p-001" } = {}){
 
             {/* Main Product Image */}
             <img
-              src="https://merchant-cdn.storedum.com/Untitled_design_6_(1).png"
-              alt="RF Advance Cautery"
+              src={image}
+              alt={title}
               onClick={onView}
               className="absolute right-0 left-auto top-[-60px] md:top-[-100px] w-[32%] md:w-[28%] select-none cursor-pointer"
             />
@@ -101,13 +110,10 @@ export function RFCauterySection({ productId = "p-001" } = {}){
                 onClick={onView}
                 className="font-montserrat text-[28px] md:text-[42px] lg:text-[56px] font-extrabold uppercase text-[#08070D] cursor-pointer select-none leading-tight tracking-tight"
               >
-                RF Advance Cautery
+                {title}
               </label>
               <label className="font-montserrat text-sm md:text-base lg:text-[18px] font-normal text-[#5a6472] leading-relaxed mt-2">
-                The Radio Frequency Advance Electro Cautery by Younique Dental Innovations is a high-performance surgical
-                unit designed to deliver precise, smooth, and bloodless soft-tissue management in dental procedures.
-                Powered by advanced high-frequency radio waves, it enables clean scalpel-like cutting with excellent
-                coagulation, ensuring faster healing and superior clinical outcomes.
+                {description}
               </label>
 
               {/* View Details Button */}
@@ -123,55 +129,17 @@ export function RFCauterySection({ productId = "p-001" } = {}){
             {/* Features Grid (Replacing MuiGrid structure) */}
             <div className="mt-[30px] w-full">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
-                
-                {/* Feature 1: Active Handle */}
-                <div className="flex flex-col items-start text-left">
-                  <img
-                    src="https://merchant-cdn.storedum.com/Untitled_design_9_(5).png"
-                    alt="Active Handle"
-                    className="w-[100px]"
-                  />
-                  <label className="font-montserrat text-base md:text-lg lg:text-[22px] font-bold text-[#08070D] mt-[10px]">
-                    Active Handle
-                  </label>
-                  <label className="font-montserrat text-sm md:text-[16px] text-[#5a6472] leading-relaxed mt-[3px]">
-                    A durable and ergonomically designed cautery active handle that ensures precise energy delivery and
-                    comfortable control during electrosurgical procedures.
-                  </label>
-                </div>
-
-                {/* Feature 2: Hand Piece Pencil */}
-                <div className="flex flex-col items-start text-left">
-                  <img
-                    src="https://merchant-cdn.storedum.com/Untitled_design_10_(15).png"
-                    alt="Hand Piece Pencil"
-                    className="w-[100px]"
-                  />
-                  <label className="font-montserrat text-base md:text-lg lg:text-[22px] font-bold text-[#08070D] mt-[10px]">
-                    Hand Piece Pencil
-                  </label>
-                  <label className="font-montserrat text-sm md:text-[16px] text-[#5a6472] leading-relaxed mt-[3px]">
-                    A lightweight, ergonomically designed cautery hand switch pencil that provides precise, fingertip
-                    control for safe and efficient electrosurgical procedures.
-                  </label>
-                </div>
-
-                {/* Feature 3: Bio Polar Tweezer */}
-                <div className="flex flex-col items-start text-left">
-                  <img
-                    src="https://merchant-cdn.storedum.com/Untitled_design_11_(11).png"
-                    alt="Bio Polar Tweezer"
-                    className="w-[100px]"
-                  />
-                  <label className="font-montserrat text-base md:text-lg lg:text-[22px] font-bold text-[#08070D] mt-[10px]">
-                    Bio Polar Tweezer
-                  </label>
-                  <label className="font-montserrat text-sm md:text-[16px] text-[#5a6472] leading-relaxed mt-[3px]">
-                    A high-precision bipolar cautery tweezer designed for controlled coagulation with minimal thermal
-                    spread and maximum surgical accuracy.
-                  </label>
-                </div>
-
+                {features.map((f, i) => (
+                  <div key={i} className="flex flex-col items-start text-left">
+                    <img src={f.image} alt={f.title} className="w-[100px]" />
+                    <label className="font-montserrat text-base md:text-lg lg:text-[22px] font-bold text-[#08070D] mt-[10px]">
+                      {f.title}
+                    </label>
+                    <label className="font-montserrat text-sm md:text-[16px] text-[#5a6472] leading-relaxed mt-[3px]">
+                      {f.desc}
+                    </label>
+                  </div>
+                ))}
               </div>
             </div>
 

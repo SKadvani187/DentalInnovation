@@ -7,7 +7,7 @@ const fmt = (n) => `₹${n.toLocaleString("en-IN")}`;
 
 export default function ProductCard({ product }) {
   const { addToCart } = useCart();
-  const { openModal, navigate } = useUI();
+  const { openModal, navigate, showToast } = useUI();
   const { has, toggle } = useWishlist();
   const { user } = useAuth();
   const openProduct = () => navigate("product", { id: product.id });
@@ -22,18 +22,27 @@ export default function ProductCard({ product }) {
   const onAdd = (e) => {
     e?.stopPropagation();
     addToCart(product, 1);
+    showToast?.("Added to cart!", "success");
     openModal("cart");
   };
 
   return (
     <article className="group relative flex flex-col bg-[#f8f9fa] border border-gray-100 rounded-2xl p-3 overflow-hidden shadow-sm hover:shadow-md transition duration-300">
       <div className="relative w-full aspect-square bg-white rounded-xl overflow-hidden border border-gray-50">
-        <button onClick={() => openProduct()} className="w-full h-full block">
+        <button onClick={() => openProduct()} className="w-full h-full block relative">
+          {/* Primary image — fades out on hover */}
           <img
             src={product.image}
             alt={product.name}
             loading="lazy"
-            className="w-full h-full object-contain p-2 group-hover:scale-102 transition duration-300"
+            className="absolute inset-0 w-full h-full object-contain p-2 transition-opacity duration-300 group-hover:opacity-0"
+          />
+          {/* Secondary (white-bg) image — fades in on hover; falls back to primary if not set */}
+          <img
+            src={product.hoverImage || product.image}
+            alt={product.name}
+            loading="lazy"
+            className="absolute inset-0 w-full h-full object-contain p-2 bg-white opacity-0 transition-opacity duration-300 group-hover:opacity-100"
           />
         </button>
         <button

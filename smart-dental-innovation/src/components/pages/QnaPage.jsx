@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { allProducts, findProductById } from "../../data/products";
-import { combos } from "../../data/combos";
+import { findProductById } from "../../data/products";
+import { useProducts, useCombos } from "../../hooks/useApiData";
 import { useUI } from "../../context/UIContext";
-import { productContent } from "../../data/site";
+import { useSettings } from "../../context/SettingsContext";
 
 const fmt = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 
@@ -14,10 +14,13 @@ const EXTRA_QNA = [
 
 export default function QnaPage() {
   const { view, navigate } = useUI();
+  const { data: allProducts } = useProducts();
+  const { data: combos } = useCombos();
+  const { productContent } = useSettings();
   const id = view?.params?.id;
   const product = useMemo(
-    () => findProductById(id) || combos.find((c) => c.id === id) || allProducts[0],
-    [id]
+    () => allProducts.find((p) => p.id === id) || findProductById(id) || combos.find((c) => c.id === id) || allProducts[0],
+    [id, allProducts, combos]
   );
 
   const [postOpen, setPostOpen] = useState(false);

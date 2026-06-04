@@ -2,6 +2,7 @@ import { CartProvider } from "./context/CartContext";
 import { WishlistProvider } from "./context/WishlistContext";
 import { AuthProvider } from "./context/AuthContext";
 import { UIProvider, useUI } from "./context/UIContext";
+import { SettingsProvider } from "./context/SettingsContext";
 
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
@@ -35,15 +36,8 @@ import PolicyPage from "./components/pages/PolicyPage";
 import ToastHost from "./components/ui/ToastHost";
 import WhatsAppFab from "./components/layout/WhatsAppFab";
 
-import {
-  bestsellers,
-  newArrivals,
-  implantology,
-  handpieces,
-  matrixSystem,
-  endodontics,
-  premiumCategories
-} from "./data/products";
+import { useHomeData } from "./hooks/useHomeData";
+import { useSettings } from "./context/SettingsContext";
 import NavigationHeader from "./components/layout/Navbar copy";
 import ResponsiveImageBanner from "./components/home/ResponsiveImageBanner";
 import PromoBannerGrid from "./components/home/PromoBannerGrid";
@@ -52,20 +46,24 @@ import ProsthodonticsCarousel from "./components/home/ProsthodonticsCarousel";
 
 export default function App() {
   return (
-    <AuthProvider>
-      <CartProvider>
-        <WishlistProvider>
-          <UIProvider>
-            <Shell />
-          </UIProvider>
-        </WishlistProvider>
-      </CartProvider>
-    </AuthProvider>
+    <SettingsProvider>
+      <AuthProvider>
+        <CartProvider>
+          <WishlistProvider>
+            <UIProvider>
+              <Shell />
+            </UIProvider>
+          </WishlistProvider>
+        </CartProvider>
+      </AuthProvider>
+    </SettingsProvider>
   );
 }
 
 function Shell() {
   const { view } = useUI();
+  const { sections, categories, testimonials } = useHomeData();
+  const { premiumCategories } = useSettings();
   return (
     <>
       <NavigationHeader />
@@ -99,18 +97,18 @@ function Shell() {
         ) : (
           <>
             <HeroCarousel />
-            <CategoryGrid />
+            <CategoryGrid items={categories} />
             <ResponsiveImageBanner/>
-            <ProductSection eyebrow="Top Picks" title="Bestsellers" products={bestsellers} />
+            <ProductSection eyebrow="Top Picks" title="Bestsellers" products={sections.bestsellers} />
             <PromoBannerGrid/>
-            <ProductSection eyebrow="Fresh In" title="New Arrivals" products={newArrivals} accent="orange" />
+            <ProductSection eyebrow="Fresh In" title="New Arrivals" products={sections.newArrivals} accent="orange" />
             <RFCauterySection />
-            <ProductSection title="Implantology" products={implantology} />
+            <ProductSection title="Implantology" products={sections.implantology} />
             <PremiumCategories products={premiumCategories} />
-            <ProductSection title="Handpiece" products={handpieces} />
+            <ProductSection title="Handpiece" products={sections.handpieces} />
             <HomeBanner/>
-            <ProductSection title="Matrix System" products={matrixSystem} />
-            <ProductSection title="Endodontics" products={endodontics} />
+            <ProductSection title="Matrix System" products={sections.matrixSystem} />
+            <ProductSection title="Endodontics" products={sections.endodontics} />
             <ReviewsSection />
             <ProsthodonticsCarousel/>
           </>

@@ -3,8 +3,8 @@ import { createPortal } from "react-dom";
 import { useUI } from "../../context/UIContext";
 import { useAuth } from "../../context/AuthContext";
 
-const OTP_LEN = 4;
-const RESEND_SECS = 60;
+const OTP_LEN = 6;
+const RESEND_SECS = 30;
 
 export default function AuthModal() {
   const { modal, closeModal } = useUI();
@@ -22,6 +22,7 @@ export default function AuthModal() {
   const [loading, setLoading] = useState(false);
   const otpRefs = useRef([]);
   const mobileRef = useRef(null);
+  const verifyingRef = useRef(false);
 
   useEffect(() => {
     if (modal === "auth" && step === "mobile") {
@@ -68,11 +69,11 @@ export default function AuthModal() {
 
   if (modal !== "auth") return null;
 
-  const startOtp = (m) => {
+  const startOtp = async (m) => {
     setError("");
     setInfo("");
     setLoading(true);
-    const res = requestOtp(m);
+    const res = await requestOtp(m);
     setLoading(false);
     if (!res.ok) {
       setToastType("error");
@@ -81,11 +82,11 @@ export default function AuthModal() {
     }
     setStep("otp");
     setResendIn(RESEND_SECS);
-    const demo = String(res.demoOtp || "").slice(0, OTP_LEN);
+    const demo = String(res.devOtp || "").slice(0, OTP_LEN);
     setInfo(demo);
-    console.info("[Demo OTP]", demo);
+    if (demo) console.info("[Dev OTP]", demo);
     setToastType("success");
-    setToast("OTP sent successfully");
+    setToast(res.sent ? "OTP sent successfully" : (res.devMode ? "Demo mode — OTP shown below" : (res.message || "OTP generated")));
     setTimeout(() => otpRefs.current[0]?.focus(), 50);
     return true;
   };
@@ -129,10 +130,13 @@ export default function AuthModal() {
     if (data.length === OTP_LEN) setTimeout(() => autoVerify(data), 50);
   };
 
-  const autoVerify = (code) => {
+  const autoVerify = async (code) => {
+    if (verifyingRef.current) return;   // prevent double-fire (auto + submit)
+    verifyingRef.current = true;
     setError("");
     setLoading(true);
-    const res = verifyOtp({ mobile, otp: code });
+    const res = await verifyOtp({ mobile, otp: code });
+    verifyingRef.current = false;
     setLoading(false);
     if (!res.ok) {
       setToastType("error");
@@ -148,17 +152,20 @@ export default function AuthModal() {
     closeModal();
   };
 
-  const onVerify = (e) => {
+  const onVerify = async (e) => {
     e.preventDefault();
+    if (verifyingRef.current) return;   // prevent double-fire (auto + submit)
     setError("");
     const code = otp.join("");
     if (code.length !== OTP_LEN) {
       setToastType("error");
-      setToast("Enter the 4-digit OTP.");
+      setToast(`Enter the ${OTP_LEN}-digit OTP.`);
       return;
     }
+    verifyingRef.current = true;
     setLoading(true);
-    const res = verifyOtp({ mobile, otp: code });
+    const res = await verifyOtp({ mobile, otp: code });
+    verifyingRef.current = false;
     setLoading(false);
     if (!res.ok) {
       setToastType("error");
@@ -284,7 +291,7 @@ export default function AuthModal() {
                 {step === "mobile"
                   ? "Please sign in to continue with checkout"
                   : step === "otp"
-                  ? `We've sent a 4-digit code to +91 ${mobile}`
+                  ? `We've sent a ${OTP_LEN}-digit code to +91 ${mobile}`
                   : "Enter your name to complete registration"}
               </p>
             </div>
@@ -333,7 +340,7 @@ export default function AuthModal() {
 
           {step === "otp" && (
             <form onSubmit={onVerify}>
-              <div className="flex justify-center gap-3 mb-4" onPaste={onOtpPaste}>
+              <div className="flex justify-center gap-2 mb-4" onPaste={onOtpPaste}>
                 {otp.map((d, i) => (
                   <input
                     key={i}
@@ -344,7 +351,7 @@ export default function AuthModal() {
                     value={d}
                     onChange={(e) => onOtpChange(i, e.target.value)}
                     onKeyDown={(e) => onOtpKeyDown(i, e)}
-                    className="w-14 h-14 text-center text-xl font-bold border-2 border-blue-300 rounded-lg focus:outline-none focus:border-blue-500"
+                    className="w-11 h-12 sm:w-12 sm:h-14 text-center text-xl font-bold border-2 border-blue-300 rounded-lg focus:outline-none focus:border-blue-500"
                   />
                 ))}
               </div>

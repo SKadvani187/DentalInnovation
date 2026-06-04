@@ -1,41 +1,31 @@
 import React from 'react';
+import { useSettings } from '../../context/SettingsContext';
+import { trustBadges as staticBadges } from '../../data/site';
 
+// Trust badges strip — admin-managed (Settings → Trust Badges). FA icons + Poppins.
 export default function ResponsiveImageBanner() {
+  const { trustBadges, liveCounts } = useSettings();
+  const badges = (trustBadges && trustBadges.length) ? trustBadges : staticBadges;
+
+  // Real-time product count from the DB (falls back to a marketing number if unavailable).
+  const productCount = liveCounts?.products ? `${liveCounts.products}` : "1,000+";
+
+  // dynamic:"productCount" -> prefix the live product count to the label
+  const labelFor = (b) => (b.dynamic === "productCount" ? `${productCount} ${b.label}` : b.label);
+
   return (
-    /* Increased horizontal padding: px-4 (16px) on mobile, sm:px-8 (32px) on tablet, and md:px-12 (48px) on desktop */
-    <div className="w-full px-4 sm:px-8 md:px-12 py-4">
-      <div className="flex flex-col gap-3 max-w-[1400px] mx-auto">
-        
-        {/* Desktop View Banner */}
-        <div className="hidden sm:flex rounded-[10px] w-full overflow-hidden bg-cover bg-center bg-no-repeat shadow-sm">
-          <div className="overflow-hidden rounded-[10px] w-full">
-            <img 
-              alt="Website Promo Desktop Banner" 
-              fetchPriority="high" 
-              width="1200"
-              height="600" 
-              decoding="async" 
-              className="text-transparent w-full h-auto block"
-              src="https://merchant-cdn.storedum.com/website_patti_slider_desktop_(2).png" 
-            />
+    <div className="w-full px-4 sm:px-8 md:px-12 py-4" style={{ fontFamily: "'Poppins', sans-serif" }}>
+      <div className="max-w-[1400px] mx-auto">
+        <div className="rounded-2xl bg-[#e8f3fb] px-4 sm:px-8 py-5">
+          <div className="flex flex-wrap sm:flex-nowrap items-center justify-around gap-y-4">
+            {badges.map((b, i) => (
+              <div key={i} className="flex items-center gap-3 justify-center px-2">
+                <i className={`${b.icon || 'fa-solid fa-circle-check'} text-2xl text-gray-900`} aria-hidden="true"></i>
+                <span className="text-sm sm:text-[15px] font-bold text-gray-900 whitespace-nowrap">{labelFor(b)}</span>
+              </div>
+            ))}
           </div>
         </div>
-
-        {/* Mobile View Banner */}
-        <div className="block sm:hidden rounded-[10px] w-full overflow-hidden bg-cover bg-center bg-no-repeat shadow-sm">
-          <div className="overflow-hidden rounded-[10px] w-full">
-            <img 
-              alt="Quick Service Support Mobile Banner" 
-              fetchPriority="high" 
-              width="600"
-              height="800" 
-              decoding="async" 
-              className="text-transparent w-full h-auto block"
-              src="https://merchant-cdn.storedum.com/Quick_Service_Support.png" 
-            />
-          </div>
-        </div>
-
       </div>
     </div>
   );

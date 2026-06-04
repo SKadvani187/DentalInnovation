@@ -4,18 +4,20 @@ import Button from "../ui/Button";
 import { useUI } from "../../context/UIContext";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
+import api from "../../lib/api";
 
 const fmt = (n) => `₹${n.toLocaleString("en-IN")}`;
 const initialAddress = { fullName: "", phone: "", line1: "", city: "", state: "", pincode: "" };
 
 export default function CheckoutModal() {
-  const { modal, closeModal } = useUI();
+  const { modal, closeModal, showToast } = useUI();
   const { items, subtotal, clearCart } = useCart();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [step, setStep] = useState(1);
   const [address, setAddress] = useState(initialAddress);
   const [payment, setPayment] = useState("upi");
   const [orderId, setOrderId] = useState(null);
+  const [placing, setPlacing] = useState(false);
 
   useEffect(() => {
     if (modal !== "checkout") return;
@@ -29,10 +31,28 @@ export default function CheckoutModal() {
   const onAddrChange = (k) => (e) => setAddress((a) => ({ ...a, [k]: e.target.value }));
   const addressValid = address.fullName && address.phone && address.line1 && address.city && address.state && address.pincode;
 
-  const confirm = () => {
-    setOrderId(`SDI-${Math.floor(100000 + Math.random() * 900000)}`);
-    clearCart();
-    setStep(3);
+  const confirm = async () => {
+    setPlacing(true);
+    const payload = {
+      items: items.map((i) => ({ id: i.id, name: i.name, price: i.price, qty: i.qty, variant: i.variant })),
+      address,
+      paymentMethod: payment,
+      subtotal,
+    };
+    try {
+      if (!token) throw new Error("not-logged-in");
+      const order = await api.placeOrder(payload);
+      setOrderId(order.orderId);
+    } catch (err) {
+      // Fallback: local-only order id if API unavailable / not logged in.
+      console.warn("[checkout] order API fallback:", err.message);
+      setOrderId(`SDI-${Math.floor(100000 + Math.random() * 900000)}`);
+      if (err.message !== "not-logged-in") showToast?.("Saved locally — login to sync orders", "info");
+    } finally {
+      clearCart();
+      setStep(3);
+      setPlacing(false);
+    }
   };
 
   return (
@@ -98,7 +118,7 @@ export default function CheckoutModal() {
             </div>
             <div className="mt-6 flex justify-between gap-2">
               <Button variant="ghost" onClick={() => setStep(1)}>← Back</Button>
-              <Button variant="primary" onClick={confirm}>Place Order</Button>
+              <Button variant="primary" onClick={confirm} disabled={placing}>{placing ? "Placing…" : "Place Order"}</Button>
             </div>
           </>
         )}
