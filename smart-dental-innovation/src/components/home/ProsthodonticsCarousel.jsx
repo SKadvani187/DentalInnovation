@@ -1,6 +1,9 @@
 import React, { useRef } from 'react';
 import { useUI } from '../../context/UIContext';
 import { useCart } from '../../context/CartContext';
+import { useProducts } from '../../hooks/useApiData';
+
+const fmtINR = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 
 // FULL Dataset with all 10 products
 const PRODUCTS = [
@@ -120,6 +123,18 @@ export function ProsthodonticsCarousel() {
   const scrollRef = useRef(null);
   const { navigate, openModal, showToast } = useUI();
   const { addToCart, items, updateQty, removeFromCart } = useCart();
+  const { data: allProducts } = useProducts();
+
+  // Live prosthodontics products from the DB; fall back to the static curated list.
+  const apiList = allProducts
+    .filter((p) => p.category === "prosthodontics")
+    .map((p) => ({
+      id: p.id, productId: p.id, name: p.name, image: p.image,
+      price: fmtINR(p.price), priceNum: p.price, mrpNum: p.mrp,
+      oldPrice: p.mrp > p.price ? fmtINR(p.mrp) : "",
+      discount: p.discount > 0 ? `↓ ${p.discount}% Off` : "",
+    }));
+  const PRODUCT_LIST = apiList.length ? apiList : PRODUCTS;
   const open = (p) => navigate("product", { id: p.productId });
   const onAdd = (e, p) => {
     e.stopPropagation();
@@ -161,7 +176,7 @@ export function ProsthodonticsCarousel() {
           </h2>
         </div>
         <button
-          onClick={() => navigate("category", { category: "implantology", title: "Prosthodontics" })}
+          onClick={() => navigate("category", { category: "prosthodontics", title: "Prosthodontics" })}
           className="text-sm font-bold text-[#1976d2] hover:underline whitespace-nowrap"
         >
           View All &gt;&gt;
@@ -190,7 +205,7 @@ export function ProsthodonticsCarousel() {
           {/* Internal block layout tracker targeting hide bar triggers across global Webkit frameworks */}
           <style dangerouslySetInnerHTML={{__html: `div::-webkit-scrollbar { display: none; }`}} />
 
-          {PRODUCTS.map((product) => (
+          {PRODUCT_LIST.map((product) => (
             <div
               key={product.id}
               onClick={() => open(product)}

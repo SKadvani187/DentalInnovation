@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
-import { categoryFilters as CATEGORY_FILTERS } from "../../data/categories";
+import { categoryFilters as STATIC_FILTERS } from "../../data/categories";
 import { sortOptions as SORT_OPTIONS } from "../../data/site";
 import { useCart } from "../../context/CartContext";
 import { useUI } from "../../context/UIContext";
-import { useCombos } from "../../hooks/useApiData";
+import { useCombos, useCategories } from "../../hooks/useApiData";
 
 const fmt = (n) => `₹${n.toLocaleString("en-IN")}`;
 
@@ -15,6 +15,11 @@ export default function CombosPage() {
   const [sortOpen, setSortOpen] = useState(false);
   const [selectedCat, setSelectedCat] = useState(null);
   const { data: combos } = useCombos();
+  const { data: catData } = useCategories();
+  const CATEGORY_FILTERS = useMemo(
+    () => (catData?.length ? catData.map((c) => ({ id: c.id, label: c.title })) : STATIC_FILTERS),
+    [catData]
+  );
 
   const list = useMemo(() => {
     const items = [...combos];

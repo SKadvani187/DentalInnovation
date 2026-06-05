@@ -49,8 +49,8 @@ $insProd = $pdo->prepare(
     "INSERT INTO products
      (name, slug, sku, category_id, description, short_description,
       price, discount_price, discount_percent, stock, images, variants, specifications,
-      is_active, is_featured, total_sales)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+      is_active, is_featured, is_new, total_sales)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
 );
 
 $prodCount = 0;
@@ -68,7 +68,9 @@ foreach ($data['products'] as $p) {
         'reviews'  => $p['reviews']  ?? null,
         'warranty' => $p['warranty'] ?? null,
     ]);
-    $isFeatured = 0;
+    // Section flags: p-* products -> Bestsellers, n-* -> New Arrivals
+    $isFeatured = (strpos((string)$p['id'], 'p-') === 0) ? 1 : 0;
+    $isNew      = (strpos((string)$p['id'], 'n-') === 0) ? 1 : 0;
 
     $insProd->execute([
         $p['name'],
@@ -86,11 +88,22 @@ foreach ($data['products'] as $p) {
         $specs,
         1,
         $isFeatured,
+        $isNew,
         $p['reviews'] ?? 0,
     ]);
     $prodCount++;
 }
 echo "inserted $prodCount products\n";
+
+// Curated category fixups (sections that don't map 1:1 to React data categories)
+$prosthoId = $pdo->query("SELECT id FROM categories WHERE slug='prosthodontics'")->fetchColumn();
+if (!$prosthoId) {
+    $pdo->exec("INSERT INTO categories (name,slug,is_active,sort_order) VALUES ('Prosthodontics','prosthodontics',1,20)");
+    $prosthoId = $pdo->lastInsertId();
+}
+$prosthoSlugs = "'i-001','i-002','p-006','i-003','h-001','p-007','m-001','p-008','m-002','m-003'";
+$pdo->exec("UPDATE products SET category_id=$prosthoId WHERE slug IN ($prosthoSlugs)");
+echo "assigned prosthodontics category\n";
 
 // --- Events (schema has events table from database_additions.sql) ---
 $evCount = 0;
@@ -100,18 +113,20 @@ try {
     $pdo->exec("SET FOREIGN_KEY_CHECKS=1");
     $insEv = $pdo->prepare(
         "INSERT INTO events
-         (title, slug, description, event_type, status, registration_fee, is_free, banner_image, organizer)
-         VALUES (?,?,?,?, 'published', ?, ?, ?, ?)"
+         (title, slug, description, event_type, status, registration_fee, mrp, is_free, banner_image, organizer)
+         VALUES (?,?,?,?, 'published', ?,?, ?, ?, ?)"
     );
     foreach ($data['events'] as $e) {
         $slug = $e['id'];
         $fee  = (float)($e['price'] ?? 0);
+        $mrp  = (float)($e['mrp'] ?? $fee);
         $insEv->execute([
             $e['name'],
             $slug,
             $e['description'] ?? '',
             'training',
             $fee,
+            $mrp,
             $fee == 0 ? 1 : 0,
             $e['image'] ?? null,
             'Smart Dental Innovations',

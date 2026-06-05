@@ -63,7 +63,36 @@ export default function App() {
 function Shell() {
   const { view } = useUI();
   const { sections, categories, testimonials } = useHomeData();
-  const { premiumCategories } = useSettings();
+  const { premiumCategories, homeSections } = useSettings();
+
+  // Render a single home block by its config type.
+  const renderBlock = (s) => {
+    switch (s.type) {
+      case "hero": return <HeroCarousel key={s.key} />;
+      case "categoryGrid": return <CategoryGrid key={s.key} items={categories} />;
+      case "trustBadges": return <ResponsiveImageBanner key={s.key} />;
+      case "promoGrid": return <PromoBannerGrid key={s.key} />;
+      case "rfCautery": return <RFCauterySection key={s.key} />;
+      case "premium": return <PremiumCategories key={s.key} products={premiumCategories} />;
+      case "homeBanner": return <HomeBanner key={s.key} />;
+      case "reviews": return <ReviewsSection key={s.key} />;
+      case "prosthodontics": return <ProsthodonticsCarousel key={s.key} />;
+      case "productSection":
+        return (
+          <ProductSection
+            key={s.key}
+            eyebrow={s.eyebrow}
+            title={s.label}
+            products={sections[s.source] || []}
+            accent={s.accent}
+          />
+        );
+      default: return null;
+    }
+  };
+
+  const blocks = (homeSections || []).filter((s) => s.enabled !== false);
+
   return (
     <>
       <NavigationHeader />
@@ -95,23 +124,7 @@ function Shell() {
         ) : view.name === "policy" ? (
           <PolicyPage />
         ) : (
-          <>
-            <HeroCarousel />
-            <CategoryGrid items={categories} />
-            <ResponsiveImageBanner/>
-            <ProductSection eyebrow="Top Picks" title="Bestsellers" products={sections.bestsellers} />
-            <PromoBannerGrid/>
-            <ProductSection eyebrow="Fresh In" title="New Arrivals" products={sections.newArrivals} accent="orange" />
-            <RFCauterySection />
-            <ProductSection title="Implantology" products={sections.implantology} />
-            <PremiumCategories products={premiumCategories} />
-            <ProductSection title="Handpiece" products={sections.handpieces} />
-            <HomeBanner/>
-            <ProductSection title="Matrix System" products={sections.matrixSystem} />
-            <ProductSection title="Endodontics" products={sections.endodontics} />
-            <ReviewsSection />
-            <ProsthodonticsCarousel/>
-          </>
+          <>{blocks.map(renderBlock)}</>
         )}
       </main>
       <Footer />

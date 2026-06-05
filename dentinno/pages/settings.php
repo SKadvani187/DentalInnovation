@@ -47,6 +47,9 @@ $linkCombos   = db()->fetchAll("SELECT slug, name, description, image AS img FRO
 // normalize img (strip JSON quotes)
 foreach ($linkProducts as &$lp) { $lp['img'] = trim((string)$lp['img'], '"'); } unset($lp);
 
+// Active config page (tab). 'account' = no ?page (Settings menu).
+$cfgPage = isset($_GET['page']) ? (preg_replace('/[^a-z]/','', $_GET['page']) ?: 'home') : 'account';
+
 // Handle profile update
 $success_msg = '';
 $error_msg   = '';
@@ -87,8 +90,12 @@ include __DIR__ . '/../includes/header.php';
 
 <div class="page-header fade-in">
     <div class="page-header-left">
-        <h1>Settings</h1>
-        <p>Manage your account and system preferences</p>
+        <?php
+        $cfgTitles = ['account'=>['Settings','Manage your account and system preferences'],'home'=>['Home Page Config','Customize the storefront home page'],'contact'=>['Contact Page Config','Contact info, departments, FAQs'],'about'=>['About Page Config','Story, values, team, milestones'],'catalog'=>['Catalog Config','Products, payments, pricing rules'],'general'=>['General Config','Socials and site-wide settings']];
+        $ct = $cfgTitles[$cfgPage ?? 'account'] ?? $cfgTitles['account'];
+        ?>
+        <h1><?= $ct[0] ?></h1>
+        <p><?= $ct[1] ?></p>
     </div>
 </div>
 
@@ -103,7 +110,7 @@ include __DIR__ . '/../includes/header.php';
 </div>
 <?php endif; ?>
 
-<div class="grid-2 fade-in">
+<div class="grid-2 fade-in" data-cfg="account">
     <!-- Profile Settings -->
     <div class="card">
         <div class="card-header">
@@ -228,8 +235,21 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<?php if ($cfgPage !== 'account'): ?>
+<!-- ===== Storefront Configuration (page-wise tabs) ===== -->
+<div class="card fade-in" style="margin-top:24px;padding:6px;">
+  <div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px;">
+    <?php $tabs = ['home'=>'🏠 Home Page','contact'=>'📞 Contact Page','about'=>'ℹ️ About Page','catalog'=>'🛒 Catalog / Products','general'=>'⚙️ General']; ?>
+    <?php foreach($tabs as $k=>$lbl): ?>
+      <a href="<?= APP_URL ?>/pages/settings.php?page=<?= $k ?>" class="btn <?= $cfgPage===$k?'btn-gold':'btn-ghost' ?> btn-sm"><?= $lbl ?></a>
+    <?php endforeach; ?>
+  </div>
+</div>
+<?php endif; ?>
+
+<div data-cfg="contact">
 <!-- Storefront Company / Contact Info -->
-<div class="card fade-in" style="margin-top:24px;">
+<div class="card fade-in" style="margin-top:18px;">
     <div class="card-header">
         <span class="card-title"><i class="fa-solid fa-store text-gold" style="margin-right:8px;"></i>Storefront Company Info</span>
         <small class="text-muted">Shown across the storefront (header, footer, contact page)</small>
@@ -337,6 +357,8 @@ HTML;
 ?>
 
 <?php $bn = $site['banners'] ?? []; $promo = $bn['promo'] ?? []; ?>
+</div><!-- /contact group -->
+<div data-cfg="home">
 <!-- Promo Banner Grid -->
 <div class="card fade-in" style="margin-top:18px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-panorama text-gold" style="margin-right:8px;"></i>Promo Banner Grid</span><small class="text-muted">3 home banners (desktop + mobile image) + product links</small></div>
@@ -365,6 +387,284 @@ HTML;
     <?php endforeach; ?>
     <button class="btn btn-gold" onclick="savePromo()"><i class="fa-solid fa-floppy-disk"></i> Save Promo Banners</button>
     <input type="file" id="promoFileInput" accept="image/*" style="display:none">
+  </div>
+</div>
+
+</div><!-- /home group -->
+<div data-cfg="contact">
+<?php $L = $site['contactConfig']['labels'] ?? []; ?>
+<div style="background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:10px;padding:10px 14px;margin-top:18px;font-size:.82rem;color:var(--text-secondary);">
+  <i class="fa-solid fa-circle-info text-gold"></i> Sections below match the storefront Contact page top-to-bottom. One <b>Save</b> at the end updates everything.
+</div>
+
+<!-- 1. Hero section -->
+<div class="card fade-in" style="margin-top:14px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-rectangle-ad text-gold" style="margin-right:8px;"></i>1. Hero Banner</span><small class="text-muted">Top blue header</small></div>
+  <div class="card-body">
+    <div class="grid-2" style="gap:14px;">
+      <div class="form-group"><label class="form-label">Badge — when OPEN <small class="text-muted">(green)</small></label><input type="text" class="form-control" id="cc_heroBadge" value="<?= htmlspecialchars($site['contactConfig']['heroBadge'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Badge — when CLOSED <small class="text-muted">(red)</small></label><input type="text" class="form-control" id="cc_heroBadgeClosed" value="<?= htmlspecialchars($site['contactConfig']['heroBadgeClosed'] ?? '') ?>"></div>
+      <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Title</label><input type="text" class="form-control" id="cc_heroTitle" value="<?= htmlspecialchars($site['contactConfig']['heroTitle'] ?? '') ?>"></div>
+      <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Sub-line / slogan (full sentence)</label><textarea class="form-control" id="cc_heroSubtitle" rows="2"><?= htmlspecialchars($site['contactConfig']['heroSubtitle'] ?? '') ?></textarea></div>
+    </div>
+    <label class="form-label" style="font-weight:700;margin-top:10px;">Stat Chips</label>
+    <div id="chip_rows"></div>
+    <button class="btn btn-ghost btn-sm" onclick="addChipRow()"><i class="fa-solid fa-plus"></i> Add Chip</button>
+  </div>
+</div>
+
+<!-- 2. Quick action cards -->
+<div class="card fade-in" style="margin-top:14px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-bolt text-gold" style="margin-right:8px;"></i>2. Quick Action Cards</span><small class="text-muted">WhatsApp / Call / Email / Visit labels</small></div>
+  <div class="card-body">
+    <div class="grid-2" style="gap:10px;">
+      <div class="form-group"><label class="form-label">WhatsApp label</label><input type="text" class="form-control" id="lbl_whatsapp" value="<?= htmlspecialchars($L['whatsapp'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">WhatsApp sub-text</label><input type="text" class="form-control" id="lbl_whatsappSub" value="<?= htmlspecialchars($L['whatsappSub'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Call label</label><input type="text" class="form-control" id="lbl_call" value="<?= htmlspecialchars($L['call'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Email label</label><input type="text" class="form-control" id="lbl_email" value="<?= htmlspecialchars($L['email'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Visit label</label><input type="text" class="form-control" id="lbl_visit" value="<?= htmlspecialchars($L['visit'] ?? '') ?>"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 3. Contact form -->
+<div class="card fade-in" style="margin-top:14px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-pen-to-square text-gold" style="margin-right:8px;"></i>3. Contact Form</span><small class="text-muted">Heading + department options</small></div>
+  <div class="card-body">
+    <div class="grid-2" style="gap:14px;">
+      <div class="form-group"><label class="form-label">Form Title</label><input type="text" class="form-control" id="cc_formTitle" value="<?= htmlspecialchars($site['contactConfig']['formTitle'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Form Chip (Replies in 4 hrs)</label><input type="text" class="form-control" id="cc_formChip" value="<?= htmlspecialchars($site['contactConfig']['formChip'] ?? '') ?>"></div>
+      <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Form Subtitle</label><input type="text" class="form-control" id="lbl_formSubtitle" value="<?= htmlspecialchars($L['formSubtitle'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">"What can we help" heading</label><input type="text" class="form-control" id="lbl_deptHelp" value="<?= htmlspecialchars($L['deptHelp'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Name field label</label><input type="text" class="form-control" id="lbl_fieldName" value="<?= htmlspecialchars($L['fieldName'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Phone field label</label><input type="text" class="form-control" id="lbl_fieldPhone" value="<?= htmlspecialchars($L['fieldPhone'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Email field label</label><input type="text" class="form-control" id="lbl_fieldEmail" value="<?= htmlspecialchars($L['fieldEmail'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Message field label</label><input type="text" class="form-control" id="lbl_fieldMsg" value="<?= htmlspecialchars($L['fieldMsg'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Message hint</label><input type="text" class="form-control" id="lbl_msgHint" value="<?= htmlspecialchars($L['msgHint'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Submit button text</label><input type="text" class="form-control" id="lbl_sendBtn" value="<?= htmlspecialchars($L['sendBtn'] ?? '') ?>"></div>
+      <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Privacy note (below button)</label><input type="text" class="form-control" id="lbl_privacyNote" value="<?= htmlspecialchars($L['privacyNote'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Success Title (after submit)</label><input type="text" class="form-control" id="lbl_successTitle" value="<?= htmlspecialchars($L['successTitle'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Success Note</label><input type="text" class="form-control" id="cc_responseNote" value="<?= htmlspecialchars($site['contactConfig']['responseNote'] ?? '') ?>"></div>
+    </div>
+    <label class="form-label" style="font-weight:700;margin-top:10px;">Departments (What can we help with?)</label>
+    <div id="dept_rows"></div>
+    <button class="btn btn-ghost btn-sm" onclick="addDeptRow()"><i class="fa-solid fa-plus"></i> Add Department</button>
+  </div>
+</div>
+
+<!-- 4. Reach us directly (info comes from Company Info above + Socials in General) -->
+<div class="card fade-in" style="margin-top:14px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-address-book text-gold" style="margin-right:8px;"></i>4. Reach Us Directly</span><small class="text-muted">Heading (phone/email = Company Info • socials = General config)</small></div>
+  <div class="card-body">
+    <div class="grid-2" style="gap:10px;">
+      <div class="form-group"><label class="form-label">Section Heading</label><input type="text" class="form-control" id="lbl_reachHeading" value="<?= htmlspecialchars($L['reachHeading'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Sales label</label><input type="text" class="form-control" id="lbl_reachSales" value="<?= htmlspecialchars($L['reachSales'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Support label</label><input type="text" class="form-control" id="lbl_reachSupport" value="<?= htmlspecialchars($L['reachSupport'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Email Sales label</label><input type="text" class="form-control" id="lbl_reachEmailSales" value="<?= htmlspecialchars($L['reachEmailSales'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">General Info label</label><input type="text" class="form-control" id="lbl_reachGeneral" value="<?= htmlspecialchars($L['reachGeneral'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">"Follow us" heading</label><input type="text" class="form-control" id="lbl_followHeading" value="<?= htmlspecialchars($L['followHeading'] ?? '') ?>"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 5. Business hours -->
+<div class="card fade-in" style="margin-top:14px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-clock text-gold" style="margin-right:8px;"></i>5. Business Hours</span></div>
+  <div class="card-body">
+    <div class="form-group"><label class="form-label">Section Heading</label><input type="text" class="form-control" id="lbl_hoursHeading" value="<?= htmlspecialchars($L['hoursHeading'] ?? '') ?>"></div>
+    <div id="bh_rows"></div>
+    <button class="btn btn-ghost btn-sm" onclick="addBhRow()"><i class="fa-solid fa-plus"></i> Add Row</button>
+
+    <?php $OH = $site['contactConfig']['openHours'] ?? []; ?>
+    <label class="form-label" style="font-weight:700;margin-top:14px;">Live "Open / Closed" badge</label>
+    <div class="text-muted" style="font-size:.72rem;margin-bottom:8px;">Auto shows green "Open now" during these hours/days, else red "Closed".</div>
+    <div class="grid-2" style="gap:10px;">
+      <div class="form-group"><label class="form-label">Open hour (0–23)</label><input type="number" min="0" max="23" class="form-control" id="oh_openHour" value="<?= htmlspecialchars($OH['openHour'] ?? 10) ?>"></div>
+      <div class="form-group"><label class="form-label">Close hour (0–23)</label><input type="number" min="0" max="23" class="form-control" id="oh_closeHour" value="<?= htmlspecialchars($OH['closeHour'] ?? 19) ?>"></div>
+      <div class="form-group"><label class="form-label">"Open" label</label><input type="text" class="form-control" id="oh_openLabel" value="<?= htmlspecialchars($OH['openLabel'] ?? 'Open now') ?>"></div>
+      <div class="form-group"><label class="form-label">"Closed" label</label><input type="text" class="form-control" id="oh_closedLabel" value="<?= htmlspecialchars($OH['closedLabel'] ?? 'Closed') ?>"></div>
+    </div>
+    <label class="form-label">Open days</label>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+      <?php $dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']; $openDays=$OH['openDays'] ?? [1,2,3,4,5,6];
+      foreach($dayNames as $di=>$dn): ?>
+        <label style="display:flex;align-items:center;gap:4px;font-size:.8rem;cursor:pointer;"><input type="checkbox" class="oh-day" value="<?= $di ?>" <?= in_array($di,$openDays)?'checked':'' ?>> <?= $dn ?></label>
+      <?php endforeach; ?>
+    </div>
+    <div class="form-group" style="margin-top:6px;"><label class="form-label">Timezone Label</label><input type="text" class="form-control" id="cc_timezone" value="<?= htmlspecialchars($site['contactConfig']['timezone'] ?? '') ?>"></div>
+  </div>
+</div>
+
+<!-- 6. Our Office -->
+<div class="card fade-in" style="margin-top:14px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-location-dot text-gold" style="margin-right:8px;"></i>6. Our Office</span><small class="text-muted">Map uses Company address • highlights below</small></div>
+  <div class="card-body">
+    <div class="grid-2" style="gap:10px;">
+      <div class="form-group"><label class="form-label">Badge (Visit Us)</label><input type="text" class="form-control" id="lbl_visitBadge" value="<?= htmlspecialchars($L['visitBadge'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Heading (Our Office)</label><input type="text" class="form-control" id="lbl_officeHeading" value="<?= htmlspecialchars($L['officeHeading'] ?? '') ?>"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Office Subtitle</label><input type="text" class="form-control" id="cc_officeSubtitle" value="<?= htmlspecialchars($site['contactConfig']['officeSubtitle'] ?? '') ?>"></div>
+    <label class="form-label" style="font-weight:700;">Highlights</label>
+    <div id="office_rows"></div>
+    <button class="btn btn-ghost btn-sm" onclick="addOfficeRow()"><i class="fa-solid fa-plus"></i> Add Highlight</button>
+  </div>
+</div>
+
+<!-- 7. FAQs -->
+<div class="card fade-in" style="margin-top:14px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-circle-question text-gold" style="margin-right:8px;"></i>7. FAQs</span></div>
+  <div class="card-body">
+    <div class="form-group"><label class="form-label">FAQ Section Heading</label><input type="text" class="form-control" id="lbl_faqHeading" value="<?= htmlspecialchars($L['faqHeading'] ?? '') ?>"></div>
+    <div id="cfaq_rows"></div>
+    <button class="btn btn-ghost btn-sm" onclick="addCfaqRow()"><i class="fa-solid fa-plus"></i> Add FAQ</button>
+    <div style="margin-top:16px;border-top:1px solid var(--border-color);padding-top:14px;"><button class="btn btn-gold" onclick="saveContactConfig()"><i class="fa-solid fa-floppy-disk"></i> Save Contact Page Configuration</button></div>
+  </div>
+</div>
+
+</div><!-- /contact group -->
+
+<?php $A = $site['aboutConfig'] ?? []; ?>
+<div data-cfg="about">
+<div style="background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:10px;padding:10px 14px;margin-top:18px;font-size:.82rem;color:var(--text-secondary);">
+  <i class="fa-solid fa-circle-info text-gold"></i> About page sections, top-to-bottom. One <b>Save</b> at the end.
+</div>
+
+<!-- A1 Hero -->
+<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-rectangle-ad text-gold" style="margin-right:8px;"></i>1. Hero</span></div><div class="card-body">
+  <div class="grid-2" style="gap:12px;">
+    <div class="form-group"><label class="form-label">Badge</label><input type="text" class="form-control" id="ab_hero_badge" value="<?= htmlspecialchars($A['hero']['badge'] ?? '') ?>"></div>
+    <div class="form-group"><label class="form-label">Card Title</label><input type="text" class="form-control" id="ab_hero_cardTitle" value="<?= htmlspecialchars($A['hero']['cardTitle'] ?? '') ?>"></div>
+    <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Title</label><input type="text" class="form-control" id="ab_hero_title" value="<?= htmlspecialchars($A['hero']['title'] ?? '') ?>"></div>
+    <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Description</label><textarea class="form-control" id="ab_hero_desc" rows="2"><?= htmlspecialchars($A['hero']['description'] ?? '') ?></textarea></div>
+    <div class="form-group"><label class="form-label">CTA Button text</label><input type="text" class="form-control" id="ab_hero_cta" value="<?= htmlspecialchars($A['hero']['ctaText'] ?? '') ?>"></div>
+  </div>
+  <label class="form-label" style="font-weight:700;margin-top:8px;">Hero Stats</label><div id="ab_herostats"></div>
+  <button class="btn btn-ghost btn-sm" onclick="abAdd('heroStats',{value:'',label:''})"><i class="fa-solid fa-plus"></i> Add Stat</button>
+</div></div>
+
+<!-- A2 Our Story -->
+<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-book-open text-gold" style="margin-right:8px;"></i>2. Our Story</span></div><div class="card-body">
+  <div class="grid-2" style="gap:12px;">
+    <div class="form-group"><label class="form-label">Label</label><input type="text" class="form-control" id="ab_story_label" value="<?= htmlspecialchars($A['story']['label'] ?? '') ?>"></div>
+    <div class="form-group"><label class="form-label">Heading</label><input type="text" class="form-control" id="ab_story_heading" value="<?= htmlspecialchars($A['story']['heading'] ?? '') ?>"></div>
+    <div class="form-group"><label class="form-label">Parent Label</label><input type="text" class="form-control" id="ab_story_parentLabel" value="<?= htmlspecialchars($A['story']['parentLabel'] ?? '') ?>"></div>
+    <div class="form-group"><label class="form-label">Parent Name</label><input type="text" class="form-control" id="ab_story_parentName" value="<?= htmlspecialchars($A['story']['parentName'] ?? '') ?>"></div>
+  </div>
+  <label class="form-label" style="font-weight:700;margin-top:8px;">Paragraphs</label><div id="ab_storyparas"></div>
+  <button class="btn btn-ghost btn-sm" onclick="abAdd('storyParas','')"><i class="fa-solid fa-plus"></i> Add Paragraph</button>
+  <label class="form-label" style="font-weight:700;margin-top:8px;">Promises</label><div id="ab_promises"></div>
+  <button class="btn btn-ghost btn-sm" onclick="abAdd('promises',{title:'',text:''})"><i class="fa-solid fa-plus"></i> Add Promise</button>
+</div></div>
+
+<!-- A3 Stats Strip -->
+<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-chart-simple text-gold" style="margin-right:8px;"></i>3. Stats Strip</span></div><div class="card-body">
+  <div id="ab_stats"></div><button class="btn btn-ghost btn-sm" onclick="abAdd('stats',{value:'',label:''})"><i class="fa-solid fa-plus"></i> Add Stat</button>
+</div></div>
+
+<!-- A4 Milestones -->
+<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-timeline text-gold" style="margin-right:8px;"></i>4. Milestones</span></div><div class="card-body">
+  <div class="grid-2" style="gap:12px;">
+    <div class="form-group"><label class="form-label">Label</label><input type="text" class="form-control" id="ab_ms_label" value="<?= htmlspecialchars($A['milestones']['label'] ?? '') ?>"></div>
+    <div class="form-group"><label class="form-label">Heading</label><input type="text" class="form-control" id="ab_ms_heading" value="<?= htmlspecialchars($A['milestones']['heading'] ?? '') ?>"></div>
+    <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Subtitle</label><input type="text" class="form-control" id="ab_ms_subtitle" value="<?= htmlspecialchars($A['milestones']['subtitle'] ?? '') ?>"></div>
+  </div>
+  <div id="ab_milestones"></div><button class="btn btn-ghost btn-sm" onclick="abAdd('milestones',{year:'',title:'',text:''})"><i class="fa-solid fa-plus"></i> Add Milestone</button>
+</div></div>
+
+<!-- A5 Core Values -->
+<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-gem text-gold" style="margin-right:8px;"></i>5. Core Values</span></div><div class="card-body">
+  <div class="grid-2" style="gap:12px;">
+    <div class="form-group"><label class="form-label">Label</label><input type="text" class="form-control" id="ab_cv_label" value="<?= htmlspecialchars($A['coreValues']['label'] ?? '') ?>"></div>
+    <div class="form-group"><label class="form-label">Heading</label><input type="text" class="form-control" id="ab_cv_heading" value="<?= htmlspecialchars($A['coreValues']['heading'] ?? '') ?>"></div>
+    <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Subtitle</label><input type="text" class="form-control" id="ab_cv_subtitle" value="<?= htmlspecialchars($A['coreValues']['subtitle'] ?? '') ?>"></div>
+  </div>
+  <div id="ab_values"></div><button class="btn btn-ghost btn-sm" onclick="abAdd('values',{n:'',icon:'⭐',title:'',text:''})"><i class="fa-solid fa-plus"></i> Add Value</button>
+</div></div>
+
+<!-- A6 Leadership -->
+<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-users text-gold" style="margin-right:8px;"></i>6. Leadership / Team</span></div><div class="card-body">
+  <div class="grid-2" style="gap:12px;">
+    <div class="form-group"><label class="form-label">Label</label><input type="text" class="form-control" id="ab_ld_label" value="<?= htmlspecialchars($A['leadership']['label'] ?? '') ?>"></div>
+    <div class="form-group"><label class="form-label">Heading</label><input type="text" class="form-control" id="ab_ld_heading" value="<?= htmlspecialchars($A['leadership']['heading'] ?? '') ?>"></div>
+    <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Subtitle</label><input type="text" class="form-control" id="ab_ld_subtitle" value="<?= htmlspecialchars($A['leadership']['subtitle'] ?? '') ?>"></div>
+  </div>
+  <div id="ab_team"></div><button class="btn btn-ghost btn-sm" onclick="abAdd('team',{name:'',role:'',bio:'',img:''})"><i class="fa-solid fa-plus"></i> Add Member</button>
+  <input type="file" id="abFileInput" accept="image/*" style="display:none">
+</div></div>
+
+<!-- A7 Why Trust -->
+<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-handshake text-gold" style="margin-right:8px;"></i>7. Why Trust Us</span></div><div class="card-body">
+  <div class="grid-2" style="gap:12px;">
+    <div class="form-group"><label class="form-label">Label</label><input type="text" class="form-control" id="ab_wt_label" value="<?= htmlspecialchars($A['whyTrust']['label'] ?? '') ?>"></div>
+    <div class="form-group"><label class="form-label">Heading</label><input type="text" class="form-control" id="ab_wt_heading" value="<?= htmlspecialchars($A['whyTrust']['heading'] ?? '') ?>"></div>
+    <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Subtitle</label><textarea class="form-control" id="ab_wt_subtitle" rows="2"><?= htmlspecialchars($A['whyTrust']['subtitle'] ?? '') ?></textarea></div>
+    <div class="form-group"><label class="form-label">Satisfaction Title</label><input type="text" class="form-control" id="ab_wt_satTitle" value="<?= htmlspecialchars($A['whyTrust']['satTitle'] ?? '') ?>"></div>
+    <div class="form-group"><label class="form-label">Satisfaction Rating</label><input type="text" class="form-control" id="ab_wt_satRating" value="<?= htmlspecialchars($A['whyTrust']['satRating'] ?? '') ?>"></div>
+  </div>
+  <label class="form-label" style="font-weight:700;margin-top:8px;">Trust Rows</label><div id="ab_trustrows"></div>
+  <button class="btn btn-ghost btn-sm" onclick="abAdd('trustRows',{icon:'check',title:'',text:''})"><i class="fa-solid fa-plus"></i> Add Row</button>
+  <label class="form-label" style="font-weight:700;margin-top:8px;">Satisfaction Bars</label><div id="ab_satbars"></div>
+  <button class="btn btn-ghost btn-sm" onclick="abAdd('satBars',{label:'',value:90})"><i class="fa-solid fa-plus"></i> Add Bar</button>
+</div></div>
+
+<!-- A8 Mission/Vision -->
+<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-bullseye text-gold" style="margin-right:8px;"></i>8. Mission & Vision</span></div><div class="card-body">
+  <div class="grid-2" style="gap:12px;">
+    <div class="form-group"><label class="form-label">Label</label><input type="text" class="form-control" id="ab_mv_label" value="<?= htmlspecialchars($A['missionVision']['label'] ?? '') ?>"></div>
+    <div class="form-group"><label class="form-label">Heading</label><input type="text" class="form-control" id="ab_mv_heading" value="<?= htmlspecialchars($A['missionVision']['heading'] ?? '') ?>"></div>
+    <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Subtitle</label><textarea class="form-control" id="ab_mv_subtitle" rows="2"><?= htmlspecialchars($A['missionVision']['subtitle'] ?? '') ?></textarea></div>
+    <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Mission</label><textarea class="form-control" id="ab_mv_mission" rows="3"><?= htmlspecialchars($A['missionVision']['mission'] ?? '') ?></textarea></div>
+    <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Vision</label><textarea class="form-control" id="ab_mv_vision" rows="3"><?= htmlspecialchars($A['missionVision']['vision'] ?? '') ?></textarea></div>
+  </div>
+</div></div>
+
+<!-- A9 Testimonials -->
+<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-quote-left text-gold" style="margin-right:8px;"></i>9. Testimonials</span></div><div class="card-body">
+  <div class="grid-2" style="gap:12px;">
+    <div class="form-group"><label class="form-label">Label</label><input type="text" class="form-control" id="ab_ts_label" value="<?= htmlspecialchars($A['testimonials']['label'] ?? '') ?>"></div>
+    <div class="form-group"><label class="form-label">Heading</label><input type="text" class="form-control" id="ab_ts_heading" value="<?= htmlspecialchars($A['testimonials']['heading'] ?? '') ?>"></div>
+  </div>
+  <div id="ab_testimonials"></div><button class="btn btn-ghost btn-sm" onclick="abAdd('testimonials',{name:'',clinic:'',stars:5,text:''})"><i class="fa-solid fa-plus"></i> Add Review</button>
+</div></div>
+
+<!-- A10 Certifications -->
+<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-certificate text-gold" style="margin-right:8px;"></i>10. Certifications</span></div><div class="card-body">
+  <div class="grid-2" style="gap:12px;">
+    <div class="form-group"><label class="form-label">Label</label><input type="text" class="form-control" id="ab_ce_label" value="<?= htmlspecialchars($A['certifications']['label'] ?? '') ?>"></div>
+    <div class="form-group"><label class="form-label">Heading</label><input type="text" class="form-control" id="ab_ce_heading" value="<?= htmlspecialchars($A['certifications']['heading'] ?? '') ?>"></div>
+  </div>
+  <div id="ab_certs"></div><button class="btn btn-ghost btn-sm" onclick="abAdd('certs',{icon:'📋',label:'',desc:''})"><i class="fa-solid fa-plus"></i> Add Cert</button>
+</div></div>
+
+<!-- A11 CTA -->
+<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-bullhorn text-gold" style="margin-right:8px;"></i>11. Bottom CTA</span></div><div class="card-body">
+  <div class="grid-2" style="gap:12px;">
+    <div class="form-group"><label class="form-label">Label</label><input type="text" class="form-control" id="ab_cta_label" value="<?= htmlspecialchars($A['cta']['label'] ?? '') ?>"></div>
+    <div class="form-group"><label class="form-label">Heading</label><input type="text" class="form-control" id="ab_cta_heading" value="<?= htmlspecialchars($A['cta']['heading'] ?? '') ?>"></div>
+    <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Subtitle</label><textarea class="form-control" id="ab_cta_subtitle" rows="2"><?= htmlspecialchars($A['cta']['subtitle'] ?? '') ?></textarea></div>
+    <div class="form-group"><label class="form-label">Shop button</label><input type="text" class="form-control" id="ab_cta_shop" value="<?= htmlspecialchars($A['cta']['shopText'] ?? '') ?>"></div>
+    <div class="form-group"><label class="form-label">Contact button</label><input type="text" class="form-control" id="ab_cta_contact" value="<?= htmlspecialchars($A['cta']['contactText'] ?? '') ?>"></div>
+  </div>
+  <div style="margin-top:16px;border-top:1px solid var(--border-color);padding-top:14px;"><button class="btn btn-gold" onclick="saveAbout()"><i class="fa-solid fa-floppy-disk"></i> Save About Page Configuration</button></div>
+</div></div>
+</div><!-- /about group -->
+
+<div data-cfg="home">
+<!-- Home Layout (section order + visibility) -->
+<div class="card fade-in" style="margin-top:18px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-table-cells text-gold" style="margin-right:8px;"></i>Home Page Layout</span><small class="text-muted">Show/hide sections and change their order</small></div>
+  <div class="card-body">
+    <div id="home_rows"></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;border-top:1px solid var(--border-color);padding-top:12px;">
+      <span class="text-muted" style="font-size:.8rem;">Add a category section:</span>
+      <select class="form-control" id="add_section_cat" style="width:auto;min-width:200px;">
+        <?php foreach ($linkProducts ? db()->fetchAll("SELECT slug,name FROM categories WHERE is_active=1 ORDER BY name") : [] as $cat): ?>
+          <option value="<?= htmlspecialchars($cat['slug']) ?>"><?= htmlspecialchars($cat['name']) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="addCategorySection()"><i class="fa-solid fa-plus"></i> Add Section</button>
+    </div>
+    <button class="btn btn-gold" style="margin-top:12px;" onclick="saveHomeLayout()"><i class="fa-solid fa-floppy-disk"></i> Save Home Layout</button>
   </div>
 </div>
 
@@ -420,6 +720,8 @@ HTML;
   </div>
 </div>
 
+</div><!-- /home group -->
+<div data-cfg="general">
 <!-- Socials -->
 <div class="card fade-in" style="margin-top:18px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-share-nodes text-gold" style="margin-right:8px;"></i>Social Links</span></div>
@@ -430,6 +732,25 @@ HTML;
   </div>
 </div>
 
+<!-- Policy Pages -->
+<div class="card fade-in" style="margin-top:18px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-file-contract text-gold" style="margin-right:8px;"></i>Policy Pages</span><small class="text-muted">Return / Terms / Privacy — shown in footer links</small></div>
+  <div class="card-body">
+    <div style="display:flex;gap:6px;margin-bottom:10px;">
+      <?php foreach(['return'=>'Return','terms'=>'Terms','privacy'=>'Privacy'] as $pk=>$pl): ?>
+        <button class="btn btn-ghost btn-sm" onclick="showPolicy('<?= $pk ?>')" id="polTab_<?= $pk ?>"><?= $pl ?></button>
+      <?php endforeach; ?>
+    </div>
+    <div class="form-group"><label class="form-label">Title</label><input type="text" class="form-control" id="pol_title"></div>
+    <label class="form-label" style="font-weight:700;">Sections</label>
+    <div id="pol_sections"></div>
+    <button class="btn btn-ghost btn-sm" onclick="addPolSection()"><i class="fa-solid fa-plus"></i> Add Section</button>
+    <button class="btn btn-gold" style="margin-left:8px;" onclick="savePolicies()"><i class="fa-solid fa-floppy-disk"></i> Save Policies</button>
+  </div>
+</div>
+
+</div><!-- /general group -->
+<div data-cfg="catalog">
 <!-- Payments -->
 <div class="card fade-in" style="margin-top:18px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-credit-card text-gold" style="margin-right:8px;"></i>Payment Methods</span></div>
@@ -461,8 +782,27 @@ HTML;
       <div class="form-group"><label class="form-label">Delivery Days</label><input type="text" class="form-control" id="pd_deliveryDays" value="<?= htmlspecialchars($site['productDefaults']['deliveryDays'] ?? '3–5 business days') ?>"></div>
       <div class="form-group"><label class="form-label">Price Min (₹)</label><input type="number" class="form-control" id="pb_min" value="<?= htmlspecialchars($site['priceBounds']['min'] ?? 10) ?>"></div>
       <div class="form-group"><label class="form-label">Price Max (₹)</label><input type="number" class="form-control" id="pb_max" value="<?= htmlspecialchars($site['priceBounds']['max'] ?? 500000) ?>"></div>
+      <div class="form-group"><label class="form-label">Great Value min discount (%)</label><input type="number" class="form-control" id="gvp_threshold" value="<?= htmlspecialchars($site['gvpThreshold'] ?? 10) ?>"><small class="text-muted" style="font-size:.7rem;">Products with this % off or more show under "Great Value Products"</small></div>
     </div>
     <button class="btn btn-gold" onclick="savePricingRules()"><i class="fa-solid fa-floppy-disk"></i> Save Pricing Rules</button>
+  </div>
+</div>
+
+<!-- Offer Zone Hero -->
+<?php $OZ = $site['offerZoneHero'] ?? []; ?>
+<div class="card fade-in" style="margin-top:18px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-fire text-gold" style="margin-right:8px;"></i>Offer Zone Hero</span><small class="text-muted">Save amount + counts auto-computed from offers</small></div>
+  <div class="card-body">
+    <div class="grid-2" style="gap:12px;">
+      <div class="form-group"><label class="form-label">Badge</label><input type="text" class="form-control" id="oz_badge" value="<?= htmlspecialchars($OZ['badge'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Title</label><input type="text" class="form-control" id="oz_title" value="<?= htmlspecialchars($OZ['title'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Save prefix</label><input type="text" class="form-control" id="oz_savePrefix" value="<?= htmlspecialchars($OZ['savePrefix'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Save suffix</label><input type="text" class="form-control" id="oz_saveSuffix" value="<?= htmlspecialchars($OZ['saveSuffix'] ?? '') ?>"></div>
+      <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Subtitle</label><textarea class="form-control" id="oz_subtitle" rows="2"><?= htmlspecialchars($OZ['subtitle'] ?? '') ?></textarea></div>
+      <div class="form-group"><label class="form-label">Countdown label</label><input type="text" class="form-control" id="oz_expiryLabel" value="<?= htmlspecialchars($OZ['expiryLabel'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Restock note</label><input type="text" class="form-control" id="oz_restockNote" value="<?= htmlspecialchars($OZ['restockNote'] ?? '') ?>"></div>
+    </div>
+    <button class="btn btn-gold" style="margin-top:10px;" onclick="saveOfferHero()"><i class="fa-solid fa-floppy-disk"></i> Save Offer Zone Hero</button>
   </div>
 </div>
 
@@ -507,6 +847,8 @@ listCard('pp', 'Price Presets', 'Shop-by-price quick filters', 'Add Preset', 'sa
   </div>
 </div>
 
+</div><!-- /catalog group -->
+<div data-cfg="home">
 <!-- Premium Categories (form) -->
 <div class="card fade-in" style="margin-top:18px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-star text-gold" style="margin-right:8px;"></i>Premium Categories</span><small class="text-muted">Home premium showcase cards (image + title + description)</small></div>
@@ -575,7 +917,8 @@ function savePricingRules(){
     saveSetting('priceBounds', { min: parseInt(document.getElementById('pb_min').value)||10, max: parseInt(document.getElementById('pb_max').value)||500000 });
     const pd = <?= json_encode($site['productDefaults'] ?? [], JSON_UNESCAPED_SLASHES) ?>;
     pd.deliveryDays = document.getElementById('pd_deliveryDays').value;
-    saveSetting('productDefaults', pd, 'Pricing rules');
+    saveSetting('productDefaults', pd);
+    saveSetting('gvpThreshold', parseInt(document.getElementById('gvp_threshold').value)||10, 'Pricing rules');
 }
 
 // ---- Tier Offers ----
@@ -763,6 +1106,216 @@ function uploadRf(id){
   genericUpload((url)=> setImg(id, url))('rfFileInput');
 }
 
+// ---- Contact Page config ----
+let CC = <?= json_encode($site['contactConfig'] ?? ['departments'=>[],'faqs'=>[],'businessHours'=>[]], JSON_UNESCAPED_SLASHES) ?>;
+CC.departments = CC.departments||[]; CC.faqs = CC.faqs||[]; CC.businessHours = CC.businessHours||[]; CC.statChips = CC.statChips||[]; CC.officeBullets = CC.officeBullets||[];
+function renderCC(){
+  document.getElementById('office_rows').innerHTML = CC.officeBullets.map((b,i)=>`
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
+      <input class="form-control" placeholder="Highlight (e.g. Free parking)" value="${(b||'').replace(/"/g,'&quot;')}" oninput="CC.officeBullets[${i}]=this.value" style="flex:1;">
+      <button class="btn btn-ghost btn-sm" onclick="CC.officeBullets.splice(${i},1);renderCC()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
+    </div>`).join('');
+  document.getElementById('chip_rows').innerHTML = CC.statChips.map((c,i)=>`
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
+      <input class="form-control" placeholder="icon" value="${(c.icon||'').replace(/"/g,'&quot;')}" oninput="CC.statChips[${i}].icon=this.value" style="width:60px;">
+      <input class="form-control" placeholder="Label" value="${(c.label||'').replace(/"/g,'&quot;')}" oninput="CC.statChips[${i}].label=this.value" style="flex:1;">
+      <button class="btn btn-ghost btn-sm" onclick="CC.statChips.splice(${i},1);renderCC()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
+    </div>`).join('');
+  document.getElementById('dept_rows').innerHTML = CC.departments.map((d,i)=>`
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
+      <input class="form-control" placeholder="id" value="${(d.id||'').replace(/"/g,'&quot;')}" oninput="CC.departments[${i}].id=this.value" style="width:110px;">
+      <input class="form-control" placeholder="icon" value="${(d.icon||'').replace(/"/g,'&quot;')}" oninput="CC.departments[${i}].icon=this.value" style="width:60px;">
+      <input class="form-control" placeholder="Label" value="${(d.label||'').replace(/"/g,'&quot;')}" oninput="CC.departments[${i}].label=this.value" style="flex:1;">
+      <input class="form-control" placeholder="Description" value="${(d.desc||'').replace(/"/g,'&quot;')}" oninput="CC.departments[${i}].desc=this.value" style="flex:2;">
+      <button class="btn btn-ghost btn-sm" onclick="CC.departments.splice(${i},1);renderCC()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
+    </div>`).join('');
+  document.getElementById('cfaq_rows').innerHTML = CC.faqs.map((f,i)=>`
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
+      <input class="form-control" placeholder="Question" value="${(f.q||'').replace(/"/g,'&quot;')}" oninput="CC.faqs[${i}].q=this.value" style="flex:1;">
+      <input class="form-control" placeholder="Answer" value="${(f.a||'').replace(/"/g,'&quot;')}" oninput="CC.faqs[${i}].a=this.value" style="flex:2;">
+      <button class="btn btn-ghost btn-sm" onclick="CC.faqs.splice(${i},1);renderCC()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
+    </div>`).join('');
+  document.getElementById('bh_rows').innerHTML = CC.businessHours.map((h,i)=>`
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
+      <input class="form-control" placeholder="Day (Mon – Sat)" value="${(h.day||'').replace(/"/g,'&quot;')}" oninput="CC.businessHours[${i}].day=this.value" style="flex:1;">
+      <input class="form-control" placeholder="Hours (10 AM – 7 PM / Closed)" value="${(h.hours||'').replace(/"/g,'&quot;')}" oninput="CC.businessHours[${i}].hours=this.value" style="flex:1;">
+      <button class="btn btn-ghost btn-sm" onclick="CC.businessHours.splice(${i},1);renderCC()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
+    </div>`).join('');
+}
+function addDeptRow(){ CC.departments.push({id:'',icon:'💬',label:'',desc:''}); renderCC(); }
+function addCfaqRow(){ CC.faqs.push({q:'',a:''}); renderCC(); }
+function addBhRow(){ CC.businessHours.push({day:'',hours:''}); renderCC(); }
+function addChipRow(){ CC.statChips.push({icon:'⚡',label:''}); renderCC(); }
+function addOfficeRow(){ CC.officeBullets.push(''); renderCC(); }
+function saveContactConfig(){
+  CC.heroBadge = document.getElementById('cc_heroBadge').value;
+  CC.heroBadgeClosed = document.getElementById('cc_heroBadgeClosed').value;
+  CC.heroTitle = document.getElementById('cc_heroTitle').value;
+  CC.heroSubtitle = document.getElementById('cc_heroSubtitle').value;
+  CC.officeSubtitle = document.getElementById('cc_officeSubtitle').value;
+  CC.openHours = {
+    openHour: parseInt(document.getElementById('oh_openHour').value) || 0,
+    closeHour: parseInt(document.getElementById('oh_closeHour').value) || 0,
+    openLabel: document.getElementById('oh_openLabel').value,
+    closedLabel: document.getElementById('oh_closedLabel').value,
+    openDays: Array.from(document.querySelectorAll('.oh-day:checked')).map(c => parseInt(c.value)),
+  };
+  CC.formTitle = document.getElementById('cc_formTitle').value;
+  CC.formChip = document.getElementById('cc_formChip').value;
+  CC.responseNote = document.getElementById('cc_responseNote').value;
+  CC.timezone = document.getElementById('cc_timezone').value;
+  CC.labels = {
+    ...(CC.labels || {}),  // preserve labels that have no admin input (field labels, headings, etc)
+    whatsapp: document.getElementById('lbl_whatsapp').value,
+    whatsappSub: document.getElementById('lbl_whatsappSub').value,
+    call: document.getElementById('lbl_call').value,
+    email: document.getElementById('lbl_email').value,
+    visit: document.getElementById('lbl_visit').value,
+    reachHeading: document.getElementById('lbl_reachHeading').value,
+    faqHeading: document.getElementById('lbl_faqHeading').value,
+    successTitle: document.getElementById('lbl_successTitle').value,
+    formSubtitle: document.getElementById('lbl_formSubtitle').value,
+    msgHint: document.getElementById('lbl_msgHint').value,
+    sendBtn: document.getElementById('lbl_sendBtn').value,
+    deptHelp: document.getElementById('lbl_deptHelp').value,
+    fieldName: document.getElementById('lbl_fieldName').value,
+    fieldPhone: document.getElementById('lbl_fieldPhone').value,
+    fieldEmail: document.getElementById('lbl_fieldEmail').value,
+    fieldMsg: document.getElementById('lbl_fieldMsg').value,
+    visitBadge: document.getElementById('lbl_visitBadge').value,
+    officeHeading: document.getElementById('lbl_officeHeading').value,
+    reachSales: document.getElementById('lbl_reachSales').value,
+    reachSupport: document.getElementById('lbl_reachSupport').value,
+    reachEmailSales: document.getElementById('lbl_reachEmailSales').value,
+    reachGeneral: document.getElementById('lbl_reachGeneral').value,
+    privacyNote: document.getElementById('lbl_privacyNote').value,
+    followHeading: document.getElementById('lbl_followHeading').value,
+    hoursHeading: document.getElementById('lbl_hoursHeading').value,
+  };
+  saveSetting('contactConfig', CC, 'Contact page');
+}
+
+// ---- About page config ----
+const AB = <?= json_encode($site['aboutConfig'] ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?> || {};
+// working arrays
+const ABA = {
+  heroStats: AB.hero?.stats || [], storyParas: AB.story?.paragraphs || [], promises: AB.story?.promises || [],
+  stats: AB.stats || [], milestones: AB.milestones?.items || [], values: AB.coreValues?.items || [],
+  team: AB.leadership?.team || [], trustRows: AB.whyTrust?.rows || [], satBars: AB.whyTrust?.satBars || [],
+  testimonials: AB.testimonials?.items || [], certs: AB.certifications?.items || [],
+};
+const esc = (s) => (s==null?'':String(s)).replace(/"/g,'&quot;');
+function abAdd(key, item){ ABA[key].push(typeof item==='object'?{...item}:item); renderAbout(); }
+function abDel(key, i){ ABA[key].splice(i,1); renderAbout(); }
+function abSet(key, i, field, val){ if(field===null) ABA[key][i]=val; else ABA[key][i][field]=val; }
+function abUploadTeam(i){
+  const inp=document.getElementById('abFileInput');
+  inp.onchange=async()=>{ const f=inp.files[0]; if(!f)return; const fd=new FormData(); fd.append('banner_image',f);
+    const r=await fetch('settings.php',{method:'POST',body:fd}); const d=await r.json();
+    if(d.success){ ABA.team[i].img=d.url; renderAbout(); } inp.value=''; };
+  inp.click();
+}
+function rowInput(key,i,field,ph,val,w){ return `<input class="form-control" placeholder="${ph}" value="${esc(val)}" oninput="abSet('${key}',${i},'${field}',this.value)" style="${w||'flex:1'}">`; }
+function renderAbout(){
+  const simple = (key, fields) => ABA[key].map((it,i)=>`<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">${fields.map(f=>rowInput(key,i,f.k,f.ph,it[f.k],f.w)).join('')}<button class="btn btn-ghost btn-sm" onclick="abDel('${key}',${i})"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button></div>`).join('');
+  document.getElementById('ab_herostats').innerHTML = simple('heroStats',[{k:'value',ph:'Value',w:'width:120px'},{k:'label',ph:'Label'}]);
+  document.getElementById('ab_storyparas').innerHTML = ABA.storyParas.map((p,i)=>`<div style="display:flex;gap:6px;margin-bottom:6px;"><textarea class="form-control" rows="2" oninput="abSet('storyParas',${i},null,this.value)" style="flex:1;">${p||''}</textarea><button class="btn btn-ghost btn-sm" onclick="abDel('storyParas',${i})"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button></div>`).join('');
+  document.getElementById('ab_promises').innerHTML = simple('promises',[{k:'title',ph:'Title'},{k:'text',ph:'Text',w:'flex:2'}]);
+  document.getElementById('ab_stats').innerHTML = simple('stats',[{k:'value',ph:'Value',w:'width:120px'},{k:'label',ph:'Label'}]);
+  document.getElementById('ab_milestones').innerHTML = simple('milestones',[{k:'year',ph:'Year',w:'width:90px'},{k:'title',ph:'Title'},{k:'text',ph:'Text',w:'flex:2'}]);
+  document.getElementById('ab_values').innerHTML = simple('values',[{k:'n',ph:'No',w:'width:60px'},{k:'icon',ph:'Icon',w:'width:60px'},{k:'title',ph:'Title'},{k:'text',ph:'Text',w:'flex:2'}]);
+  document.getElementById('ab_team').innerHTML = ABA.team.map((t,i)=>`<div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;border:1px solid var(--border-color);border-radius:8px;padding:8px;">
+    <div onclick="abUploadTeam(${i})" style="width:48px;height:48px;border:2px dashed var(--border-active);border-radius:50%;cursor:pointer;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${t.img?`<img src="${esc(t.img)}" style="width:100%;height:100%;object-fit:cover;">`:'<i class="fa-solid fa-upload text-gold"></i>'}</div>
+    ${rowInput('team',i,'name','Name',t.name)}${rowInput('team',i,'role','Role',t.role)}${rowInput('team',i,'bio','Bio',t.bio,'flex:2')}
+    <button class="btn btn-ghost btn-sm" onclick="abDel('team',${i})"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button></div>`).join('');
+  document.getElementById('ab_trustrows').innerHTML = simple('trustRows',[{k:'icon',ph:'icon (check/shield/clock/chat/dollar)',w:'width:200px'},{k:'title',ph:'Title'},{k:'text',ph:'Text',w:'flex:2'}]);
+  document.getElementById('ab_satbars').innerHTML = simple('satBars',[{k:'label',ph:'Label'},{k:'value',ph:'%',w:'width:80px'}]);
+  document.getElementById('ab_testimonials').innerHTML = simple('testimonials',[{k:'name',ph:'Name'},{k:'clinic',ph:'Clinic'},{k:'stars',ph:'★',w:'width:60px'},{k:'text',ph:'Text',w:'flex:2'}]);
+  document.getElementById('ab_certs').innerHTML = simple('certs',[{k:'icon',ph:'Icon',w:'width:60px'},{k:'label',ph:'Label'},{k:'desc',ph:'Desc',w:'flex:2'}]);
+}
+function saveAbout(){
+  const v = id => document.getElementById(id).value;
+  const cfg = {
+    hero: { badge:v('ab_hero_badge'), cardTitle:v('ab_hero_cardTitle'), title:v('ab_hero_title'), description:v('ab_hero_desc'), ctaText:v('ab_hero_cta'), stats:ABA.heroStats },
+    story: { label:v('ab_story_label'), heading:v('ab_story_heading'), parentLabel:v('ab_story_parentLabel'), parentName:v('ab_story_parentName'), paragraphs:ABA.storyParas, promises:ABA.promises },
+    stats: ABA.stats,
+    milestones: { label:v('ab_ms_label'), heading:v('ab_ms_heading'), subtitle:v('ab_ms_subtitle'), items:ABA.milestones },
+    coreValues: { label:v('ab_cv_label'), heading:v('ab_cv_heading'), subtitle:v('ab_cv_subtitle'), items:ABA.values },
+    leadership: { label:v('ab_ld_label'), heading:v('ab_ld_heading'), subtitle:v('ab_ld_subtitle'), team:ABA.team },
+    whyTrust: { label:v('ab_wt_label'), heading:v('ab_wt_heading'), subtitle:v('ab_wt_subtitle'), satTitle:v('ab_wt_satTitle'), satRating:v('ab_wt_satRating'), rows:ABA.trustRows, satBars:ABA.satBars.map(b=>({label:b.label,value:parseInt(b.value)||0})) },
+    missionVision: { label:v('ab_mv_label'), heading:v('ab_mv_heading'), subtitle:v('ab_mv_subtitle'), mission:v('ab_mv_mission'), vision:v('ab_mv_vision') },
+    testimonials: { label:v('ab_ts_label'), heading:v('ab_ts_heading'), items:ABA.testimonials.map(t=>({...t,stars:parseInt(t.stars)||5})) },
+    certifications: { label:v('ab_ce_label'), heading:v('ab_ce_heading'), items:ABA.certs },
+    cta: { label:v('ab_cta_label'), heading:v('ab_cta_heading'), subtitle:v('ab_cta_subtitle'), shopText:v('ab_cta_shop'), contactText:v('ab_cta_contact') },
+  };
+  saveSetting('aboutConfig', cfg, 'About page');
+}
+
+// ---- Policy pages ----
+let POL = <?= json_encode($site['policies'] ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?> || {};
+['return','terms','privacy'].forEach(k => { if(!POL[k]) POL[k] = {title:'',sections:[]}; if(!POL[k].sections) POL[k].sections=[]; });
+let polCur = 'return';
+function showPolicy(k){
+  // persist current edits before switching
+  POL[polCur].title = document.getElementById('pol_title').value;
+  polCur = k;
+  document.getElementById('pol_title').value = POL[k].title || '';
+  ['return','terms','privacy'].forEach(t => { const b=document.getElementById('polTab_'+t); if(b) b.className = 'btn btn-sm '+(t===k?'btn-gold':'btn-ghost'); });
+  renderPolSections();
+}
+function renderPolSections(){
+  document.getElementById('pol_sections').innerHTML = POL[polCur].sections.map((s,i)=>`
+    <div style="border:1px solid var(--border-color);border-radius:8px;padding:10px;margin-bottom:8px;">
+      <input class="form-control" placeholder="Section heading" value="${(s.h||'').replace(/"/g,'&quot;')}" oninput="POL[polCur].sections[${i}].h=this.value" style="margin-bottom:6px;">
+      <textarea class="form-control" placeholder="Section text" rows="3" oninput="POL[polCur].sections[${i}].p=this.value">${(s.p||'')}</textarea>
+      <button class="btn btn-ghost btn-sm" style="margin-top:6px;" onclick="POL[polCur].sections.splice(${i},1);renderPolSections()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i> Remove</button>
+    </div>`).join('');
+}
+function addPolSection(){ POL[polCur].sections.push({h:'',p:''}); renderPolSections(); }
+function savePolicies(){ POL[polCur].title = document.getElementById('pol_title').value; saveSetting('policies', POL, 'Policies'); }
+
+function saveOfferHero(){
+  const v = id => document.getElementById(id).value;
+  saveSetting('offerZoneHero', {
+    badge:v('oz_badge'), title:v('oz_title'), savePrefix:v('oz_savePrefix'), saveSuffix:v('oz_saveSuffix'),
+    subtitle:v('oz_subtitle'), expiryLabel:v('oz_expiryLabel'), restockNote:v('oz_restockNote'),
+  }, 'Offer Zone hero');
+}
+
+// ---- Home Layout (order + visibility) ----
+let HOME = <?= json_encode($site['homeSections'] ?? [], JSON_UNESCAPED_SLASHES) ?> || [];
+function renderHome(){ document.getElementById('home_rows').innerHTML = HOME.map((s,i)=>`
+  <div style="display:flex;gap:10px;align-items:center;border:1px solid var(--border-color);border-radius:8px;padding:10px;margin-bottom:6px;background:${s.enabled===false?'var(--bg-elevated)':'transparent'};">
+    <span style="color:var(--text-muted);font-size:.8rem;width:26px;text-align:center;">${i+1}</span>
+    <div style="flex:1;">
+      <div class="font-bold" style="font-size:.9rem;color:${s.enabled===false?'var(--text-muted)':'var(--text-primary)'};">${(s.label||s.key).replace(/</g,'&lt;')}</div>
+      <div class="text-muted" style="font-size:.7rem;">${s.type}${s.source?' · '+s.source:''}</div>
+    </div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--text-secondary);cursor:pointer;">
+      <input type="checkbox" ${s.enabled!==false?'checked':''} onchange="HOME[${i}].enabled=this.checked;renderHome()"> Show
+    </label>
+    <button class="btn btn-ghost btn-sm" ${i===0?'disabled style="opacity:.3;"':''} onclick="moveHome(${i},-1)" title="Up"><i class="fa-solid fa-arrow-up"></i></button>
+    <button class="btn btn-ghost btn-sm" ${i===HOME.length-1?'disabled style="opacity:.3;"':''} onclick="moveHome(${i},1)" title="Down"><i class="fa-solid fa-arrow-down"></i></button>
+    ${s.removable ? `<button class="btn btn-ghost btn-sm" onclick="deleteHomeSection(${i})" title="Delete"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>` : ''}
+  </div>`).join(''); }
+function moveHome(i, dir){
+  const j = i + dir;
+  if (j < 0 || j >= HOME.length) return;
+  [HOME[i], HOME[j]] = [HOME[j], HOME[i]];
+  renderHome();
+}
+function deleteHomeSection(i){
+  showConfirm('Delete Section','Remove this section from the home page?', () => { HOME.splice(i,1); renderHome(); });
+}
+function addCategorySection(){
+  const sel = document.getElementById('add_section_cat');
+  const slug = sel.value; if(!slug) return;
+  const label = sel.options[sel.selectedIndex].text;
+  HOME.push({ key:'cat-'+slug+'-'+Date.now(), type:'productSection', label, source:slug, enabled:true, removable:true });
+  renderHome();
+}
+function saveHomeLayout(){ saveSetting('homeSections', HOME, 'Home layout'); }
+
 // ---- Premium Categories ----
 let PREMIUM = <?= json_encode($site['premiumCategories'] ?? [], JSON_UNESCAPED_SLASHES) ?> || [];
 function renderPremium(){ document.getElementById('premium_rows').innerHTML = PREMIUM.map((c,i)=>`
@@ -849,11 +1402,19 @@ function saveTrust(){ saveSetting('trustBadges', TRUST, 'Trust badges'); }
 
 // init
 renderStats(); renderSocials(); renderPay(); renderBenefits(); renderHero(); renderTrust(); renderRfFeatures(); renderPremium();
-renderTiers(); renderFbt(); renderFg(); renderFeat(); renderSort(); renderPp(); renderPC();
+renderTiers(); renderFbt(); renderFg(); renderFeat(); renderSort(); renderPp(); renderPC(); renderHome(); renderCC(); renderAbout(); showPolicy('return');
+// Show only the active config page's section groups
+(function(){
+  const active = '<?= $cfgPage ?>';
+  document.querySelectorAll('[data-cfg]').forEach(el => {
+    el.style.display = (el.getAttribute('data-cfg') === active) ? '' : 'none';
+  });
+})();
 </script>
 
+</div><!-- /home group (Premium) -->
 <!-- Setup Instructions -->
-<div class="card fade-in" style="margin-top:24px;">
+<div class="card fade-in" style="margin-top:24px;" data-cfg="account">
     <div class="card-header">
         <span class="card-title"><i class="fa-solid fa-circle-info text-gold" style="margin-right:8px;"></i>Setup & Configuration Guide</span>
     </div>

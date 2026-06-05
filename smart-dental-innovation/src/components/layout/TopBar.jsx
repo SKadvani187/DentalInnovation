@@ -1,4 +1,5 @@
 import React from 'react';
+import { useSettings } from '../../context/SettingsContext';
 
 const SOCIAL_LINKS = [
   {
@@ -29,6 +30,9 @@ const SOCIAL_LINKS = [
 ];
 
 export function TopBar() {
+  const { socials = [], stats = [] } = useSettings();
+  const urlFor = (name) => socials.find((s) => s.id === name.toLowerCase())?.url;
+  const followerStat = stats.find((s) => /follower/i.test(s.label));
   return (
     <div className="w-full bg-[var(--background-secondary,#f8f9fa)] border-b border-gray-200">
       {/* Removed px-4 sm:px-6 md:px-8 to align with the left window margin */}
@@ -39,23 +43,27 @@ export function TopBar() {
           </span>
 
           <div className="flex items-center gap-1.5">
-            {SOCIAL_LINKS.map((social) => (
-              <button
+            {SOCIAL_LINKS.filter((s) => urlFor(s.name)).map((social) => (
+              <a
                 key={social.name}
-                type="button"
+                href={urlFor(social.name)}
+                target="_blank"
+                rel="noopener noreferrer"
                 aria-label={`Visit our ${social.name}`}
                 className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-full text-gray-500 hover:text-[var(--main,#1976d2)] hover:bg-gray-100 transition-colors cursor-pointer outline-none"
               >
                 <svg className="w-[16px] h-[16px] sm:w-[18px] sm:h-[18px]" focusable="false" aria-hidden="true" viewBox={social.viewBox}>
                   <path fill="currentColor" d={social.iconPath} />
                 </svg>
-              </button>
+              </a>
             ))}
           </div>
 
-          <span className="text-[12px] sm:text-[13px] font-medium text-[var(--text-secondary,#666)] pl-1">
-            Over 203k+ Followers
-          </span>
+          {followerStat && (
+            <span className="text-[12px] sm:text-[13px] font-medium text-[var(--text-secondary,#666)] pl-1">
+              Over {followerStat.value}{followerStat.suffix} Followers
+            </span>
+          )}
         </div>
       </div>
     </div>

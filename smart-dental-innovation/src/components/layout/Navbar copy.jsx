@@ -2,10 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useUI } from "../../context/UIContext";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
-import { pricePresets } from "../../data/site";
-import { categories } from "../../data/categories";
+import { useSettings } from "../../context/SettingsContext";
 
 export default function NavigationHeader() {
+  const { pricePresets = [] } = useSettings();
   const { openModal, navigate, openSearch, openSearchWithImage, view } = useUI();
   const currentView = view?.name;
   const { user, logout } = useAuth();

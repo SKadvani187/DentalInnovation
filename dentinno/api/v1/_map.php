@@ -55,15 +55,27 @@ function mapCombo(array $r): array {
 }
 
 function mapEvent(array $r): array {
+    $price = (float)$r['registration_fee'];
+    $mrp   = isset($r['mrp']) && $r['mrp'] !== null ? (float)$r['mrp'] : $price;
+    $img   = $r['banner_image'];
     return [
-        'id'          => $r['slug'],
-        'dbId'        => (int)$r['id'],
-        'name'        => $r['title'],
-        'type'        => 'Course',
-        'description' => $r['description'],
-        'price'       => (float)$r['registration_fee'],
-        'image'       => $r['banner_image'],
-        'isFree'      => (bool)$r['is_free'],
+        'id'              => $r['slug'],
+        'dbId'            => (int)$r['id'],
+        'name'            => $r['title'],
+        'type'            => $r['event_type'] ? ucfirst($r['event_type']) : 'Course',
+        'description'     => $r['description'],
+        'price'           => $price,
+        'mrp'             => $mrp > 0 ? $mrp : $price,
+        'image'           => $img,
+        'images'          => $img ? [$img] : [],
+        'videoThumb'      => $img,
+        'videoUrl'        => $r['online_link'] ?: null,
+        'rating'          => 0,
+        'reviews'         => 0,
+        'brand'           => $r['organizer'] ?: 'Smart Dental Innovations',
+        'breadcrumb'      => ['Home', 'Events', $r['title']],
+        'extraCategories' => [],
+        'isFree'          => (bool)$r['is_free'],
     ];
 }
 

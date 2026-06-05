@@ -1570,7 +1570,7 @@
       "discount": 30,
       "rating": 4.5,
       "reviews": 124,
-      "category": "restorative",
+      "category": "matrix",
       "warranty": null,
       "inStock": true,
       "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
@@ -1606,7 +1606,7 @@
       "discount": 27,
       "rating": 4.7,
       "reviews": 56,
-      "category": "restorative",
+      "category": "matrix",
       "warranty": null,
       "inStock": true,
       "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
@@ -1648,7 +1648,7 @@
       "discount": 32,
       "rating": 4.6,
       "reviews": 38,
-      "category": "restorative",
+      "category": "matrix",
       "warranty": null,
       "inStock": true,
       "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
@@ -1696,7 +1696,7 @@
       "discount": 30,
       "rating": 4.4,
       "reviews": 178,
-      "category": "restorative",
+      "category": "matrix",
       "warranty": null,
       "inStock": true,
       "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
@@ -1719,7 +1719,7 @@
       "discount": 33,
       "rating": 4.5,
       "reviews": 92,
-      "category": "restorative",
+      "category": "matrix",
       "warranty": null,
       "inStock": true,
       "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
@@ -1779,7 +1779,7 @@
       "discount": 33,
       "rating": 4.3,
       "reviews": 211,
-      "category": "restorative",
+      "category": "matrix",
       "warranty": null,
       "inStock": true,
       "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
@@ -1845,7 +1845,7 @@
       "discount": 25,
       "rating": 4.6,
       "reviews": 47,
-      "category": "restorative",
+      "category": "matrix",
       "warranty": null,
       "inStock": false,
       "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
@@ -1875,7 +1875,7 @@
       "discount": 27,
       "rating": 4.5,
       "reviews": 81,
-      "category": "restorative",
+      "category": "matrix",
       "warranty": null,
       "inStock": true,
       "description": "High-quality dental product engineered for clinical precision, reliability, and consistently better patient outcomes. Made for modern dental practices.",
@@ -3038,6 +3038,89 @@
       "min": 10,
       "max": 500000
     },
+    "gvpThreshold": 10,
+    "policies": {
+      "return": {
+        "title": "Return Policy",
+        "sections": [
+          {
+            "h": "Eligibility",
+            "p": "Most unused products may be returned within 7 days of delivery if sealed and in original packaging. Hygiene-sensitive items (intraoral burs, files, scrubs) are non-returnable once opened."
+          },
+          {
+            "h": "Process",
+            "p": "Raise a return from Account → Orders → select item → Request Return. Our team will schedule pickup within 48 hours."
+          },
+          {
+            "h": "Refund Timeline",
+            "p": "Refunds initiate within 3 business days of pickup quality-check. UPI/Card refunds reach your account in 5–7 business days. COD orders refund to original UPI/Bank shared at pickup."
+          },
+          {
+            "h": "Damaged or Incorrect Items",
+            "p": "Report within 48 hours of delivery with unboxing video. Full refund or replacement at our cost."
+          }
+        ]
+      },
+      "terms": {
+        "title": "Terms of Use",
+        "sections": [
+          {
+            "h": "Acceptance",
+            "p": "By accessing this site you agree to these terms. Products are sold business-to-business to licensed dental professionals and registered clinics."
+          },
+          {
+            "h": "Product Information",
+            "p": "We attempt to display accurate product details, but specifications, packaging, and availability may change without notice. Always verify catalogue with our team before bulk orders."
+          },
+          {
+            "h": "Orders & Pricing",
+            "p": "Prices are in INR and exclusive of statutory taxes unless stated. We reserve the right to cancel orders with incorrect price/stock, with full refund."
+          },
+          {
+            "h": "Liability",
+            "p": "Smart Dental Innovations is not liable for clinical outcomes resulting from product use. Operators must follow manufacturer instructions and applicable regulations."
+          },
+          {
+            "h": "Governing Law",
+            "p": "Disputes are subject to courts of Surat, Gujarat."
+          }
+        ]
+      },
+      "privacy": {
+        "title": "Privacy Policy",
+        "sections": [
+          {
+            "h": "Data We Collect",
+            "p": "Name, phone, email, billing & shipping address, clinic GSTIN (if provided), order history, device/browser metadata, and pincode entered for delivery checks."
+          },
+          {
+            "h": "How We Use It",
+            "p": "Fulfilling orders, payment processing, delivery, customer support, fraud prevention, statutory invoicing, and product communication you've opted into."
+          },
+          {
+            "h": "Sharing",
+            "p": "Limited sharing with logistics, payment gateways, and tax authorities as required. We never sell personal data."
+          },
+          {
+            "h": "Your Rights",
+            "p": "Email us to access, correct, or delete your data. We retain order records as required by Indian tax law (typically 7 years)."
+          },
+          {
+            "h": "Cookies",
+            "p": "We use functional cookies for cart, login, and analytics. You may disable cookies, but parts of the site may not work."
+          }
+        ]
+      }
+    },
+    "offerZoneHero": {
+      "badge": "Mega Deals Live",
+      "title": "Offer Zone",
+      "savePrefix": "Save up to",
+      "saveSuffix": "this month",
+      "subtitle": "Hand-picked combos with free handpieces, free mirrors & free files. Doctor-loved, clinic-tested. New bundles drop every week.",
+      "expiryLabel": "Next deal expires in",
+      "restockNote": "⚡ Restocks limited. Once gone, gone."
+    },
     "tierOffers": [
       {
         "minQty": 2,
@@ -3268,6 +3351,543 @@
           "desc": "A high-precision bipolar cautery tweezer designed for controlled coagulation with minimal thermal spread and maximum surgical accuracy."
         }
       ]
+    },
+    "homeSections": [
+      {
+        "key": "hero",
+        "type": "hero",
+        "label": "Hero Slider",
+        "enabled": true
+      },
+      {
+        "key": "categoryGrid",
+        "type": "categoryGrid",
+        "label": "Category Grid",
+        "enabled": true
+      },
+      {
+        "key": "trustBadges",
+        "type": "trustBadges",
+        "label": "Trust Badges Strip",
+        "enabled": true
+      },
+      {
+        "key": "bestsellers",
+        "type": "productSection",
+        "label": "Bestsellers",
+        "source": "featured",
+        "eyebrow": "Top Picks",
+        "enabled": true
+      },
+      {
+        "key": "promoGrid",
+        "type": "promoGrid",
+        "label": "Promo Banner Grid",
+        "enabled": true
+      },
+      {
+        "key": "newArrivals",
+        "type": "productSection",
+        "label": "New Arrivals",
+        "source": "new",
+        "eyebrow": "Fresh In",
+        "accent": "orange",
+        "enabled": true
+      },
+      {
+        "key": "rfCautery",
+        "type": "rfCautery",
+        "label": "RF Cautery Showcase",
+        "enabled": true
+      },
+      {
+        "key": "implantology",
+        "type": "productSection",
+        "label": "Implantology",
+        "source": "implantology",
+        "enabled": true
+      },
+      {
+        "key": "premium",
+        "type": "premium",
+        "label": "Premium Categories",
+        "enabled": true
+      },
+      {
+        "key": "handpieces",
+        "type": "productSection",
+        "label": "Handpiece",
+        "source": "handpiece",
+        "enabled": true
+      },
+      {
+        "key": "homeBanner",
+        "type": "homeBanner",
+        "label": "Home Banner",
+        "enabled": true
+      },
+      {
+        "key": "matrixSystem",
+        "type": "productSection",
+        "label": "Matrix System",
+        "source": "matrix",
+        "enabled": true
+      },
+      {
+        "key": "endodontics",
+        "type": "productSection",
+        "label": "Endodontics",
+        "source": "endodontics",
+        "enabled": true
+      },
+      {
+        "key": "reviews",
+        "type": "reviews",
+        "label": "Reviews",
+        "enabled": true
+      },
+      {
+        "key": "prosthodontics",
+        "type": "prosthodontics",
+        "label": "Prosthodontics Carousel",
+        "enabled": true
+      }
+    ],
+    "contactConfig": {
+      "departments": [
+        {
+          "id": "sales",
+          "label": "Sales Inquiry",
+          "icon": "💼",
+          "desc": "Bulk orders, demos, quotes"
+        },
+        {
+          "id": "support",
+          "label": "Product Support",
+          "icon": "🛠️",
+          "desc": "Warranty, repairs, returns"
+        },
+        {
+          "id": "partnership",
+          "label": "Partnerships",
+          "icon": "🤝",
+          "desc": "Distributors, resellers"
+        },
+        {
+          "id": "general",
+          "label": "General Query",
+          "icon": "💬",
+          "desc": "Anything else"
+        }
+      ],
+      "faqs": [
+        {
+          "q": "How fast do you respond?",
+          "a": "Sales & support inquiries: under 4 business hours (Mon–Sat, 10 AM–7 PM IST). General queries: within 24 hours."
+        },
+        {
+          "q": "Do you ship pan-India?",
+          "a": "Yes — 5–7 business days to most pincodes. Free shipping above ₹20,000. COD available with verified pincode."
+        },
+        {
+          "q": "Can I visit your office?",
+          "a": "Walk-ins welcome Mon–Sat, 10 AM–7 PM. We recommend booking via call to ensure product samples & demo handpieces are ready."
+        },
+        {
+          "q": "How do bulk orders work?",
+          "a": "Use the Bulk Quote form on any product page (orders above ₹10,000). Our team replies with a custom quote within 24 hours."
+        }
+      ],
+      "businessHours": [
+        {
+          "day": "Monday – Friday",
+          "hours": "10:00 AM – 7:00 PM"
+        },
+        {
+          "day": "Saturday",
+          "hours": "10:00 AM – 7:00 PM"
+        },
+        {
+          "day": "Sunday",
+          "hours": "Closed"
+        }
+      ],
+      "responseNote": "our team replies within 4 business hours. No bots.",
+      "timezone": "India Standard Time (UTC+5:30)",
+      "openHours": {
+        "openHour": 10,
+        "closeHour": 19,
+        "openDays": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "openLabel": "Open now",
+        "closedLabel": "Closed"
+      },
+      "heroBadge": "We're online now",
+      "heroBadgeClosed": "We're currently offline",
+      "heroTitle": "Let's talk about your clinic",
+      "heroSubtitle": "Bulk orders, product demos, technical support, partnership — our team replies within 4 business hours. No bots.",
+      "formTitle": "Send us a message",
+      "formChip": "Replies in 4 hrs",
+      "officeSubtitle": "Walk-in welcome — see products in action, talk to our team, leave with a demo.",
+      "officeBullets": [
+        "Near Yogi Chowk metro stop",
+        "Free parking in basement",
+        "Book a slot via call to skip wait"
+      ],
+      "labels": {
+        "whatsapp": "Chat on WhatsApp",
+        "whatsappSub": "Instant reply",
+        "call": "Call us",
+        "email": "Email us",
+        "visit": "Visit our office",
+        "reachHeading": "Reach us directly",
+        "faqHeading": "Common questions",
+        "successTitle": "Message received!",
+        "formSubtitle": "Fill the form or email us directly.",
+        "msgHint": "Be specific — helps us reply faster",
+        "sendBtn": "Send Message",
+        "deptHelp": "What can we help with?",
+        "fieldName": "Full Name *",
+        "fieldPhone": "Phone Number *",
+        "fieldEmail": "Email *",
+        "fieldMsg": "Your message *",
+        "visitBadge": "Visit Us",
+        "officeHeading": "Our Office",
+        "reachSales": "Sales",
+        "reachSupport": "Support",
+        "reachEmailSales": "Email Sales",
+        "reachGeneral": "General Info",
+        "privacyNote": "By submitting, you agree to our Privacy Policy. We never share your data.",
+        "followHeading": "Follow us",
+        "hoursHeading": "Business hours"
+      },
+      "statChips": [
+        {
+          "icon": "⚡",
+          "label": "Response: under 4 hrs"
+        },
+        {
+          "icon": "🕐",
+          "label": "Mon–Sat • 10 AM – 7 PM IST"
+        },
+        {
+          "icon": "🦷",
+          "label": "Trusted by 1000+ clinics"
+        }
+      ]
+    },
+    "aboutConfig": {
+      "hero": {
+        "badge": "About Smart Dental Innovations",
+        "title": "Innovating Dentistry, One Tool at a Time",
+        "description": "A division of Younique Dental Innovations, we are Surat's premier destination for advanced dental products — designed to empower clinicians, elevate care, and deliver clinical excellence in every procedure.",
+        "ctaText": "Explore Our Products",
+        "cardTitle": "Smart Dental Innovations",
+        "stats": [
+          {
+            "value": "1000+",
+            "label": "Products"
+          },
+          {
+            "value": "203k+",
+            "label": "Followers"
+          },
+          {
+            "value": "4.5★",
+            "label": "Avg Rating"
+          },
+          {
+            "value": "100%",
+            "label": "Original"
+          }
+        ]
+      },
+      "story": {
+        "label": "Our Story",
+        "heading": "Built for Dentists Who Think Ahead",
+        "parentLabel": "A Division Of",
+        "parentName": "Younique Dental Innovations",
+        "paragraphs": [
+          "Smart Dental Innovations was born from a simple vision — to make premium, innovative dental tools accessible to every clinician across India. As a proud division of Younique Dental Innovations, we combine world-class engineering with a deep understanding of the dental profession.",
+          "From our base in Surat, Gujarat, we serve dental professionals nationwide with over 1,000+ carefully curated products — from RF Cautery units and implant systems to handpieces, burs, and clinic setup essentials."
+        ],
+        "promises": [
+          {
+            "title": "100% Original Products",
+            "text": "Every product is authentic, quality-checked, and backed by manufacturer warranties."
+          },
+          {
+            "title": "Expert-Curated Range",
+            "text": "Products selected by dental professionals for dental professionals — no compromises."
+          },
+          {
+            "title": "Dedicated Support Team",
+            "text": "Responsive support before, during, and after every order."
+          }
+        ]
+      },
+      "stats": [
+        {
+          "value": "1,000+",
+          "label": "Dental Products"
+        },
+        {
+          "value": "203k+",
+          "label": "Social Followers"
+        },
+        {
+          "value": "4.5★",
+          "label": "Average Rating"
+        },
+        {
+          "value": "100%",
+          "label": "Original & Verified"
+        }
+      ],
+      "milestones": {
+        "label": "Our Journey",
+        "heading": "Milestones that matter",
+        "subtitle": "From a small Surat office to serving clinics nationwide — here's how far we've come.",
+        "items": [
+          {
+            "year": "2019",
+            "title": "Founded in Surat",
+            "text": "Started as a small dental supply venture with a focus on imported handpieces."
+          },
+          {
+            "year": "2021",
+            "title": "1,000+ products",
+            "text": "Catalogue expanded to cover Endodontics, Implantology, Restorative & more."
+          },
+          {
+            "year": "2023",
+            "title": "Pan-India shipping",
+            "text": "Reached 500+ pincodes with reliable 5–7 day delivery and free shipping ₹20k+."
+          },
+          {
+            "year": "2025",
+            "title": "Division of Younique",
+            "text": "Joined Younique Dental Innovations to scale manufacturer-direct sourcing."
+          },
+          {
+            "year": "2026",
+            "title": "1000+ clinics served",
+            "text": "Trusted partner to over a thousand dental clinics across 28 states."
+          }
+        ]
+      },
+      "coreValues": {
+        "label": "What We Stand For",
+        "heading": "Our Core Values",
+        "subtitle": "Every decision we make is guided by principles that put dentists and patient care first.",
+        "items": [
+          {
+            "n": "01",
+            "title": "Innovation First",
+            "text": "We continuously scout and introduce cutting-edge dental technologies so your clinic stays ahead of the curve — always.",
+            "icon": "🏛"
+          },
+          {
+            "n": "02",
+            "title": "Clinical Excellence",
+            "text": "Every product is rigorously evaluated for clinical performance. We only offer what we'd use in our own practice.",
+            "icon": "🎯"
+          },
+          {
+            "n": "03",
+            "title": "Dentist Partnership",
+            "text": "We're not just a store — we're a partner in your growth. Bulk pricing, expert guidance, and a team that truly understands dentistry.",
+            "icon": "🤝"
+          },
+          {
+            "n": "04",
+            "title": "Smart Value",
+            "text": "Premium quality at fair prices. We work directly with manufacturers and innovators to ensure you get the best deal, always.",
+            "icon": "⚡"
+          },
+          {
+            "n": "05",
+            "title": "Reliability & Warranty",
+            "text": "Backed by manufacturer warranties, every product we sell is built to last. Our after-sales support is second to none.",
+            "icon": "🛡"
+          },
+          {
+            "n": "06",
+            "title": "Continuous Growth",
+            "text": "We grow when our dentists grow. Your success is our metric — and we're committed to growing alongside you, every step of the way.",
+            "icon": "🚀"
+          }
+        ]
+      },
+      "leadership": {
+        "label": "The People",
+        "heading": "Meet the Team",
+        "subtitle": "Clinicians, engineers, and operators working to make modern dentistry accessible.",
+        "team": [
+          {
+            "name": "Dr. Rakesh Patel",
+            "role": "Founder & CEO",
+            "bio": "20+ years in dental supplies. Vision-driven leader.",
+            "img": "https://merchant-cdn.storedum.com/ai_img_44.png"
+          },
+          {
+            "name": "Dr. Priya Shah",
+            "role": "Chief Clinical Officer",
+            "bio": "BDS, MDS Endodontics. Curates clinical product range.",
+            "img": "https://merchant-cdn.storedum.com/ai_img_40_(5).png"
+          },
+          {
+            "name": "Hiren Mehta",
+            "role": "Head of Operations",
+            "bio": "10+ years logistics & supply chain expertise.",
+            "img": "https://merchant-cdn.storedum.com/ai_img_42_(1).png"
+          },
+          {
+            "name": "Ankit Joshi",
+            "role": "Customer Success Lead",
+            "bio": "Ensures every clinic gets white-glove support.",
+            "img": "https://merchant-cdn.storedum.com/ai_img_31_(2).png"
+          }
+        ]
+      },
+      "whyTrust": {
+        "label": "Why Smart Dental",
+        "heading": "Why Dentists Trust Us",
+        "subtitle": "Thousands of dental professionals across India choose Smart Dental Innovations for one simple reason — we deliver exactly what we promise.",
+        "rows": [
+          {
+            "icon": "check",
+            "title": "Curated, Not Just Listed",
+            "text": "Every product in our catalog has been assessed for clinical utility, quality, and value before being offered to you."
+          },
+          {
+            "icon": "shield",
+            "title": "Warranty-Backed Products",
+            "text": "From 6-month to 2-year warranties, shop with confidence knowing every major product is protected."
+          },
+          {
+            "icon": "clock",
+            "title": "Fast & Secure Delivery",
+            "text": "Reliable shipping with secure packaging — your instruments arrive safely, on time, ready to use."
+          },
+          {
+            "icon": "chat",
+            "title": "Expert Customer Support",
+            "text": "Talk to real dental professionals on our team, Monday to Saturday from 9 AM to 7 PM."
+          },
+          {
+            "icon": "dollar",
+            "title": "Bulk & Clinic Pricing",
+            "text": "Setting up a new clinic or stocking up? Contact us for special bulk pricing tailored to your needs."
+          }
+        ],
+        "satTitle": "Customer Satisfaction",
+        "satRating": "4.5 / 5",
+        "satBars": [
+          {
+            "label": "Product Quality",
+            "value": 96
+          },
+          {
+            "label": "Delivery Speed",
+            "value": 91
+          },
+          {
+            "label": "Value for Money",
+            "value": 94
+          },
+          {
+            "label": "Customer Support",
+            "value": 89
+          }
+        ]
+      },
+      "missionVision": {
+        "label": "Our Direction",
+        "heading": "Mission & Vision",
+        "subtitle": "We're on a mission to redefine how dental professionals access, experience, and benefit from modern dental technology.",
+        "mission": "To provide every dental professional in India with access to innovative, reliable, and affordable dental products — paired with expert guidance and support — so they can deliver exceptional patient care without compromise. We strive to be the most trusted dental supply partner in the country.",
+        "vision": "To become India's leading platform for smart dental innovation — where dentists discover tomorrow's tools today. We envision a future where every clinic, whether in a metro or a small town, has equal access to world-class dental technology that transforms patient outcomes."
+      },
+      "testimonials": {
+        "label": "Trusted by Dentists",
+        "heading": "What clinicians say",
+        "items": [
+          {
+            "name": "Dr. Amit Sharma",
+            "clinic": "Sharma Dental Care, Mumbai",
+            "stars": 5,
+            "text": "Switched all my supplies to SDI last year. Their handpieces are buttery smooth and warranty claims took 3 days — fastest I've ever seen."
+          },
+          {
+            "name": "Dr. Kavita Reddy",
+            "clinic": "Smile Studio, Hyderabad",
+            "stars": 5,
+            "text": "The bulk pricing for our new clinic setup saved us nearly ₹2L. Sales team understood exactly what a fresh clinic needs."
+          },
+          {
+            "name": "Dr. Ravi Kumar",
+            "clinic": "Kumar Family Dentistry, Pune",
+            "stars": 4,
+            "text": "RF Cautery they recommended is a game-changer. Patients heal faster and procedures are cleaner. Wish I'd switched sooner."
+          },
+          {
+            "name": "Dr. Neha Iyer",
+            "clinic": "Iyer Endodontics, Chennai",
+            "stars": 5,
+            "text": "Endodontic files are top quality and delivery is always on time. Customer support actually answers — rare these days."
+          }
+        ]
+      },
+      "certifications": {
+        "label": "Certified & Trusted",
+        "heading": "Quality you can verify",
+        "items": [
+          {
+            "label": "ISO 13485:2016",
+            "desc": "Medical Device Quality",
+            "icon": "📋"
+          },
+          {
+            "label": "CE Marked",
+            "desc": "European Conformity",
+            "icon": "✅"
+          },
+          {
+            "label": "FDA Listed",
+            "desc": "US Compliance",
+            "icon": "🇺🇸"
+          },
+          {
+            "label": "MDR Compliant",
+            "desc": "EU Medical Device Reg.",
+            "icon": "🛡️"
+          },
+          {
+            "label": "GST Registered",
+            "desc": "Tax-compliant invoicing",
+            "icon": "📄"
+          },
+          {
+            "label": "Made in India",
+            "desc": "Atmanirbhar Bharat",
+            "icon": "🇮🇳"
+          }
+        ]
+      },
+      "cta": {
+        "label": "Get Started",
+        "heading": "Ready to Elevate Your Dental Practice?",
+        "subtitle": "Join thousands of dental professionals who trust Smart Dental Innovations for quality products, fair prices, and genuine expertise.",
+        "shopText": "Shop Now",
+        "contactText": "Contact Us"
+      }
     }
   },
   "counts": {

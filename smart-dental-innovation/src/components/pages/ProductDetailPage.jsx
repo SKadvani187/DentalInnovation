@@ -445,7 +445,8 @@ export default function ProductDetailPage() {
               <button
                 onClick={() => {
                   const msg = encodeURIComponent(`Hi, I'm interested in ${product.name} (₹${product.price}). Is it available?`);
-                  window.open(`https://wa.me/919328762586?text=${msg}`, "_blank");
+                  const wa = (company.phoneSales || company.phone || "919328762586").replace(/\D/g, "");
+                  window.open(`https://wa.me/${wa}?text=${msg}`, "_blank");
                 }}
                 className="relative flex items-center justify-center bg-white border border-gray-200 rounded-lg h-[45px] w-full hover:border-green-500 transition cursor-pointer"
               >

@@ -106,14 +106,14 @@ export const handpieces = [
 ];
 
 export const matrixSystem = [
-  mk("m-001", "Sectional Matrix Band Pack 100pc", 1999, 1399, 4.5, 124, "restorative", "plain_image_2.png"),
-  mk("m-002", "Matrix Ring Premium NiTi", 4499, 3299, 4.7, 56, "restorative", "1330_1_(4).webpv1744436024width1946"),
-  mk("m-003", "Matrix Forceps Anatomical", 1899, 1299, 4.6, 38, "restorative", "ai_img_16_(1).png"),
-  mk("m-004", "Wedge Plastic Assorted 200pc", 999, 699, 4.4, 178, "restorative", "automatic-wooden-wedges-500x500_(4).webpv1739864668width1946"),
-  mk("m-005", "Tofflemire Matrix Retainer", 1499, 999, 4.5, 92, "restorative", "ChatGPT_Image_Mar_12_2026_06_14_55_PM.png"),
-  mk("m-006", "Universal Matrix Band Roll", 599, 399, 4.3, 211, "restorative", "download-500x500_(4).webpv1739853341width1946"),
-  mk("m-007", "Anatomical Sectional Matrix Kit", 3999, 2999, 4.6, 47, "restorative", "download-25-500x500_(4).webpv1739856285width1946"),
-  mk("m-008", "Composite Placement Kit", 2999, 2199, 4.5, 81, "restorative", "plain_image_2_32_(1).png"),
+  mk("m-001", "Sectional Matrix Band Pack 100pc", 1999, 1399, 4.5, 124, "matrix", "plain_image_2.png"),
+  mk("m-002", "Matrix Ring Premium NiTi", 4499, 3299, 4.7, 56, "matrix", "1330_1_(4).webpv1744436024width1946"),
+  mk("m-003", "Matrix Forceps Anatomical", 1899, 1299, 4.6, 38, "matrix", "ai_img_16_(1).png"),
+  mk("m-004", "Wedge Plastic Assorted 200pc", 999, 699, 4.4, 178, "matrix", "automatic-wooden-wedges-500x500_(4).webpv1739864668width1946"),
+  mk("m-005", "Tofflemire Matrix Retainer", 1499, 999, 4.5, 92, "matrix", "ChatGPT_Image_Mar_12_2026_06_14_55_PM.png"),
+  mk("m-006", "Universal Matrix Band Roll", 599, 399, 4.3, 211, "matrix", "download-500x500_(4).webpv1739853341width1946"),
+  mk("m-007", "Anatomical Sectional Matrix Kit", 3999, 2999, 4.6, 47, "matrix", "download-25-500x500_(4).webpv1739856285width1946"),
+  mk("m-008", "Composite Placement Kit", 2999, 2199, 4.5, 81, "matrix", "plain_image_2_32_(1).png"),
 ];
 
 export const endodontics = [

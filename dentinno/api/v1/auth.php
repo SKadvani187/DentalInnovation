@@ -39,7 +39,7 @@ if ($action === 'login') {
 
     // create new
     $name  = trim((string)($body['name'] ?? '')) ?: ('Customer ' . substr($mobile, -4));
-    $email = trim((string)($body['email'] ?? '')) ?: ($mobile . '@storefront.local');
+    $email = trim((string)($body['email'] ?? '')) ?: null;  // no fake email; leave blank
     $id = $db->insert(
         "INSERT INTO customers (name, email, phone, customer_type, api_token) VALUES (?,?,?, 'individual', ?)",
         [$name, $email, $mobile, $token]

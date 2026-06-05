@@ -1,6 +1,7 @@
 import React from 'react';
 import TopBar from './TopBar';
 import { useUI } from '../../context/UIContext';
+import { useSettings } from '../../context/SettingsContext';
 
 const FOOTER_SECTIONS = [
   {
@@ -39,6 +40,10 @@ const FOOTER_SECTIONS = [
 
 export function Footer() {
   const { navigate, openModal } = useUI();
+  const { company = {}, stats = [] } = useSettings();
+  const ratingStat = stats.find((s) => /rating/i.test(s.label));
+  const ratingVal = ratingStat ? `${ratingStat.value}` : "4.5";
+  const phoneRaw = (company.phone || "").replace(/\D/g, "");
   const handleLink = (link) => {
     if (link.external) {
       window.open(link.external, "_blank", "noopener,noreferrer");
@@ -92,17 +97,15 @@ export function Footer() {
                 <svg className="w-4 h-4 shrink-0 text-gray-500 mt-0.5" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2m-6 0h-4V4h4z" />
                 </svg>
-                <span className="leading-relaxed">
-                  Third floor, Swastik Plaza, 308, Savlia Cir, Yogi Chowk Ground, Chikuwadi, Varachha, Surat, Gujarat 395006
-                </span>
+                <span className="leading-relaxed">{company.address}</span>
               </div>
 
               <div className="flex items-center gap-2.5">
                 <svg className="w-4 h-4 shrink-0 text-gray-500" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02z" />
                 </svg>
-                <a href="tel:+919328762586" className="hover:text-[var(--main,#1976d2)] transition-colors">
-                  +919328762586
+                <a href={`tel:+${phoneRaw}`} className="hover:text-[var(--main,#1976d2)] transition-colors">
+                  {company.phone}
                 </a>
               </div>
 
@@ -110,8 +113,8 @@ export function Footer() {
                 <svg className="w-4 h-4 shrink-0 text-gray-500" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2m0 4-8 5-8-5V6l8 5 8-5z" />
                 </svg>
-                <a href="mailto:smartdentalinnovations.web@gmail.com" className="hover:text-[var(--main,#1976d2)] transition-colors break-all">
-                  smartdentalinnovations.web@gmail.com
+                <a href={`mailto:${company.emailSales || company.email}`} className="hover:text-[var(--main,#1976d2)] transition-colors break-all">
+                  {company.emailSales || company.email}
                 </a>
               </div>
 
@@ -119,7 +122,7 @@ export function Footer() {
                 <svg className="w-4 h-4 shrink-0 text-gray-500" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2m-6 0h-4V4h4z" />
                 </svg>
-                <span>Mon to Sat (10:00 AM to 7:00 PM)</span>
+                <span>{company.hours}</span>
               </div>
             </div>
           </div>
@@ -161,7 +164,7 @@ export function Footer() {
 
             {/* Average rating */}
             <div className="flex items-baseline gap-2">
-              <span className="text-[18px] font-bold text-[var(--main,#1976d2)]">4.5</span>
+              <span className="text-[18px] font-bold text-[var(--main,#1976d2)]">{ratingVal}</span>
               <span className="text-[14px] text-gray-600">Average online rating</span>
             </div>
 
@@ -173,7 +176,7 @@ export function Footer() {
       <div className="border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 py-5 text-center">
           <p className="text-[13px] font-medium uppercase tracking-wide text-gray-500">
-            2016-2025, Smart Dental Innovation <span className="mx-1.5">•</span>
+© {company.name || "Smart Dental Innovations"} <span className="mx-1.5">•</span>
             Crafted with <span className="text-red-500">♥</span> in India
           </p>
         </div>

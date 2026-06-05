@@ -86,7 +86,8 @@ include __DIR__ . '/../includes/header.php';
             <div>
                 <h4 style="font-size:0.78rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:12px;">Contact Details</h4>
                 <div style="display:flex;flex-direction:column;gap:8px;">
-                    <div><i class="fa-solid fa-envelope text-gold" style="width:20px;"></i> <?= $cust_detail['email'] ?></div>
+                    <?php $dEmail = (!empty($cust_detail['email']) && !str_ends_with($cust_detail['email'], '@storefront.local')) ? $cust_detail['email'] : '—'; ?>
+                    <div><i class="fa-solid fa-envelope text-gold" style="width:20px;"></i> <?= htmlspecialchars($dEmail) ?></div>
                     <div><i class="fa-solid fa-phone text-gold" style="width:20px;"></i> <?= $cust_detail['phone'] ?></div>
                     <div><i class="fa-solid fa-location-dot text-gold" style="width:20px;"></i> <?= $cust_detail['city'] ?>, <?= $cust_detail['state'] ?></div>
                     <?php if($cust_detail['pincode']): ?><div><i class="fa-solid fa-map-pin text-gold" style="width:20px;"></i> <?= $cust_detail['pincode'] ?></div><?php endif; ?>
@@ -183,7 +184,8 @@ include __DIR__ . '/../includes/header.php';
                     </td>
                     <td>
                         <div><?= $c['phone'] ?></div>
-                        <div class="text-muted" style="font-size:0.73rem;"><?= $c['email'] ?></div>
+                        <?php $showEmail = (!empty($c['email']) && !str_ends_with($c['email'], '@storefront.local')) ? $c['email'] : ''; ?>
+                        <div class="text-muted" style="font-size:0.73rem;"><?= $showEmail ?: '<span style="opacity:.5;">—</span>' ?></div>
                     </td>
                     <td><span class="badge badge-info"><?= $c['customer_type'] ?></span></td>
                     <td>

@@ -51,6 +51,8 @@ export const api = {
   home: () => get("home.php"),
   // site settings (company, payments, featured, etc)
   settings: () => get("settings.php").then((j) => j.settings),
+  // contact form submit
+  contact: (payload) => post("contact.php", payload),
   // otp
   requestOtp: (payload) => post("otp.php?action=request", payload), // {mobile} or {email}
   verifyOtp: (payload) => post("otp.php?action=verify", payload),   // {mobile, otp}

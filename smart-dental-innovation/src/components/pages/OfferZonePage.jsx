@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useCart } from "../../context/CartContext";
 import { useUI } from "../../context/UIContext";
+import { useSettings } from "../../context/SettingsContext";
 import { useOffers } from "../../hooks/useApiData";
 
 const fmt = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
@@ -128,6 +129,7 @@ export default function OfferZonePage() {
 }
 
 function HeroBanner({ stats, deadline }) {
+  const { offerZoneHero: hero = {} } = useSettings();
   const { days, hrs, mins } = useCountdown(deadline || new Date().toISOString());
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-[#ff6b6b] via-[#ee5253] to-[#c0392b] text-white">
@@ -141,16 +143,16 @@ function HeroBanner({ stats, deadline }) {
         <div className="flex-1 text-center lg:text-left">
           <span className="inline-flex items-center gap-2 bg-white/20 backdrop-blur rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider mb-3">
             <span className="w-2 h-2 rounded-full bg-yellow-300 animate-pulse" />
-            Mega Deals Live
+            {hero.badge}
           </span>
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-tight">
-            Offer Zone
+            {hero.title}
             <span className="block text-yellow-200 text-2xl sm:text-3xl mt-1 font-bold">
-              Save up to {fmt(stats.totalSaved)} this month
+              {hero.savePrefix} {fmt(stats.totalSaved)} {hero.saveSuffix}
             </span>
           </h1>
           <p className="text-sm sm:text-base text-white/90 mt-3 max-w-xl mx-auto lg:mx-0">
-            Hand-picked combos with free handpieces, free mirrors & free files. Doctor-loved, clinic-tested. New bundles drop every week.
+            {hero.subtitle}
           </p>
 
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 mt-5">
@@ -161,7 +163,7 @@ function HeroBanner({ stats, deadline }) {
         </div>
 
         <div className="shrink-0 bg-white/15 backdrop-blur-md border border-white/25 rounded-2xl px-5 py-4 text-center min-w-[280px]">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-yellow-200 mb-2">Next deal expires in</p>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-yellow-200 mb-2">{hero.expiryLabel}</p>
           <div className="flex items-center justify-center gap-2">
             {[
               { v: String(days).padStart(2, "0"), l: "Days" },
@@ -174,7 +176,7 @@ function HeroBanner({ stats, deadline }) {
               </div>
             ))}
           </div>
-          <p className="text-[11px] text-white/80 mt-3">⚡ Restocks limited. Once gone, gone.</p>
+          <p className="text-[11px] text-white/80 mt-3">{hero.restockNote}</p>
         </div>
       </div>
     </section>

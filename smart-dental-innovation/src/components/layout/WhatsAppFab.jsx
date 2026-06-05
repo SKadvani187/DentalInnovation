@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { useUI } from "../../context/UIContext";
+import { useSettings } from "../../context/SettingsContext";
 
-const PHONE = "919328762586";
 const DEFAULT_MSG = "Hi, I'm interested in your dental products. Can you help me?";
 const HIDDEN_VIEWS = new Set(["product"]);
 
 export default function WhatsAppFab() {
   const { view } = useUI();
+  const { company = {} } = useSettings();
+  const PHONE = (company.phoneSales || company.phone || "919328762586").replace(/\D/g, "");
   const [showTip, setShowTip] = useState(false);
 
   useEffect(() => {

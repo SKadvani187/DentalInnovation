@@ -4,6 +4,7 @@ import { categoryFilters as STATIC_FILTERS } from "../../data/categories";
 import { sortOptions as SORT_OPTIONS, priceBounds } from "../../data/site";
 import { useCart } from "../../context/CartContext";
 import { useUI } from "../../context/UIContext";
+import { useSettings } from "../../context/SettingsContext";
 import { useProducts, useCombos, useCategories } from "../../hooks/useApiData";
 
 const PRICE_MIN = priceBounds.min;
@@ -24,6 +25,7 @@ export default function CategoryPage() {
   const [priceMin, setPriceMin] = useState(PRICE_MIN);
   const [priceMax, setPriceMax] = useState(initialPriceMax);
 
+  const { gvpThreshold = 10 } = useSettings();
   const { data: allProducts } = useProducts();
   const { data: combos } = useCombos();
   const { data: catData } = useCategories();
@@ -45,7 +47,7 @@ export default function CategoryPage() {
 
   const products = useMemo(() => {
     let list = [...combos, ...allProducts].filter((p) => p.id);
-    if (isGvp) list = list.filter((p) => p.discount >= 10);
+    if (isGvp) list = list.filter((p) => p.discount >= gvpThreshold);
     if (selectedCat) list = list.filter((p) => p.category === selectedCat);
     list = list.filter((p) => p.price >= priceMin && p.price <= priceMax);
     switch (sort) {
@@ -56,7 +58,7 @@ export default function CategoryPage() {
       default: break;
     }
     return list;
-  }, [selectedCat, sort, priceMin, priceMax, isGvp, allProducts, combos]);
+  }, [selectedCat, sort, priceMin, priceMax, isGvp, allProducts, combos, gvpThreshold]);
 
   const visibleCats = expanded ? CATEGORY_FILTERS : CATEGORY_FILTERS.slice(0, COLLAPSE_COUNT);
 

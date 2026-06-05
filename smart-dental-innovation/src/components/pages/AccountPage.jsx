@@ -2,10 +2,13 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useUI } from "../../context/UIContext";
+import { useSettings } from "../../context/SettingsContext";
 
 export default function AccountPage() {
   const { user, updateProfile, logout } = useAuth();
   const { navigate, openModal } = useUI();
+  const { company = {} } = useSettings();
+  const supportPhone = company.phone || "+919328762586";
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user?.name || "");
   const [email, setEmail] = useState(user?.email || "");
@@ -68,7 +71,7 @@ export default function AccountPage() {
 
           <p className="text-sm text-brand-muted mt-4">
             For any queries,<br />
-            Call us at <a href="tel:+919328762586" className="text-[#3684bf] font-semibold">+919328762586</a>
+            Call us at <a href={`tel:${supportPhone.replace(/\s/g,'')}`} className="text-[#3684bf] font-semibold">{supportPhone}</a>
           </p>
         </aside>
 

@@ -86,6 +86,10 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
                 <i class="fa-solid fa-indian-rupee-sign"></i>
                 <span>Payments</span>
             </a>
+            <a href="<?= APP_URL ?>/pages/messages.php" class="nav-item <?= $current_page === 'messages' ? 'active' : '' ?>">
+                <i class="fa-solid fa-envelope"></i>
+                <span>Messages</span>
+            </a>
         </div>
 
         <div class="nav-section">
@@ -133,6 +137,26 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
             <a href="<?= APP_URL ?>/pages/reports.php" class="nav-item <?= $current_page === 'reports' ? 'active' : '' ?>">
                 <i class="fa-solid fa-chart-line"></i>
                 <span>Analytics</span>
+            </a>
+        </div>
+
+        <div class="nav-section">
+            <span class="nav-section-label">CONFIGURATION</span>
+            <?php $cfgNow = ($current_page === 'settings') ? preg_replace('/[^a-z]/','', $_GET['page'] ?? 'home') : ''; ?>
+            <a href="<?= APP_URL ?>/pages/settings.php?page=home" class="nav-item <?= $cfgNow === 'home' ? 'active' : '' ?>">
+                <i class="fa-solid fa-house"></i><span>Home Page</span>
+            </a>
+            <a href="<?= APP_URL ?>/pages/settings.php?page=contact" class="nav-item <?= $cfgNow === 'contact' ? 'active' : '' ?>">
+                <i class="fa-solid fa-headset"></i><span>Contact Page</span>
+            </a>
+            <a href="<?= APP_URL ?>/pages/settings.php?page=about" class="nav-item <?= $cfgNow === 'about' ? 'active' : '' ?>">
+                <i class="fa-solid fa-circle-info"></i><span>About Page</span>
+            </a>
+            <a href="<?= APP_URL ?>/pages/settings.php?page=catalog" class="nav-item <?= $cfgNow === 'catalog' ? 'active' : '' ?>">
+                <i class="fa-solid fa-box-open"></i><span>Catalog / Products</span>
+            </a>
+            <a href="<?= APP_URL ?>/pages/settings.php?page=general" class="nav-item <?= $cfgNow === 'general' ? 'active' : '' ?>">
+                <i class="fa-solid fa-sliders"></i><span>General</span>
             </a>
         </div>
 
