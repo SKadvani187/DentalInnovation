@@ -4,54 +4,141 @@ import Button from "../ui/Button";
 import { useUI } from "../../context/UIContext";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
-import api from "../../lib/api";
+import api, { loadRazorpayScript } from "../../lib/api";
 
 const fmt = (n) => `₹${n.toLocaleString("en-IN")}`;
 const initialAddress = { fullName: "", phone: "", line1: "", city: "", state: "", pincode: "" };
 
+// Map a saved account address (from AddressPage) -> checkout form shape.
+function mapSavedAddress(a) {
+  if (!a) return null;
+  const line1 = [a.line1, a.line2, a.landmark, a.building].filter(Boolean).join(", ");
+  return { fullName: a.name || "", phone: a.mobile || "", line1, city: a.city || "", state: a.state || "", pincode: a.pincode || "" };
+}
+
 export default function CheckoutModal() {
-  const { modal, closeModal, showToast } = useUI();
+  const { modal, closeModal, showToast, openModal } = useUI();
   const { items, subtotal, clearCart } = useCart();
   const { user, token } = useAuth();
   const [step, setStep] = useState(1);
   const [address, setAddress] = useState(initialAddress);
-  const [payment, setPayment] = useState("upi");
+  const [payment, setPayment] = useState("online");
   const [orderId, setOrderId] = useState(null);
   const [placing, setPlacing] = useState(false);
+  const [selectedAddrId, setSelectedAddrId] = useState(null);
 
   useEffect(() => {
     if (modal !== "checkout") return;
     setStep(1);
     setOrderId(null);
-    setAddress((a) => ({ ...a, fullName: user?.name || a.fullName }));
+    // Pre-fill from the saved default address (falls back to name/phone only).
+    const saved = user?.addresses || [];
+    const def = saved.find((a) => a.isDefault) || saved[0];
+    const mapped = mapSavedAddress(def);
+    setSelectedAddrId(def?.id || null);
+    setAddress((a) =>
+      mapped
+        ? { ...a, ...mapped }
+        : { ...a, fullName: user?.name || a.fullName, phone: user?.mobile || user?.phone || a.phone }
+    );
   }, [modal, user]);
 
   if (modal !== "checkout") return null;
 
-  const onAddrChange = (k) => (e) => setAddress((a) => ({ ...a, [k]: e.target.value }));
+  const onAddrChange = (k) => (e) => { setSelectedAddrId(null); setAddress((a) => ({ ...a, [k]: e.target.value })); };
+
+  // Fill the form from a chosen saved address.
+  const selectSaved = (a) => {
+    const mapped = mapSavedAddress(a);
+    setSelectedAddrId(a.id);
+    if (mapped) setAddress((prev) => ({ ...prev, ...mapped }));
+  };
   const addressValid = address.fullName && address.phone && address.line1 && address.city && address.state && address.pincode;
 
+  const buildPayload = (paymentMethod) => ({
+    items: items.map((i) => ({ id: i.id, name: i.name, price: i.price, qty: i.qty, variant: i.variant })),
+    address,
+    paymentMethod,
+    subtotal,
+  });
+
   const confirm = async () => {
+    if (!token) { showToast?.("Please log in to complete your order.", "info"); openModal("auth"); return; }
+    if (payment === "online") return payOnline();
+
+    // Cash on Delivery — order is created unpaid, no gateway step.
     setPlacing(true);
-    const payload = {
-      items: items.map((i) => ({ id: i.id, name: i.name, price: i.price, qty: i.qty, variant: i.variant })),
-      address,
-      paymentMethod: payment,
-      subtotal,
-    };
     try {
-      if (!token) throw new Error("not-logged-in");
-      const order = await api.placeOrder(payload);
+      const order = await api.placeOrder(buildPayload("cod"));
       setOrderId(order.orderId);
-    } catch (err) {
-      // Fallback: local-only order id if API unavailable / not logged in.
-      console.warn("[checkout] order API fallback:", err.message);
-      setOrderId(`SDI-${Math.floor(100000 + Math.random() * 900000)}`);
-      if (err.message !== "not-logged-in") showToast?.("Saved locally — login to sync orders", "info");
-    } finally {
       clearCart();
       setStep(3);
+    } catch (err) {
+      console.error("[checkout] order failed:", err.message);
+      showToast?.("Could not place your order. Please try again.", "error");
+    } finally {
       setPlacing(false);
+    }
+  };
+
+  // Online flow: create a pending order, create a Razorpay order, open the hosted
+  // checkout widget, then verify the signature server-side before confirming.
+  const payOnline = async () => {
+    setPlacing(true);
+    let order;
+    try {
+      order = await api.placeOrder(buildPayload("online"));
+      const rzp = await api.createRazorpayOrder(order.orderId);
+      await loadRazorpayScript();
+
+      const rz = new window.Razorpay({
+        key: rzp.keyId,
+        order_id: rzp.rzpOrderId,
+        amount: rzp.amount,
+        currency: rzp.currency,
+        name: "Smart Dental Innovations",
+        description: `Order ${order.orderId}`,
+        prefill: rzp.prefill,
+        theme: { color: "#0b2545" },
+        handler: async (resp) => {
+          try {
+            await api.verifyRazorpayPayment({
+              orderId: order.orderId,
+              razorpay_payment_id: resp.razorpay_payment_id,
+              razorpay_order_id: resp.razorpay_order_id,
+              razorpay_signature: resp.razorpay_signature,
+            });
+          } catch (err) {
+            // Payment went through at the gateway; the webhook will reconcile it.
+            console.warn("[checkout] verify failed, webhook will reconcile:", err.message);
+            showToast?.("Payment received — confirming your order shortly.", "info");
+          } finally {
+            setOrderId(order.orderId);
+            clearCart();
+            setStep(3);
+            setPlacing(false);
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setPlacing(false);
+            showToast?.("Payment not completed — your order is saved as pending. Retry from My Orders.", "info");
+          },
+        },
+      });
+      rz.on("payment.failed", () => {
+        showToast?.("Payment failed — your order is saved as pending, you can retry.", "error");
+      });
+      rz.open();
+    } catch (err) {
+      console.error("[checkout] online payment failed:", err.message);
+      setPlacing(false);
+      showToast?.(
+        order
+          ? "Couldn't start the payment. Your order is saved as pending — retry from My Orders."
+          : "Could not place your order. Please try again.",
+        "error"
+      );
     }
   };
 
@@ -79,6 +166,29 @@ export default function CheckoutModal() {
         {step === 1 && (
           <>
             <h2 className="text-lg font-bold mb-4">Shipping Address</h2>
+            {user?.addresses?.length > 0 && (
+              <div className="mb-4">
+                <p className="text-sm font-semibold text-brand-ink mb-2">Deliver to a saved address</p>
+                <div className="space-y-2">
+                  {user.addresses.map((a) => (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => selectSaved(a)}
+                      className={`w-full text-left p-3 border rounded-lg ${selectedAddrId === a.id ? "border-brand-navy bg-brand-navy/5" : "border-gray-300 hover:border-brand-navy/50"}`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] font-bold uppercase bg-blue-50 text-[#3684bf] px-2 py-0.5 rounded">{a.type || "Home"}</span>
+                        {a.isDefault && <span className="text-[10px] font-bold uppercase bg-green-50 text-green-700 px-2 py-0.5 rounded">Default</span>}
+                      </div>
+                      <p className="text-sm font-semibold text-brand-ink">{a.name} - +91 {a.mobile}</p>
+                      <p className="text-xs text-brand-muted">{[a.line1, a.line2, a.landmark, a.building, a.city, a.district, a.state, a.pincode].filter(Boolean).join(", ")}</p>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-brand-muted mt-2">Or edit the fields below.</p>
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <input className="border border-gray-300 rounded-md px-3 py-2 text-sm sm:col-span-2" placeholder="Full Name" value={address.fullName} onChange={onAddrChange("fullName")} />
               <input className="border border-gray-300 rounded-md px-3 py-2 text-sm" placeholder="Phone Number" value={address.phone} onChange={onAddrChange("phone")} />
@@ -99,8 +209,7 @@ export default function CheckoutModal() {
             <h2 className="text-lg font-bold mb-4">Payment Method</h2>
             <div className="space-y-2">
               {[
-                { id: "upi", label: "UPI / GPay / PhonePe", desc: "Pay instantly from your bank app" },
-                { id: "card", label: "Credit / Debit Card", desc: "Visa, Mastercard, RuPay accepted" },
+                { id: "online", label: "Pay Online", desc: "UPI, Cards, Netbanking & Wallets — secure payment via Razorpay" },
                 { id: "cod", label: "Cash on Delivery", desc: "Pay when the order arrives" },
               ].map((opt) => (
                 <label key={opt.id} className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer ${payment === opt.id ? "border-brand-navy bg-brand-navy/5" : "border-gray-300 hover:border-brand-navy/50"}`}>
@@ -118,7 +227,9 @@ export default function CheckoutModal() {
             </div>
             <div className="mt-6 flex justify-between gap-2">
               <Button variant="ghost" onClick={() => setStep(1)}>← Back</Button>
-              <Button variant="primary" onClick={confirm} disabled={placing}>{placing ? "Placing…" : "Place Order"}</Button>
+              <Button variant="primary" onClick={confirm} disabled={placing}>
+                {placing ? "Processing…" : payment === "online" ? `Pay ${fmt(subtotal)}` : "Place Order"}
+              </Button>
             </div>
           </>
         )}

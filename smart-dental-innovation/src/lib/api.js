@@ -1,7 +1,10 @@
 // Tiny fetch client for the Dentinno storefront API.
 // Base URL from VITE_API_URL (.env). Falls back to localhost dev API.
+// ROOT is one level above /v1 — the AI image/voice search endpoints live at /api/*.php.
 
 const BASE = import.meta.env.VITE_API_URL || "http://localhost:8088/api/v1";
+
+const ROOT = BASE.replace(/\/v1\/?$/, "");
 
 // Bearer token (set after login). Persisted by AuthContext to localStorage.
 let authToken = null;
@@ -53,6 +56,17 @@ export const api = {
   settings: () => get("settings.php").then((j) => j.settings),
   // contact form submit
   contact: (payload) => post("contact.php", payload),
+  // AI image search (Claude Vision) — endpoint lives at /api/image_search.php (above /v1)
+  imageSearch: async (dataUrl) => {
+    const res = await fetch(`${ROOT}/image_search.php`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ image: dataUrl }),
+    });
+    const json = await res.json().catch(() => ({ success: false }));
+    if (!res.ok || json.success === false) throw new Error(json.message || `image_search -> ${res.status}`);
+    return json; // { success, query, products, message }
+  },
   // otp
   requestOtp: (payload) => post("otp.php?action=request", payload), // {mobile} or {email}
   verifyOtp: (payload) => post("otp.php?action=verify", payload),   // {mobile, otp}
@@ -63,11 +77,32 @@ export const api = {
   // orders
   placeOrder: (payload) => post("orders.php", payload).then((j) => j.order),
   myOrders: () => get("orders.php").then((j) => j.orders),
+  // razorpay online payment (keyId/amount come back from the server — never trusted from client)
+  createRazorpayOrder: (orderId) => post("payment_razorpay.php?action=create", { orderId }),
+  verifyRazorpayPayment: (payload) => post("payment_razorpay.php?action=verify", payload),
   // coupon
   validateCoupon: (code, subtotal) => get("coupon.php", { code, subtotal }),
   // wishlist (auth)
   getWishlist: () => get("wishlist.php").then((j) => j.ids),
   syncWishlist: (ids) => post("wishlist.php", { ids }).then((j) => j.ids),
 };
+
+// Inject Razorpay's hosted checkout.js once; resolves true when window.Razorpay is ready.
+let razorpayScriptPromise = null;
+export function loadRazorpayScript() {
+  if (typeof window !== "undefined" && window.Razorpay) return Promise.resolve(true);
+  if (razorpayScriptPromise) return razorpayScriptPromise;
+  razorpayScriptPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://checkout.razorpay.com/v1/checkout.js";
+    s.onload = () => resolve(true);
+    s.onerror = () => {
+      razorpayScriptPromise = null;
+      reject(new Error("Failed to load Razorpay checkout"));
+    };
+    document.body.appendChild(s);
+  });
+  return razorpayScriptPromise;
+}
 
 export default api;

@@ -52,14 +52,11 @@ export default function AuthModal() {
 
   useEffect(() => {
     if (modal !== "auth") return;
-    const onKey = (e) => e.key === "Escape" && closeModal();
-    window.addEventListener("keydown", onKey);
     document.body.style.overflow = "hidden";
     return () => {
-      window.removeEventListener("keydown", onKey);
       document.body.style.overflow = "";
     };
-  }, [modal, closeModal]);
+  }, [modal]);
 
   useEffect(() => {
     if (resendIn <= 0) return;

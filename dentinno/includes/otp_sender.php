@@ -1,42 +1,63 @@
 <?php
-// OTP delivery — SMS (Fast2SMS) and Email (SMTP). Channel chosen via OTP_CHANNEL.
+// OTP delivery — SMS (Fast2SMS / 2Factor / MSG91) and Email (SMTP).
+// SMS provider is chosen in Admin → Settings → OTP (super-admin), stored in site_settings.otpConfig.
+// Falls back to FAST2SMS_* constants in config.php when otpConfig is empty.
 require_once __DIR__ . '/config.php';
 
-// Returns ['ok'=>bool, 'error'=>string|null]
-function sendOtpSms(string $mobile, string $otp): array {
-    if (FAST2SMS_API_KEY === '') {
-        return ['ok' => false, 'error' => 'SMS not configured (missing Fast2SMS key)'];
-    }
-    // Route-specific payload:
-    //  'otp' -> needs account/website verification, uses variables_values
-    //  'q'   -> Quick SMS, works without DLT/verification, uses message text
-    if (FAST2SMS_ROUTE === 'q') {
-        $payload = [
-            'route'   => 'q',
-            'message' => "Your OTP is $otp. Valid for " . (OTP_TTL / 60) . " min. - Smart Dental Innovations",
-            'numbers' => $mobile,
-            'flash'   => 0,
-        ];
-    } else {
-        $payload = [
-            'route'            => FAST2SMS_ROUTE, // 'otp'
-            'variables_values' => $otp,
-            'numbers'          => $mobile,
-        ];
-    }
-    $ch = curl_init('https://www.fast2sms.com/dev/bulkV2');
+// ---------------------------------------------------------------------------
+// Resolve the active OTP provider config from DB (site_settings.otpConfig),
+// merged over constant-based defaults. DB non-empty values win.
+// ---------------------------------------------------------------------------
+function getOtpConfig(): array {
+    $defaults = [
+        'provider'  => 'fast2sms',
+        'fast2sms'  => ['apiKey' => FAST2SMS_API_KEY, 'route' => FAST2SMS_ROUTE, 'senderId' => FAST2SMS_SENDER_ID],
+        'twofactor' => ['apiKey' => '', 'senderId' => '', 'templateName' => ''],
+        'msg91'     => ['authKey' => '', 'senderId' => '', 'templateId' => ''],
+    ];
+    try {
+        $row = db()->fetchOne("SELECT svalue FROM site_settings WHERE skey='otpConfig'");
+        if ($row && !empty($row['svalue'])) {
+            $cfg = json_decode($row['svalue'], true);
+            if (is_array($cfg)) {
+                $allowed = ['fast2sms', 'twofactor', 'msg91'];
+                if (!empty($cfg['provider']) && in_array($cfg['provider'], $allowed, true)) {
+                    $defaults['provider'] = $cfg['provider'];
+                }
+                foreach (['fast2sms', 'twofactor', 'msg91'] as $p) {
+                    if (!empty($cfg[$p]) && is_array($cfg[$p])) {
+                        foreach ($defaults[$p] as $k => $v) {
+                            if (isset($cfg[$p][$k]) && $cfg[$p][$k] !== '') $defaults[$p][$k] = $cfg[$p][$k];
+                        }
+                    }
+                }
+            }
+        }
+    } catch (Throwable $t) { /* table missing / bad json -> use defaults */ }
+    return $defaults;
+}
+
+// Normalize an Indian mobile: strip non-digits, drop a leading 91/0, return bare 10 digits.
+// $withCC=true returns the 91-prefixed form (some gateways require the country code).
+function normalizeMobileIN(string $m, bool $withCC = false): string {
+    $d = preg_replace('/\D+/', '', $m);
+    if (strlen($d) === 12 && strpos($d, '91') === 0) $d = substr($d, 2);
+    elseif (strlen($d) === 11 && $d[0] === '0')      $d = substr($d, 1);
+    return $withCC ? ('91' . $d) : $d;
+}
+
+// Shared HTTP POST with the project's SSL handling (relaxed for local dev, cacert in prod).
+// Returns ['code'=>int, 'body'=>string, 'err'=>string].
+function otpHttpPost(string $url, $payload, array $headers = [], bool $form = true): array {
+    $ch = curl_init($url);
     $opts = [
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => http_build_query($payload),
-        CURLOPT_HTTPHEADER => [
-            'authorization: ' . FAST2SMS_API_KEY,
-            'Content-Type: application/x-www-form-urlencoded',
-        ],
-        CURLOPT_TIMEOUT => 20,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $form ? (is_array($payload) ? http_build_query($payload) : $payload)
+                                        : (is_array($payload) ? json_encode($payload) : $payload),
+        CURLOPT_HTTPHEADER     => $headers,
+        CURLOPT_TIMEOUT        => 20,
     ];
-    // SSL: local dev networks (AV/proxy MITM) often break cert chain.
-    // OTP_SSL_INSECURE=true relaxes verify for local dev; use cacert + false in prod.
     $caBundle = __DIR__ . '/cacert.pem';
     if (defined('OTP_SSL_INSECURE') && OTP_SSL_INSECURE) {
         $opts[CURLOPT_SSL_VERIFYPEER] = false;
@@ -45,17 +66,95 @@ function sendOtpSms(string $mobile, string $otp): array {
         $opts[CURLOPT_CAINFO] = $caBundle;
     }
     curl_setopt_array($ch, $opts);
-    $res = curl_exec($ch);
-    $err = curl_error($ch);
+    $body = curl_exec($ch);
+    $err  = curl_error($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+    return ['code' => (int)$code, 'body' => (string)$body, 'err' => (string)$err];
+}
 
-    if ($err) return ['ok' => false, 'error' => "SMS gateway error: $err"];
-    $json = json_decode($res, true);
-    if ($code === 200 && !empty($json['return'])) {
+// ---------------------------------------------------------------------------
+// SMS dispatcher — picks the provider from getOtpConfig(). All adapters return
+// ['ok'=>bool, 'error'=>string|null].
+// ---------------------------------------------------------------------------
+function sendOtpSms(string $mobile, string $otp): array {
+    $cfg = getOtpConfig();
+    switch ($cfg['provider']) {
+        case 'twofactor': return sendSms_twofactor($mobile, $otp, $cfg['twofactor']);
+        case 'msg91':     return sendSms_msg91($mobile, $otp, $cfg['msg91']);
+        case 'fast2sms':
+        default:          return sendSms_fast2sms($mobile, $otp, $cfg['fast2sms']);
+    }
+}
+
+// --- Fast2SMS ---
+function sendSms_fast2sms(string $mobile, string $otp, array $c): array {
+    if (empty($c['apiKey'])) return ['ok' => false, 'error' => 'Fast2SMS not configured (missing API key)'];
+    $num = normalizeMobileIN($mobile);
+    $route = $c['route'] ?: 'otp';
+    if ($route === 'q') {
+        $payload = [
+            'route'   => 'q',
+            'message' => "Your OTP is $otp. Valid for " . (OTP_TTL / 60) . " min. - Smart Dental Innovations",
+            'numbers' => $num,
+            'flash'   => 0,
+        ];
+    } else {
+        $payload = ['route' => $route, 'variables_values' => $otp, 'numbers' => $num];
+    }
+    $r = otpHttpPost('https://www.fast2sms.com/dev/bulkV2', $payload, [
+        'authorization: ' . $c['apiKey'],
+        'Content-Type: application/x-www-form-urlencoded',
+    ], true);
+    if ($r['err']) return ['ok' => false, 'error' => "SMS gateway error: {$r['err']}"];
+    $json = json_decode($r['body'], true);
+    if ($r['code'] === 200 && !empty($json['return'])) return ['ok' => true, 'error' => null];
+    return ['ok' => false, 'error' => $json['message'] ?? ('SMS failed (HTTP ' . $r['code'] . ')')];
+}
+
+// --- 2Factor.in (transactional SMS; our locally-generated OTP carried in VAR1) ---
+function sendSms_twofactor(string $mobile, string $otp, array $c): array {
+    if (empty($c['apiKey']))       return ['ok' => false, 'error' => '2Factor not configured (missing API key)'];
+    if (empty($c['templateName'])) return ['ok' => false, 'error' => '2Factor not configured (missing template name)'];
+    $num = normalizeMobileIN($mobile);
+    $url = 'https://2factor.in/API/V1/' . rawurlencode($c['apiKey']) . '/ADDON_SERVICES/SEND/TSMS';
+    $payload = [
+        'From'         => $c['senderId'],
+        'To'           => $num,
+        'TemplateName' => $c['templateName'],
+        'VAR1'         => $otp,
+    ];
+    $r = otpHttpPost($url, $payload, ['Content-Type: application/x-www-form-urlencoded'], true);
+    if ($r['err']) return ['ok' => false, 'error' => "SMS gateway error: {$r['err']}"];
+    $json = json_decode($r['body'], true);
+    if ($r['code'] === 200 && isset($json['Status']) && $json['Status'] === 'Success') {
         return ['ok' => true, 'error' => null];
     }
-    return ['ok' => false, 'error' => $json['message'] ?? ('SMS failed (HTTP ' . $code . ')')];
+    return ['ok' => false, 'error' => $json['Details'] ?? ('2Factor failed (HTTP ' . $r['code'] . ')')];
+}
+
+// --- MSG91 (Flow API; OTP carried as a template variable) ---
+function sendSms_msg91(string $mobile, string $otp, array $c): array {
+    if (empty($c['authKey']))    return ['ok' => false, 'error' => 'MSG91 not configured (missing auth key)'];
+    if (empty($c['templateId'])) return ['ok' => false, 'error' => 'MSG91 not configured (missing template id)'];
+    $num = normalizeMobileIN($mobile, true); // 91-prefixed
+    $payload = [
+        'template_id' => $c['templateId'],
+        'short_url'   => 0,
+        'recipients'  => [['mobiles' => $num, 'var1' => $otp, 'otp' => $otp]],
+    ];
+    if (!empty($c['senderId'])) $payload['sender'] = $c['senderId'];
+    $r = otpHttpPost('https://control.msg91.com/api/v5/flow/', $payload, [
+        'authkey: ' . $c['authKey'],
+        'Content-Type: application/json',
+        'Accept: application/json',
+    ], false);
+    if ($r['err']) return ['ok' => false, 'error' => "SMS gateway error: {$r['err']}"];
+    $json = json_decode($r['body'], true);
+    if ($r['code'] === 200 && isset($json['type']) && $json['type'] === 'success') {
+        return ['ok' => true, 'error' => null];
+    }
+    return ['ok' => false, 'error' => $json['message'] ?? ('MSG91 failed (HTTP ' . $r['code'] . ')')];
 }
 
 // Minimal SMTP send (no external lib) for Email OTP.
@@ -76,6 +175,18 @@ function sendOtpEmail(string $email, string $otp): array {
 // Dispatch by configured channel. $identifier is mobile (sms) or email (email).
 function deliverOtp(string $identifier, string $otp): array {
     if (OTP_CHANNEL === 'email') return sendOtpEmail($identifier, $otp);
+
+    // WhatsApp OTP routing (config-gated; SMS remains the default channel).
+    // whatsapp_sender.php is loaded by api/v1/otp.php; guard so this stays safe if not.
+    if (function_exists('getWhatsAppConfig')) {
+        $wa = getWhatsAppConfig();
+        if (!empty($wa['enabled']) && !empty($wa['otpViaWhatsApp']) && !empty($wa['templates']['otp'])) {
+            $r = waSendOtp($identifier, $otp);
+            if (!empty($r['ok'])) return ['ok' => true, 'error' => null];
+            if (empty($wa['otpSmsFallback'])) return ['ok' => false, 'error' => $r['error'] ?? 'WhatsApp OTP failed'];
+            // else fall through to SMS fallback
+        }
+    }
     return sendOtpSms($identifier, $otp);
 }
 

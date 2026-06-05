@@ -15,6 +15,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         if ($data['status'] === 'delivered') $extra[] = "delivered_at = NOW()";
         $extraStr = $extra ? ', ' . implode(', ', $extra) : '';
         db()->execute("UPDATE orders SET status = ? $extraStr WHERE id = ?", [$data['status'], $data['id']]);
+        // Best-effort WhatsApp status update (only for customer-relevant transitions).
+        if (in_array($data['status'], ['confirmed', 'shipped', 'delivered', 'cancelled'], true)) {
+            notifyOrderStatusWA((int)$data['id'], $data['status']);
+        }
         echo json_encode(['success' => true, 'message' => 'Order status updated']);
     } elseif ($action === 'update_payment') {
         db()->execute("UPDATE orders SET payment_status = ?, payment_method = ? WHERE id = ?",
@@ -23,9 +27,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     } elseif ($action === 'update_tracking') {
         db()->execute("UPDATE orders SET tracking_number = ?, courier_name = ? WHERE id = ?",
             [$data['tracking_number'], $data['courier_name'], $data['id']]);
+        // Best-effort WhatsApp shipping update with the new tracking details.
+        notifyOrderStatusWA((int)$data['id'], null);
         echo json_encode(['success' => true, 'message' => 'Tracking updated']);
     }
     exit;
+}
+
+// Send a WhatsApp order-status/shipping message for an order (best-effort, never throws).
+// $status null = use the order's current status (e.g. after a tracking update).
+function notifyOrderStatusWA(int $orderId, ?string $status): void {
+    try {
+        require_once __DIR__ . '/../includes/whatsapp_sender.php';
+        $row = db()->fetchOne(
+            "SELECT o.*, c.name AS cust_name, c.phone AS cust_phone
+               FROM orders o JOIN customers c ON c.id = o.customer_id WHERE o.id = ?",
+            [$orderId]
+        );
+        if (!$row || empty($row['cust_phone'])) return;
+        $cust = ['name' => $row['cust_name'], 'phone' => $row['cust_phone']];
+        waOrderStatus($cust, $row, $status ?: ($row['status'] ?? ''), $row['tracking_number'] ?? '', $row['courier_name'] ?? '');
+    } catch (Throwable $e) { error_log('WA orderStatus: ' . $e->getMessage()); }
 }
 
 // Filters

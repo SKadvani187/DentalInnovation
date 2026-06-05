@@ -108,6 +108,8 @@ export default function AddressPage() {
 function AccountSidebar({ active }) {
   const { user, logout } = useAuth();
   const { navigate } = useUI();
+  const { company = {} } = useSettings();
+  const supportPhone = company.phone || "+919328762586";
   const [signoutOpen, setSignoutOpen] = useState(false);
 
   const items = [

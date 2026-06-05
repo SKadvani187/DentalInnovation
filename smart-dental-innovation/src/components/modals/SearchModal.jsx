@@ -2,34 +2,58 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useUI } from "../../context/UIContext";
 import { useProducts } from "../../hooks/useApiData";
+import api from "../../lib/api";
 import ProductCard from "../home/ProductCard";
 import Footer from "../layout/Footer";
 
+// Read a File as a base64 data URL (data:image/...;base64,....)
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function SearchModal() {
-  const { modal, closeModal, searchSeed, setSearchSeed, searchImageFile, setSearchImageFile } = useUI();
+  const { modal, closeModal, searchSeed, setSearchSeed, searchImageFile, setSearchImageFile, showToast } = useUI();
   const { data: allProducts } = useProducts();
   const open = modal === "search";
   const [query, setQuery] = useState("");
   const [listening, setListening] = useState(false);
-  const [imageSearch, setImageSearch] = useState(null); // { name, preview, tokens }
+  const [imageSearch, setImageSearch] = useState(null); // { name, preview, tokens, aiQuery, loading }
   const inputRef = useRef(null);
   const fileRef = useRef(null);
 
   const startVoice = () => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return;
+    if (!SR) {
+      showToast("Voice search isn't supported in this browser. Try Chrome or Edge.", "error");
+      return;
+    }
     const rec = new SR();
     rec.lang = "en-IN";
     rec.interimResults = false;
     rec.maxAlternatives = 1;
     setListening(true);
-    rec.onresult = (ev) => setQuery(ev.results?.[0]?.[0]?.transcript || "");
-    rec.onerror = () => setListening(false);
+    rec.onresult = (ev) => {
+      const transcript = ev.results?.[0]?.[0]?.transcript || "";
+      setQuery(transcript);
+      if (imageSearch) clearImageSearch();
+    };
+    rec.onerror = (ev) => {
+      setListening(false);
+      const msg = ev?.error === "not-allowed" || ev?.error === "service-not-allowed"
+        ? "Microphone permission denied. Allow mic access to use voice search."
+        : "Voice search couldn't hear anything. Please try again.";
+      showToast(msg, "error");
+    };
     rec.onend = () => setListening(false);
     try { rec.start(); } catch { setListening(false); }
   };
 
-  const ingestImageFile = (file) => {
+  const ingestImageFile = async (file) => {
     if (!file) return;
     const baseRaw = file.name.replace(/\.[^.]+$/, "");
     const base = baseRaw.toLowerCase();
@@ -40,8 +64,24 @@ export default function SearchModal() {
       .map((t) => t.trim())
       .filter((t) => t.length >= 3 && !STOPWORDS.has(t) && !/^\d+$/.test(t));
     const preview = URL.createObjectURL(file);
-    setImageSearch({ name: file.name, base, tokens, preview });
+    // Show preview immediately with a loading state; filename tokens are the offline fallback.
+    setImageSearch({ name: file.name, base, tokens, preview, aiQuery: "", loading: true });
     setQuery("");
+
+    // Ask the backend (Claude Vision) to actually identify the product from the image.
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      const res = await api.imageSearch(dataUrl);
+      const aiQuery = (res?.query || "").trim();
+      setImageSearch((prev) => (prev && prev.preview === preview ? { ...prev, aiQuery, loading: false } : prev));
+      if (!aiQuery && (!tokens.length)) {
+        showToast("Couldn't identify the product. Try a clearer image.", "error");
+      }
+    } catch (err) {
+      // AI unavailable (no key / backend down) — keep the filename-token fallback.
+      console.warn("[imageSearch] AI fallback to filename:", err.message);
+      setImageSearch((prev) => (prev && prev.preview === preview ? { ...prev, loading: false } : prev));
+    }
   };
 
   const onImagePicked = (e) => {
@@ -91,6 +131,17 @@ export default function SearchModal() {
 
   const results = useMemo(() => {
     if (imageSearch) {
+      // Preferred path: Claude Vision identified the product → text-match like a normal search.
+      const aiq = (imageSearch.aiQuery || "").trim().toLowerCase();
+      if (aiq) {
+        const aiToks = aiq.split(/\s+/).filter(Boolean);
+        const matched = allProducts.filter((p) => {
+          const hay = `${p.name} ${p.category || ""} ${p.warranty || ""}`.toLowerCase();
+          return aiToks.some((t) => hay.includes(t));
+        });
+        if (matched.length) return matched;
+        // fall through to filename heuristic if the catalog has no name match
+      }
       const toks = imageSearch.tokens;
       const baseSlug = imageSearch.base.replace(/[^a-z0-9]+/g, "_");
       const baseNorm = imageSearch.base.replace(/[^a-z0-9]+/g, "");
@@ -207,8 +258,18 @@ export default function SearchModal() {
             className="w-10 h-10 rounded-md object-cover border border-blue-200 shrink-0"
           />
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-brand-ink truncate">Image search: {imageSearch.name}</p>
-            <p className="text-[11px] text-brand-muted">{count} visually matched product{count === 1 ? "" : "s"}</p>
+            <p className="text-xs font-semibold text-brand-ink truncate">
+              {imageSearch.loading
+                ? "Identifying product…"
+                : imageSearch.aiQuery
+                  ? `Identified: ${imageSearch.aiQuery}`
+                  : `Image search: ${imageSearch.name}`}
+            </p>
+            <p className="text-[11px] text-brand-muted">
+              {imageSearch.loading
+                ? "Analysing the image with AI"
+                : `${count} matched product${count === 1 ? "" : "s"}`}
+            </p>
           </div>
           <button
             onClick={clearImageSearch}
@@ -221,12 +282,17 @@ export default function SearchModal() {
 
       <div className="flex-1 overflow-y-auto bg-white">
         <div className="px-4 sm:px-6 py-5">
-          {count === 0 ? (
+          {imageSearch?.loading && count === 0 ? (
+            <div className="bg-gray-100 rounded-2xl py-16 px-6 text-center mt-4">
+              <h3 className="text-2xl font-bold text-brand-ink mb-2">Analysing image…</h3>
+              <p className="text-sm text-brand-muted">Identifying the product with AI — one moment.</p>
+            </div>
+          ) : count === 0 ? (
             <div className="bg-gray-100 rounded-2xl py-16 px-6 text-center mt-4">
               <h3 className="text-2xl font-bold text-brand-ink mb-2">No Results Found</h3>
               <p className="text-sm text-brand-muted">
                 {imageSearch
-                  ? `No visually matching products for "${imageSearch.name}". Try a different image or browse categories.`
+                  ? `No matching products for this image. Try a different image or browse categories.`
                   : `No products found for "${query}"`}
               </p>
             </div>

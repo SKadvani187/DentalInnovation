@@ -81,7 +81,9 @@ try {
          VALUES (?,?, 'pending', ?, ?, ?,?,?,?,?)",
         [
             $orderNumber, $cust['id'],
-            $payMethod === 'cod' ? 'unpaid' : 'paid',
+            // COD is collected on delivery (unpaid); online orders stay 'pending'
+            // until the payment gateway confirms capture (see payment_razorpay.php).
+            $payMethod === 'cod' ? 'unpaid' : 'pending',
             $payMethod, $subtotal, $discount, $shipping, $total,
             $address ? json_encode($address) : null,
         ]
@@ -124,4 +126,11 @@ try {
 
 $o = $db->fetchOne("SELECT * FROM orders WHERE id=?", [$orderId]);
 $oi = $db->fetchAll("SELECT * FROM order_items WHERE order_id=?", [$orderId]);
+
+// Best-effort WhatsApp order-confirmation (never blocks the response).
+try {
+    require_once __DIR__ . '/../../includes/whatsapp_sender.php';
+    if (!empty($cust['phone'])) waOrderPlaced($cust, $o, $oi);
+} catch (Throwable $e) { error_log('WA orderPlaced: ' . $e->getMessage()); }
+
 jsonOut(['success' => true, 'order' => mapOrder($o, $oi)], 201);

@@ -55,9 +55,25 @@ function makeToken(): string {
     return bin2hex(random_bytes(24));
 }
 
+// Read the Authorization header. Apache frequently strips it from $_SERVER, so we
+// fall back to the rewrite/redirect var and to apache_request_headers()/getallheaders()
+// (mod_php keeps the real header there even when $_SERVER does not).
+function authHeader(): string {
+    if (!empty($_SERVER['HTTP_AUTHORIZATION']))          return trim($_SERVER['HTTP_AUTHORIZATION']);
+    if (!empty($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) return trim($_SERVER['REDIRECT_HTTP_AUTHORIZATION']);
+    foreach (['apache_request_headers', 'getallheaders'] as $fn) {
+        if (function_exists($fn)) {
+            foreach ((array)$fn() as $k => $v) {
+                if (strcasecmp($k, 'Authorization') === 0) return trim($v);
+            }
+        }
+    }
+    return '';
+}
+
 // Resolve the bearer token -> customer row (or null). Used to protect order endpoints.
 function authCustomer(): ?array {
-    $hdr = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    $hdr = authHeader();
     if (stripos($hdr, 'Bearer ') === 0) {
         $token = trim(substr($hdr, 7));
         if ($token !== '') {

@@ -26,6 +26,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     if (($d['action'] ?? '') === 'save_setting') {
         $key = preg_replace('/[^a-zA-Z]/', '', $d['key'] ?? '');
         $val = $d['value'] ?? null;
+        // Protected keys (secrets / admin-only) may only be written by a super_admin.
+        $PROTECTED = ['otpConfig', 'whatsappConfig'];
+        if (in_array($key, $PROTECTED, true) && ($_SESSION['admin_role'] ?? '') !== 'super_admin') {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Forbidden: super admin only']);
+            exit;
+        }
         if ($key) {
             db()->query("INSERT INTO site_settings (skey, svalue) VALUES (?,?) ON DUPLICATE KEY UPDATE svalue=VALUES(svalue)",
                 [$key, json_encode($val)]);
@@ -85,13 +92,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $current_admin = db()->fetchOne("SELECT * FROM admin_users WHERE id=?", [$_SESSION['admin_id']]);
+$isSuper = (($current_admin['role'] ?? '') === 'super_admin');
+$otpCfg  = is_array($site['otpConfig'] ?? null) ? $site['otpConfig'] : [];
+$otpProvider = $otpCfg['provider'] ?? 'fast2sms';
+$otpF2 = $otpCfg['fast2sms']  ?? []; $otp2F = $otpCfg['twofactor'] ?? []; $otpM9 = $otpCfg['msg91'] ?? [];
+$waCfg = is_array($site['whatsappConfig'] ?? null) ? $site['whatsappConfig'] : [];
+$waTpl = is_array($waCfg['templates'] ?? null) ? $waCfg['templates'] : [];
 include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-header fade-in">
     <div class="page-header-left">
         <?php
-        $cfgTitles = ['account'=>['Settings','Manage your account and system preferences'],'home'=>['Home Page Config','Customize the storefront home page'],'contact'=>['Contact Page Config','Contact info, departments, FAQs'],'about'=>['About Page Config','Story, values, team, milestones'],'catalog'=>['Catalog Config','Products, payments, pricing rules'],'general'=>['General Config','Socials and site-wide settings']];
+        $cfgTitles = ['account'=>['Settings','Manage your account and system preferences'],'home'=>['Home Page Config','Customize the storefront home page'],'contact'=>['Contact Page Config','Contact info, departments, FAQs'],'about'=>['About Page Config','Story, values, team, milestones'],'catalog'=>['Catalog Config','Products, payments, pricing rules'],'general'=>['General Config','Socials and site-wide settings'],'otp'=>['OTP / SMS Provider','Choose and configure the OTP gateway (super admin)'],'whatsapp'=>['WhatsApp Notifications','Meta Cloud API config + templates (super admin)']];
         $ct = $cfgTitles[$cfgPage ?? 'account'] ?? $cfgTitles['account'];
         ?>
         <h1><?= $ct[0] ?></h1>
@@ -239,13 +252,204 @@ include __DIR__ . '/../includes/header.php';
 <!-- ===== Storefront Configuration (page-wise tabs) ===== -->
 <div class="card fade-in" style="margin-top:24px;padding:6px;">
   <div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px;">
-    <?php $tabs = ['home'=>'🏠 Home Page','contact'=>'📞 Contact Page','about'=>'ℹ️ About Page','catalog'=>'🛒 Catalog / Products','general'=>'⚙️ General']; ?>
+    <?php $tabs = ['home'=>'🏠 Home Page','contact'=>'📞 Contact Page','about'=>'ℹ️ About Page','catalog'=>'🛒 Catalog / Products','general'=>'⚙️ General']; if ($isSuper) $tabs['otp']='🔐 OTP / SMS'; if ($isSuper) $tabs['whatsapp']='💬 WhatsApp'; ?>
     <?php foreach($tabs as $k=>$lbl): ?>
       <a href="<?= APP_URL ?>/pages/settings.php?page=<?= $k ?>" class="btn <?= $cfgPage===$k?'btn-gold':'btn-ghost' ?> btn-sm"><?= $lbl ?></a>
     <?php endforeach; ?>
   </div>
 </div>
 <?php endif; ?>
+
+<?php if ($cfgPage === 'home'): ?>
+<!-- ===== Home Page — section sub-tabs (one grid per tab; Home Page Layout last) ===== -->
+<div class="card fade-in" data-cfg="home" style="margin-top:14px;padding:6px;">
+  <div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px;align-items:center;">
+    <span class="text-muted" style="font-size:.78rem;margin-right:4px;"><i class="fa-solid fa-layer-group text-gold"></i> Section:</span>
+    <?php $homeSecs = [
+      'hero'    => '🖼️ Hero Slider',
+      'promo'   => '🏞️ Promo Banners',
+      'premium' => '⭐ Premium Categories',
+      'rf'      => '⚡ RF Showcase',
+      'trust'   => '🛡️ Trust Badges',
+      'stats'   => '📊 Stats Bar',
+      'layout'  => '🧩 Home Page Layout',
+    ]; ?>
+    <?php foreach ($homeSecs as $hk => $hl): ?>
+      <button type="button" class="btn btn-ghost btn-sm home-subtab" data-sec="<?= $hk ?>" onclick="showHomeSec('<?= $hk ?>')"><?= $hl ?></button>
+    <?php endforeach; ?>
+  </div>
+</div>
+<?php endif; ?>
+
+<!-- ===== OTP / SMS Provider (super admin only) ===== -->
+<div data-cfg="otp">
+<?php if (!$isSuper): ?>
+  <div class="card fade-in" style="margin-top:18px;">
+    <div class="card-body" style="text-align:center;padding:40px;">
+      <i class="fa-solid fa-lock" style="font-size:2rem;color:var(--danger);"></i>
+      <h3 style="margin-top:12px;">Not authorized</h3>
+      <p class="text-muted">The OTP / SMS Provider configuration is restricted to Super Admins.</p>
+    </div>
+  </div>
+<?php else: ?>
+  <div class="card fade-in" style="margin-top:18px;">
+    <div class="card-header">
+      <span class="card-title"><i class="fa-solid fa-shield-halved text-gold" style="margin-right:8px;"></i>OTP / SMS Provider</span>
+      <small class="text-muted">Choose which gateway sends login OTPs. Secrets are private (never exposed to the storefront).</small>
+    </div>
+    <div class="card-body">
+      <div class="form-group" style="max-width:360px;">
+        <label class="form-label">Active Provider</label>
+        <select class="form-control" id="otp_provider" onchange="toggleOtpGroups()">
+          <option value="fast2sms"  <?= $otpProvider==='fast2sms'?'selected':'' ?>>Fast2SMS</option>
+          <option value="twofactor" <?= $otpProvider==='twofactor'?'selected':'' ?>>2Factor.in</option>
+          <option value="msg91"     <?= $otpProvider==='msg91'?'selected':'' ?>>MSG91</option>
+        </select>
+        <small class="text-muted" style="font-size:.73rem;">Login OTPs are sent through the selected provider. Requires a DLT-approved template for 2Factor / MSG91.</small>
+      </div>
+
+      <!-- Fast2SMS -->
+      <div class="otp-group" data-otp="fast2sms" style="border-top:1px solid var(--border-color);padding-top:14px;margin-top:8px;">
+        <div class="font-bold" style="margin-bottom:10px;color:var(--gold-primary);">Fast2SMS</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">API Key</label><input type="text" class="form-control" id="otp_f2_key" value="<?= htmlspecialchars($otpF2['apiKey'] ?? '') ?>" placeholder="Fast2SMS authorization key"></div>
+          <div class="form-group"><label class="form-label">Route</label>
+            <select class="form-control" id="otp_f2_route">
+              <option value="otp" <?= ($otpF2['route'] ?? 'otp')==='otp'?'selected':'' ?>>otp (DLT — production)</option>
+              <option value="q"   <?= ($otpF2['route'] ?? '')==='q'?'selected':'' ?>>q (Quick — non-DLT, dev)</option>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Sender ID</label><input type="text" class="form-control" id="otp_f2_sender" value="<?= htmlspecialchars($otpF2['senderId'] ?? '') ?>" placeholder="e.g. TXTIND"></div>
+        </div>
+      </div>
+
+      <!-- 2Factor -->
+      <div class="otp-group" data-otp="twofactor" style="border-top:1px solid var(--border-color);padding-top:14px;margin-top:8px;">
+        <div class="font-bold" style="margin-bottom:10px;color:var(--gold-primary);">2Factor.in</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">API Key</label><input type="text" class="form-control" id="otp_2f_key" value="<?= htmlspecialchars($otp2F['apiKey'] ?? '') ?>" placeholder="2Factor API key"></div>
+          <div class="form-group"><label class="form-label">Sender ID (From)</label><input type="text" class="form-control" id="otp_2f_sender" value="<?= htmlspecialchars($otp2F['senderId'] ?? '') ?>" placeholder="DLT header"></div>
+          <div class="form-group"><label class="form-label">Template Name</label><input type="text" class="form-control" id="otp_2f_tpl" value="<?= htmlspecialchars($otp2F['templateName'] ?? '') ?>" placeholder="DLT-approved template; OTP = VAR1"></div>
+        </div>
+        <small class="text-muted" style="font-size:.73rem;">Uses transactional SMS (TSMS) with our locally-generated OTP placed in <code>VAR1</code>.</small>
+      </div>
+
+      <!-- MSG91 -->
+      <div class="otp-group" data-otp="msg91" style="border-top:1px solid var(--border-color);padding-top:14px;margin-top:8px;">
+        <div class="font-bold" style="margin-bottom:10px;color:var(--gold-primary);">MSG91</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Auth Key</label><input type="text" class="form-control" id="otp_m9_key" value="<?= htmlspecialchars($otpM9['authKey'] ?? '') ?>" placeholder="MSG91 authkey"></div>
+          <div class="form-group"><label class="form-label">Sender ID</label><input type="text" class="form-control" id="otp_m9_sender" value="<?= htmlspecialchars($otpM9['senderId'] ?? '') ?>" placeholder="DLT sender id"></div>
+          <div class="form-group"><label class="form-label">Template ID</label><input type="text" class="form-control" id="otp_m9_tpl" value="<?= htmlspecialchars($otpM9['templateId'] ?? '') ?>" placeholder="Flow template id; OTP = var1"></div>
+        </div>
+        <small class="text-muted" style="font-size:.73rem;">Uses the MSG91 Flow API; our OTP is passed as <code>var1</code> to the template.</small>
+      </div>
+
+      <div style="margin-top:16px;"><button class="btn btn-gold" onclick="saveOtpConfig()"><i class="fa-solid fa-floppy-disk"></i> Save OTP Provider</button></div>
+    </div>
+  </div>
+  <script>
+    function toggleOtpGroups(){
+      const p = document.getElementById('otp_provider').value;
+      document.querySelectorAll('.otp-group').forEach(g => { g.style.display = (g.getAttribute('data-otp')===p) ? '' : 'none'; });
+    }
+    function _v(id){ const el=document.getElementById(id); return el ? el.value.trim() : ''; }
+    function saveOtpConfig(){
+      const cfg = {
+        provider: document.getElementById('otp_provider').value,
+        fast2sms:  { apiKey:_v('otp_f2_key'), route:document.getElementById('otp_f2_route').value, senderId:_v('otp_f2_sender') },
+        twofactor: { apiKey:_v('otp_2f_key'), senderId:_v('otp_2f_sender'), templateName:_v('otp_2f_tpl') },
+        msg91:     { authKey:_v('otp_m9_key'), senderId:_v('otp_m9_sender'), templateId:_v('otp_m9_tpl') },
+      };
+      saveSetting('otpConfig', cfg, 'OTP Provider');
+    }
+    toggleOtpGroups();
+  </script>
+<?php endif; ?>
+</div>
+
+<!-- ===== WhatsApp Notifications (super admin only) ===== -->
+<div data-cfg="whatsapp">
+<?php if (!$isSuper): ?>
+  <div class="card fade-in" style="margin-top:18px;">
+    <div class="card-body" style="text-align:center;padding:40px;">
+      <i class="fa-solid fa-lock" style="font-size:2rem;color:var(--danger);"></i>
+      <h3 style="margin-top:12px;">Not authorized</h3>
+      <p class="text-muted">WhatsApp configuration is restricted to Super Admins.</p>
+    </div>
+  </div>
+<?php else: ?>
+  <div class="card fade-in" style="margin-top:18px;">
+    <div class="card-header">
+      <span class="card-title"><i class="fa-brands fa-whatsapp text-gold" style="margin-right:8px;"></i>WhatsApp Cloud API (Meta)</span>
+      <small class="text-muted">Automated order, payment, shipping &amp; OTP messages. Credentials are private (never exposed to the storefront).</small>
+    </div>
+    <div class="card-body">
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;cursor:pointer;">
+        <input type="checkbox" id="wa_enabled" <?= !empty($waCfg['enabled']) ? 'checked' : '' ?>>
+        <span class="font-bold">Enable WhatsApp notifications</span>
+      </label>
+
+      <div class="form-row">
+        <div class="form-group" style="flex:2;"><label class="form-label">Access Token (System User, permanent)</label><input type="text" class="form-control" id="wa_token" value="<?= htmlspecialchars($waCfg['accessToken'] ?? '') ?>" placeholder="EAAG... (kept private)"></div>
+        <div class="form-group"><label class="form-label">Phone Number ID</label><input type="text" class="form-control" id="wa_phoneid" value="<?= htmlspecialchars($waCfg['phoneNumberId'] ?? '') ?>" placeholder="Cloud API phone number ID"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">API Version</label><input type="text" class="form-control" id="wa_apiver" value="<?= htmlspecialchars($waCfg['apiVersion'] ?? 'v21.0') ?>" placeholder="v21.0"></div>
+        <div class="form-group"><label class="form-label">Language Code</label><input type="text" class="form-control" id="wa_lang" value="<?= htmlspecialchars($waCfg['languageCode'] ?? 'en_US') ?>" placeholder="en_US"></div>
+      </div>
+
+      <div style="border-top:1px solid var(--border-color);padding-top:14px;margin-top:8px;">
+        <div class="font-bold" style="margin-bottom:4px;color:var(--gold-primary);">Approved Template Names</div>
+        <small class="text-muted" style="font-size:.73rem;display:block;margin-bottom:10px;">Create + approve these in Meta WhatsApp Manager, then paste the exact template names. Placeholder order must match (see docs/comments).</small>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Order Placed <small class="text-muted">(UTILITY)</small></label><input type="text" class="form-control" id="wa_tpl_order" value="<?= htmlspecialchars($waTpl['orderPlaced'] ?? '') ?>" placeholder="{{1}}name {{2}}order# {{3}}total {{4}}items"></div>
+          <div class="form-group"><label class="form-label">Payment Success <small class="text-muted">(UTILITY)</small></label><input type="text" class="form-control" id="wa_tpl_pay" value="<?= htmlspecialchars($waTpl['paymentSuccess'] ?? '') ?>" placeholder="{{1}}name {{2}}order# {{3}}amount"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Order Status / Shipping <small class="text-muted">(UTILITY)</small></label><input type="text" class="form-control" id="wa_tpl_status" value="<?= htmlspecialchars($waTpl['orderStatus'] ?? '') ?>" placeholder="{{1}}name {{2}}order# {{3}}status {{4}}courier {{5}}tracking"></div>
+          <div class="form-group"><label class="form-label">OTP Login <small class="text-muted">(AUTHENTICATION)</small></label><input type="text" class="form-control" id="wa_tpl_otp" value="<?= htmlspecialchars($waTpl['otp'] ?? '') ?>" placeholder="auth template w/ copy-code button"></div>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border-color);padding-top:14px;margin-top:8px;">
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;">
+          <input type="checkbox" id="wa_otp_toggle" <?= !empty($waCfg['otpViaWhatsApp']) ? 'checked' : '' ?>>
+          <span class="font-bold">Send login OTP via WhatsApp (instead of SMS)</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="wa_otp_fallback" <?= (!isset($waCfg['otpSmsFallback']) || $waCfg['otpSmsFallback']) ? 'checked' : '' ?>>
+          <span>Fall back to SMS if the WhatsApp OTP fails</span>
+        </label>
+      </div>
+
+      <div style="margin-top:16px;"><button class="btn btn-gold" onclick="saveWhatsAppConfig()"><i class="fa-solid fa-floppy-disk"></i> Save WhatsApp Config</button></div>
+    </div>
+  </div>
+  <script>
+    function _wv(id){ const el=document.getElementById(id); return el ? el.value.trim() : ''; }
+    function _wc(id){ const el=document.getElementById(id); return el ? el.checked : false; }
+    function saveWhatsAppConfig(){
+      const cfg = {
+        enabled:        _wc('wa_enabled'),
+        accessToken:    _wv('wa_token'),
+        phoneNumberId:  _wv('wa_phoneid'),
+        apiVersion:     _wv('wa_apiver') || 'v21.0',
+        languageCode:   _wv('wa_lang') || 'en_US',
+        otpViaWhatsApp: _wc('wa_otp_toggle'),
+        otpSmsFallback: _wc('wa_otp_fallback'),
+        templates: {
+          orderPlaced:    _wv('wa_tpl_order'),
+          paymentSuccess: _wv('wa_tpl_pay'),
+          orderStatus:    _wv('wa_tpl_status'),
+          otp:            _wv('wa_tpl_otp'),
+        },
+      };
+      saveSetting('whatsappConfig', cfg, 'WhatsApp Config');
+    }
+  </script>
+<?php endif; ?>
+</div>
 
 <div data-cfg="contact">
 <!-- Storefront Company / Contact Info -->
@@ -360,7 +564,7 @@ HTML;
 </div><!-- /contact group -->
 <div data-cfg="home">
 <!-- Promo Banner Grid -->
-<div class="card fade-in" style="margin-top:18px;">
+<div class="card fade-in" data-home="promo" style="margin-top:18px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-panorama text-gold" style="margin-right:8px;"></i>Promo Banner Grid</span><small class="text-muted">3 home banners (desktop + mobile image) + product links</small></div>
   <div class="card-body">
     <?php
@@ -651,7 +855,7 @@ HTML;
 
 <div data-cfg="home">
 <!-- Home Layout (section order + visibility) -->
-<div class="card fade-in" style="margin-top:18px;">
+<div class="card fade-in" data-home="layout" style="margin-top:18px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-table-cells text-gold" style="margin-right:8px;"></i>Home Page Layout</span><small class="text-muted">Show/hide sections and change their order</small></div>
   <div class="card-body">
     <div id="home_rows"></div>
@@ -670,7 +874,7 @@ HTML;
 
 <?php $rf = $site['rfSection'] ?? []; ?>
 <!-- RF Cautery Showcase Section -->
-<div class="card fade-in" style="margin-top:18px;">
+<div class="card fade-in" data-home="rf" style="margin-top:18px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-bolt text-gold" style="margin-right:8px;"></i>RF Cautery Showcase</span><small class="text-muted">Featured product banner on home</small></div>
   <div class="card-body">
     <div class="grid-2" style="gap:14px;">
@@ -689,7 +893,7 @@ HTML;
 </div>
 
 <!-- Trust Badges -->
-<div class="card fade-in" style="margin-top:18px;">
+<div class="card fade-in" data-home="trust" style="margin-top:18px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-award text-gold" style="margin-right:8px;"></i>Trust Badges Strip</span><small class="text-muted">Home strip under category grid (Products / Service / Original / Price)</small></div>
   <div class="card-body">
     <div id="trust_rows"></div>
@@ -700,7 +904,7 @@ HTML;
 </div>
 
 <!-- Hero Slides (banners) -->
-<div class="card fade-in" style="margin-top:18px;">
+<div class="card fade-in" data-home="hero" style="margin-top:18px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-images text-gold" style="margin-right:8px;"></i>Hero Slider (Home Banners)</span><small class="text-muted">Top homepage carousel — image + product link</small></div>
   <div class="card-body">
     <div id="hero_rows"></div>
@@ -711,7 +915,7 @@ HTML;
 </div>
 
 <!-- Stats -->
-<div class="card fade-in" style="margin-top:18px;">
+<div class="card fade-in" data-home="stats" style="margin-top:18px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-chart-simple text-gold" style="margin-right:8px;"></i>Stats Bar</span><small class="text-muted">Homepage counters (Products, Followers, Rating, etc)</small></div>
   <div class="card-body">
     <div id="stats_rows"></div>
@@ -850,7 +1054,7 @@ listCard('pp', 'Price Presets', 'Shop-by-price quick filters', 'Add Preset', 'sa
 </div><!-- /catalog group -->
 <div data-cfg="home">
 <!-- Premium Categories (form) -->
-<div class="card fade-in" style="margin-top:18px;">
+<div class="card fade-in" data-home="premium" style="margin-top:18px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-star text-gold" style="margin-right:8px;"></i>Premium Categories</span><small class="text-muted">Home premium showcase cards (image + title + description)</small></div>
   <div class="card-body">
     <div id="premium_rows"></div>
@@ -1409,6 +1613,25 @@ renderTiers(); renderFbt(); renderFg(); renderFeat(); renderSort(); renderPp(); 
   document.querySelectorAll('[data-cfg]').forEach(el => {
     el.style.display = (el.getAttribute('data-cfg') === active) ? '' : 'none';
   });
+
+  // Home Page config: show one section grid per sub-tab (Home Page Layout is last).
+  if (active === 'home') {
+    const ORDER = ['hero','promo','premium','rf','trust','stats','layout'];
+    window.showHomeSec = function (sec) {
+      if (!ORDER.includes(sec)) sec = ORDER[0];
+      document.querySelectorAll('[data-home]').forEach(c => {
+        c.style.display = (c.getAttribute('data-home') === sec) ? '' : 'none';
+      });
+      document.querySelectorAll('.home-subtab').forEach(b => {
+        const on = b.getAttribute('data-sec') === sec;
+        b.classList.toggle('btn-gold', on);
+        b.classList.toggle('btn-ghost', !on);
+      });
+      if (location.hash !== '#' + sec) history.replaceState(null, '', '#' + sec);
+    };
+    const fromHash = location.hash.slice(1);
+    showHomeSec(ORDER.includes(fromHash) ? fromHash : 'hero');
+  }
 })();
 </script>
 

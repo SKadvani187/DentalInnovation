@@ -3,6 +3,7 @@ import { WishlistProvider } from "./context/WishlistContext";
 import { AuthProvider } from "./context/AuthContext";
 import { UIProvider, useUI } from "./context/UIContext";
 import { SettingsProvider } from "./context/SettingsContext";
+import { useEffect } from "react";
 
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
@@ -65,6 +66,17 @@ function Shell() {
   const { sections, categories, testimonials } = useHomeData();
   const { premiumCategories, homeSections } = useSettings();
 
+  // Global: pressing Esc must NOT close any popup/drawer/modal anywhere in the storefront.
+  // A single capture-phase listener swallows Escape before each modal's own keydown handler runs,
+  // so we don't have to touch every modal individually.
+  useEffect(() => {
+    const blockEsc = (e) => {
+      if (e.key === "Escape" || e.key === "Esc") e.stopImmediatePropagation();
+    };
+    window.addEventListener("keydown", blockEsc, true); // capture phase = runs first
+    return () => window.removeEventListener("keydown", blockEsc, true);
+  }, []);
+
   // Render a single home block by its config type.
   const renderBlock = (s) => {
     switch (s.type) {
@@ -83,7 +95,7 @@ function Shell() {
             key={s.key}
             eyebrow={s.eyebrow}
             title={s.label}
-            products={sections[s.source] || []}
+            products={sections[s.key] || []}
             accent={s.accent}
           />
         );

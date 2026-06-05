@@ -4,6 +4,7 @@
 // POST /api/v1/otp.php?action=verify   {mobile, otp}
 require_once __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/../../includes/otp_sender.php';
+require_once __DIR__ . '/../../includes/whatsapp_sender.php'; // enables WhatsApp OTP routing in deliverOtp()
 
 $db = db();
 $action = qstr('action');

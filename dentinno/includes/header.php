@@ -142,7 +142,7 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
 
         <div class="nav-section">
             <span class="nav-section-label">CONFIGURATION</span>
-            <?php $cfgNow = ($current_page === 'settings') ? preg_replace('/[^a-z]/','', $_GET['page'] ?? 'home') : ''; ?>
+            <?php $cfgNow = ($current_page === 'settings' && isset($_GET['page'])) ? preg_replace('/[^a-z]/','', $_GET['page']) : ''; ?>
             <a href="<?= APP_URL ?>/pages/settings.php?page=home" class="nav-item <?= $cfgNow === 'home' ? 'active' : '' ?>">
                 <i class="fa-solid fa-house"></i><span>Home Page</span>
             </a>
@@ -166,7 +166,7 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
                 <i class="fa-solid fa-shield-halved"></i>
                 <span>Admin Users</span>
             </a>
-            <a href="<?= APP_URL ?>/pages/settings.php" class="nav-item <?= $current_page === 'settings' ? 'active' : '' ?>">
+            <a href="<?= APP_URL ?>/pages/settings.php" class="nav-item <?= ($current_page === 'settings' && !isset($_GET['page'])) ? 'active' : '' ?>">
                 <i class="fa-solid fa-gear"></i>
                 <span>Settings</span>
             </a>
