@@ -38,11 +38,12 @@ export function useHomeData() {
       .home()
       .then((j) => {
         if (!alive) return;
-        setData({
-          sections: j.sections,
-          categories: j.categories,
-          testimonials: j.testimonials,
-        });
+        // Merge over STATIC so a partial API response never drops keys (avoids undefined sections crash).
+        setData((prev) => ({
+          sections: { ...prev.sections, ...(j.sections || {}) },
+          categories: j.categories?.length ? j.categories : prev.categories,
+          testimonials: j.testimonials?.length ? j.testimonials : prev.testimonials,
+        }));
         setSource("api");
       })
       .catch((err) => {

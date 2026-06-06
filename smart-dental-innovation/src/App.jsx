@@ -95,7 +95,7 @@ function Shell() {
             key={s.key}
             eyebrow={s.eyebrow}
             title={s.label}
-            products={sections[s.key] || []}
+            products={(sections || {})[s.key] || []}
             accent={s.accent}
           />
         );
