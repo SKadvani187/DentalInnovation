@@ -10,7 +10,7 @@ define('DB_CHARSET', 'utf8mb4');
 
 // App Settings
 define('APP_NAME', 'DentInno CRM');
-define('APP_URL', 'http://localhost:80/dentinno');
+define('APP_URL', 'http://localhost:8088');
 define('APP_VERSION', '1.0.0');
 define('TIMEZONE', 'Asia/Kolkata');
 

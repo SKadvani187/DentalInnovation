@@ -2,23 +2,38 @@ import { useEffect, useRef, useState } from "react";
 import { useUI } from "../../context/UIContext";
 import { useSettings } from "../../context/SettingsContext";
 
+const ABOUT_BLOCKS = {
+  hero: HeroSection,
+  story: OurStory,
+  stats: StatsStrip,
+  milestones: Milestones,
+  coreValues: CoreValues,
+  leadership: Leadership,
+  whyTrust: WhyTrust,
+  missionVision: MissionVision,
+  testimonials: Testimonials,
+  certifications: Certifications,
+  whatWeOffer: WhatWeOffer,
+  cta: ReadyCTA,
+  contactStrip: ContactStrip,
+  socialStrip: SocialStrip,
+};
+
+const ABOUT_DEFAULT = [
+  "hero","story","stats","milestones","coreValues","leadership","whyTrust",
+  "missionVision","testimonials","certifications","whatWeOffer","cta","contactStrip","socialStrip",
+];
+
 export default function AboutPage() {
+  const { aboutSections } = useSettings();
+  const layout = (aboutSections?.length ? aboutSections : ABOUT_DEFAULT.map((k) => ({ key: k, enabled: true })))
+    .filter((s) => s.enabled !== false);
   return (
     <div>
-      <HeroSection />
-      <OurStory />
-      <StatsStrip />
-      <Milestones />
-      <CoreValues />
-      <Leadership />
-      <WhyTrust />
-      <MissionVision />
-      <Testimonials />
-      <Certifications />
-      <WhatWeOffer />
-      <ReadyCTA />
-      <ContactStrip />
-      <SocialStrip />
+      {layout.map((s) => {
+        const Block = ABOUT_BLOCKS[s.key];
+        return Block ? <Block key={s.key} /> : null;
+      })}
     </div>
   );
 }

@@ -22,6 +22,8 @@ import AuthModal from "./components/modals/AuthModal";
 import SearchModal from "./components/modals/SearchModal";
 import BulkQuoteModal from "./components/modals/BulkQuoteModal";
 import CategoryPage from "./components/pages/CategoryPage";
+import ShopByPricePage from "./components/pages/ShopByPricePage";
+import GreatValuePage from "./components/pages/GreatValuePage";
 import CombosPage from "./components/pages/CombosPage";
 import EventsPage from "./components/pages/EventsPage";
 import AboutPage from "./components/pages/AboutPage";
@@ -109,8 +111,12 @@ function Shell() {
     <>
       <NavigationHeader />
       <main>
-        {view.name === "category" || view.name === "gvp" ? (
+        {view.name === "category" ? (
           <CategoryPage />
+        ) : view.name === "gvp" ? (
+          <GreatValuePage />
+        ) : view.name === "shopByPrice" ? (
+          <ShopByPricePage />
         ) : view.name === "combos" ? (
           <CombosPage />
         ) : view.name === "events" ? (

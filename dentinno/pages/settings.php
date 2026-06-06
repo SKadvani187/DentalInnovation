@@ -452,8 +452,30 @@ include __DIR__ . '/../includes/header.php';
 </div>
 
 <div data-cfg="contact">
+<div class="card fade-in" style="margin-top:14px;padding:6px;">
+  <div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px;align-items:center;">
+    <span class="text-muted" style="font-size:.78rem;margin-right:4px;"><i class="fa-solid fa-layer-group text-gold"></i> Section:</span>
+    <button type="button" class="btn btn-ghost btn-sm subtab-contact" data-sec="layout" onclick="showSubSec('contact','layout')">🧩 Page Layout</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-contact" data-sec="company" onclick="showSubSec('contact','company')">🏪 Company Info</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-contact" data-sec="hero" onclick="showSubSec('contact','hero')">📢 Hero</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-contact" data-sec="quick" onclick="showSubSec('contact','quick')">⚡ Quick Actions</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-contact" data-sec="form" onclick="showSubSec('contact','form')">✏️ Form</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-contact" data-sec="reach" onclick="showSubSec('contact','reach')">📇 Reach Us</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-contact" data-sec="hours" onclick="showSubSec('contact','hours')">🕐 Hours</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-contact" data-sec="office" onclick="showSubSec('contact','office')">📍 Our Office</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-contact" data-sec="faq" onclick="showSubSec('contact','faq')">❓ FAQs</button>
+  </div>
+</div>
+<!-- Contact Page Layout (show/hide sections) -->
+<div class="card fade-in" data-subcard="contact" data-seckey="layout" style="margin-top:14px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-table-cells text-gold" style="margin-right:8px;"></i>Page Layout</span><small class="text-muted">Show/hide &amp; reorder Contact sections</small></div>
+  <div class="card-body">
+    <div id="contactlayout_rows"></div>
+    <button class="btn btn-gold" style="margin-top:10px;" onclick="saveContactLayout()"><i class="fa-solid fa-floppy-disk"></i> Save Layout</button>
+  </div>
+</div>
 <!-- Storefront Company / Contact Info -->
-<div class="card fade-in" style="margin-top:18px;">
+<div class="card fade-in" data-subcard="contact" data-seckey="company" style="margin-top:14px;">
     <div class="card-header">
         <span class="card-title"><i class="fa-solid fa-store text-gold" style="margin-right:8px;"></i>Storefront Company Info</span>
         <small class="text-muted">Shown across the storefront (header, footer, contact page)</small>
@@ -602,7 +624,7 @@ HTML;
 </div>
 
 <!-- 1. Hero section -->
-<div class="card fade-in" style="margin-top:14px;">
+<div class="card fade-in" data-subcard="contact" data-seckey="hero" style="margin-top:14px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-rectangle-ad text-gold" style="margin-right:8px;"></i>1. Hero Banner</span><small class="text-muted">Top blue header</small></div>
   <div class="card-body">
     <div class="grid-2" style="gap:14px;">
@@ -618,7 +640,7 @@ HTML;
 </div>
 
 <!-- 2. Quick action cards -->
-<div class="card fade-in" style="margin-top:14px;">
+<div class="card fade-in" data-subcard="contact" data-seckey="quick" style="margin-top:14px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-bolt text-gold" style="margin-right:8px;"></i>2. Quick Action Cards</span><small class="text-muted">WhatsApp / Call / Email / Visit labels</small></div>
   <div class="card-body">
     <div class="grid-2" style="gap:10px;">
@@ -632,7 +654,7 @@ HTML;
 </div>
 
 <!-- 3. Contact form -->
-<div class="card fade-in" style="margin-top:14px;">
+<div class="card fade-in" data-subcard="contact" data-seckey="form" style="margin-top:14px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-pen-to-square text-gold" style="margin-right:8px;"></i>3. Contact Form</span><small class="text-muted">Heading + department options</small></div>
   <div class="card-body">
     <div class="grid-2" style="gap:14px;">
@@ -657,7 +679,7 @@ HTML;
 </div>
 
 <!-- 4. Reach us directly (info comes from Company Info above + Socials in General) -->
-<div class="card fade-in" style="margin-top:14px;">
+<div class="card fade-in" data-subcard="contact" data-seckey="reach" style="margin-top:14px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-address-book text-gold" style="margin-right:8px;"></i>4. Reach Us Directly</span><small class="text-muted">Heading (phone/email = Company Info • socials = General config)</small></div>
   <div class="card-body">
     <div class="grid-2" style="gap:10px;">
@@ -672,7 +694,7 @@ HTML;
 </div>
 
 <!-- 5. Business hours -->
-<div class="card fade-in" style="margin-top:14px;">
+<div class="card fade-in" data-subcard="contact" data-seckey="hours" style="margin-top:14px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-clock text-gold" style="margin-right:8px;"></i>5. Business Hours</span></div>
   <div class="card-body">
     <div class="form-group"><label class="form-label">Section Heading</label><input type="text" class="form-control" id="lbl_hoursHeading" value="<?= htmlspecialchars($L['hoursHeading'] ?? '') ?>"></div>
@@ -700,7 +722,7 @@ HTML;
 </div>
 
 <!-- 6. Our Office -->
-<div class="card fade-in" style="margin-top:14px;">
+<div class="card fade-in" data-subcard="contact" data-seckey="office" style="margin-top:14px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-location-dot text-gold" style="margin-right:8px;"></i>6. Our Office</span><small class="text-muted">Map uses Company address • highlights below</small></div>
   <div class="card-body">
     <div class="grid-2" style="gap:10px;">
@@ -715,7 +737,7 @@ HTML;
 </div>
 
 <!-- 7. FAQs -->
-<div class="card fade-in" style="margin-top:14px;">
+<div class="card fade-in" data-subcard="contact" data-seckey="faq" style="margin-top:14px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-circle-question text-gold" style="margin-right:8px;"></i>7. FAQs</span></div>
   <div class="card-body">
     <div class="form-group"><label class="form-label">FAQ Section Heading</label><input type="text" class="form-control" id="lbl_faqHeading" value="<?= htmlspecialchars($L['faqHeading'] ?? '') ?>"></div>
@@ -729,12 +751,35 @@ HTML;
 
 <?php $A = $site['aboutConfig'] ?? []; ?>
 <div data-cfg="about">
-<div style="background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:10px;padding:10px 14px;margin-top:18px;font-size:.82rem;color:var(--text-secondary);">
-  <i class="fa-solid fa-circle-info text-gold"></i> About page sections, top-to-bottom. One <b>Save</b> at the end.
+<div class="card fade-in" style="margin-top:14px;padding:6px;">
+  <div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px;align-items:center;">
+    <span class="text-muted" style="font-size:.78rem;margin-right:4px;"><i class="fa-solid fa-layer-group text-gold"></i> Section:</span>
+    <button type="button" class="btn btn-ghost btn-sm subtab-about" data-sec="layout" onclick="showSubSec('about','layout')">🧩 Page Layout</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-about" data-sec="hero" onclick="showSubSec('about','hero')">📢 Hero</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-about" data-sec="story" onclick="showSubSec('about','story')">📖 Story</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-about" data-sec="stats" onclick="showSubSec('about','stats')">📊 Stats</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-about" data-sec="milestones" onclick="showSubSec('about','milestones')">📅 Milestones</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-about" data-sec="values" onclick="showSubSec('about','values')">💎 Values</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-about" data-sec="team" onclick="showSubSec('about','team')">👥 Team</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-about" data-sec="trust" onclick="showSubSec('about','trust')">🤝 Why Trust</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-about" data-sec="mission" onclick="showSubSec('about','mission')">🎯 Mission</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-about" data-sec="testi" onclick="showSubSec('about','testi')">💬 Testimonials</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-about" data-sec="certs" onclick="showSubSec('about','certs')">🏆 Certs</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-about" data-sec="cta" onclick="showSubSec('about','cta')">📣 CTA + Save</button>
+  </div>
+</div>
+
+<!-- About Page Layout (show/hide + reorder sections) -->
+<div class="card fade-in" data-subcard="about" data-seckey="layout" style="margin-top:14px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-table-cells text-gold" style="margin-right:8px;"></i>Page Layout</span><small class="text-muted">Show/hide &amp; reorder About sections</small></div>
+  <div class="card-body">
+    <div id="aboutlayout_rows"></div>
+    <button class="btn btn-gold" style="margin-top:10px;" onclick="saveAboutLayout()"><i class="fa-solid fa-floppy-disk"></i> Save Layout</button>
+  </div>
 </div>
 
 <!-- A1 Hero -->
-<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-rectangle-ad text-gold" style="margin-right:8px;"></i>1. Hero</span></div><div class="card-body">
+<div class="card fade-in" data-subcard="about" data-seckey="hero" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-rectangle-ad text-gold" style="margin-right:8px;"></i>Hero</span></div><div class="card-body">
   <div class="grid-2" style="gap:12px;">
     <div class="form-group"><label class="form-label">Badge</label><input type="text" class="form-control" id="ab_hero_badge" value="<?= htmlspecialchars($A['hero']['badge'] ?? '') ?>"></div>
     <div class="form-group"><label class="form-label">Card Title</label><input type="text" class="form-control" id="ab_hero_cardTitle" value="<?= htmlspecialchars($A['hero']['cardTitle'] ?? '') ?>"></div>
@@ -747,7 +792,7 @@ HTML;
 </div></div>
 
 <!-- A2 Our Story -->
-<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-book-open text-gold" style="margin-right:8px;"></i>2. Our Story</span></div><div class="card-body">
+<div class="card fade-in" data-subcard="about" data-seckey="story" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-book-open text-gold" style="margin-right:8px;"></i>Our Story</span></div><div class="card-body">
   <div class="grid-2" style="gap:12px;">
     <div class="form-group"><label class="form-label">Label</label><input type="text" class="form-control" id="ab_story_label" value="<?= htmlspecialchars($A['story']['label'] ?? '') ?>"></div>
     <div class="form-group"><label class="form-label">Heading</label><input type="text" class="form-control" id="ab_story_heading" value="<?= htmlspecialchars($A['story']['heading'] ?? '') ?>"></div>
@@ -761,12 +806,12 @@ HTML;
 </div></div>
 
 <!-- A3 Stats Strip -->
-<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-chart-simple text-gold" style="margin-right:8px;"></i>3. Stats Strip</span></div><div class="card-body">
+<div class="card fade-in" data-subcard="about" data-seckey="stats" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-chart-simple text-gold" style="margin-right:8px;"></i>Stats Strip</span></div><div class="card-body">
   <div id="ab_stats"></div><button class="btn btn-ghost btn-sm" onclick="abAdd('stats',{value:'',label:''})"><i class="fa-solid fa-plus"></i> Add Stat</button>
 </div></div>
 
 <!-- A4 Milestones -->
-<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-timeline text-gold" style="margin-right:8px;"></i>4. Milestones</span></div><div class="card-body">
+<div class="card fade-in" data-subcard="about" data-seckey="milestones" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-timeline text-gold" style="margin-right:8px;"></i>Milestones</span></div><div class="card-body">
   <div class="grid-2" style="gap:12px;">
     <div class="form-group"><label class="form-label">Label</label><input type="text" class="form-control" id="ab_ms_label" value="<?= htmlspecialchars($A['milestones']['label'] ?? '') ?>"></div>
     <div class="form-group"><label class="form-label">Heading</label><input type="text" class="form-control" id="ab_ms_heading" value="<?= htmlspecialchars($A['milestones']['heading'] ?? '') ?>"></div>
@@ -776,7 +821,7 @@ HTML;
 </div></div>
 
 <!-- A5 Core Values -->
-<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-gem text-gold" style="margin-right:8px;"></i>5. Core Values</span></div><div class="card-body">
+<div class="card fade-in" data-subcard="about" data-seckey="values" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-gem text-gold" style="margin-right:8px;"></i>Core Values</span></div><div class="card-body">
   <div class="grid-2" style="gap:12px;">
     <div class="form-group"><label class="form-label">Label</label><input type="text" class="form-control" id="ab_cv_label" value="<?= htmlspecialchars($A['coreValues']['label'] ?? '') ?>"></div>
     <div class="form-group"><label class="form-label">Heading</label><input type="text" class="form-control" id="ab_cv_heading" value="<?= htmlspecialchars($A['coreValues']['heading'] ?? '') ?>"></div>
@@ -786,7 +831,7 @@ HTML;
 </div></div>
 
 <!-- A6 Leadership -->
-<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-users text-gold" style="margin-right:8px;"></i>6. Leadership / Team</span></div><div class="card-body">
+<div class="card fade-in" data-subcard="about" data-seckey="team" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-users text-gold" style="margin-right:8px;"></i>Leadership / Team</span></div><div class="card-body">
   <div class="grid-2" style="gap:12px;">
     <div class="form-group"><label class="form-label">Label</label><input type="text" class="form-control" id="ab_ld_label" value="<?= htmlspecialchars($A['leadership']['label'] ?? '') ?>"></div>
     <div class="form-group"><label class="form-label">Heading</label><input type="text" class="form-control" id="ab_ld_heading" value="<?= htmlspecialchars($A['leadership']['heading'] ?? '') ?>"></div>
@@ -797,7 +842,7 @@ HTML;
 </div></div>
 
 <!-- A7 Why Trust -->
-<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-handshake text-gold" style="margin-right:8px;"></i>7. Why Trust Us</span></div><div class="card-body">
+<div class="card fade-in" data-subcard="about" data-seckey="trust" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-handshake text-gold" style="margin-right:8px;"></i>Why Trust Us</span></div><div class="card-body">
   <div class="grid-2" style="gap:12px;">
     <div class="form-group"><label class="form-label">Label</label><input type="text" class="form-control" id="ab_wt_label" value="<?= htmlspecialchars($A['whyTrust']['label'] ?? '') ?>"></div>
     <div class="form-group"><label class="form-label">Heading</label><input type="text" class="form-control" id="ab_wt_heading" value="<?= htmlspecialchars($A['whyTrust']['heading'] ?? '') ?>"></div>
@@ -812,7 +857,7 @@ HTML;
 </div></div>
 
 <!-- A8 Mission/Vision -->
-<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-bullseye text-gold" style="margin-right:8px;"></i>8. Mission & Vision</span></div><div class="card-body">
+<div class="card fade-in" data-subcard="about" data-seckey="mission" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-bullseye text-gold" style="margin-right:8px;"></i>Mission & Vision</span></div><div class="card-body">
   <div class="grid-2" style="gap:12px;">
     <div class="form-group"><label class="form-label">Label</label><input type="text" class="form-control" id="ab_mv_label" value="<?= htmlspecialchars($A['missionVision']['label'] ?? '') ?>"></div>
     <div class="form-group"><label class="form-label">Heading</label><input type="text" class="form-control" id="ab_mv_heading" value="<?= htmlspecialchars($A['missionVision']['heading'] ?? '') ?>"></div>
@@ -823,7 +868,7 @@ HTML;
 </div></div>
 
 <!-- A9 Testimonials -->
-<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-quote-left text-gold" style="margin-right:8px;"></i>9. Testimonials</span></div><div class="card-body">
+<div class="card fade-in" data-subcard="about" data-seckey="testi" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-quote-left text-gold" style="margin-right:8px;"></i>Testimonials</span></div><div class="card-body">
   <div class="grid-2" style="gap:12px;">
     <div class="form-group"><label class="form-label">Label</label><input type="text" class="form-control" id="ab_ts_label" value="<?= htmlspecialchars($A['testimonials']['label'] ?? '') ?>"></div>
     <div class="form-group"><label class="form-label">Heading</label><input type="text" class="form-control" id="ab_ts_heading" value="<?= htmlspecialchars($A['testimonials']['heading'] ?? '') ?>"></div>
@@ -832,7 +877,7 @@ HTML;
 </div></div>
 
 <!-- A10 Certifications -->
-<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-certificate text-gold" style="margin-right:8px;"></i>10. Certifications</span></div><div class="card-body">
+<div class="card fade-in" data-subcard="about" data-seckey="certs" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-certificate text-gold" style="margin-right:8px;"></i>Certifications</span></div><div class="card-body">
   <div class="grid-2" style="gap:12px;">
     <div class="form-group"><label class="form-label">Label</label><input type="text" class="form-control" id="ab_ce_label" value="<?= htmlspecialchars($A['certifications']['label'] ?? '') ?>"></div>
     <div class="form-group"><label class="form-label">Heading</label><input type="text" class="form-control" id="ab_ce_heading" value="<?= htmlspecialchars($A['certifications']['heading'] ?? '') ?>"></div>
@@ -841,7 +886,7 @@ HTML;
 </div></div>
 
 <!-- A11 CTA -->
-<div class="card fade-in" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-bullhorn text-gold" style="margin-right:8px;"></i>11. Bottom CTA</span></div><div class="card-body">
+<div class="card fade-in" data-subcard="about" data-seckey="cta" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-bullhorn text-gold" style="margin-right:8px;"></i>Bottom CTA</span></div><div class="card-body">
   <div class="grid-2" style="gap:12px;">
     <div class="form-group"><label class="form-label">Label</label><input type="text" class="form-control" id="ab_cta_label" value="<?= htmlspecialchars($A['cta']['label'] ?? '') ?>"></div>
     <div class="form-group"><label class="form-label">Heading</label><input type="text" class="form-control" id="ab_cta_heading" value="<?= htmlspecialchars($A['cta']['heading'] ?? '') ?>"></div>
@@ -926,9 +971,27 @@ HTML;
 
 </div><!-- /home group -->
 <div data-cfg="general">
+<div class="card fade-in" style="margin-top:14px;padding:6px;">
+  <div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px;align-items:center;">
+    <span class="text-muted" style="font-size:.78rem;margin-right:4px;"><i class="fa-solid fa-layer-group text-gold"></i> Section:</span>
+    <button type="button" class="btn btn-ghost btn-sm subtab-general" data-sec="navmenu" onclick="showSubSec('general','navmenu')">🧭 Navbar Menu</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-general" data-sec="socials" onclick="showSubSec('general','socials')">🔗 Social Links</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-general" data-sec="policy" onclick="showSubSec('general','policy')">📄 Policy Pages</button>
+  </div>
+</div>
+
+<!-- Navbar Menu -->
+<div class="card fade-in" data-subcard="general" data-seckey="navmenu" style="margin-top:14px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-compass text-gold" style="margin-right:8px;"></i>Navbar Menu</span><small class="text-muted">Show/hide, reorder &amp; rename top menu items</small></div>
+  <div class="card-body">
+    <div class="text-muted" style="font-size:.74rem;margin-bottom:8px;">Drag arrows to reorder. Toggle to show/hide. Rename label freely (route stays fixed).</div>
+    <div id="nav_rows"></div>
+    <button class="btn btn-gold" style="margin-top:8px;" onclick="saveNavMenu()"><i class="fa-solid fa-floppy-disk"></i> Save Navbar Menu</button>
+  </div>
+</div>
 <!-- Socials -->
-<div class="card fade-in" style="margin-top:18px;">
-  <div class="card-header"><span class="card-title"><i class="fa-solid fa-share-nodes text-gold" style="margin-right:8px;"></i>Social Links</span></div>
+<div class="card fade-in" data-subcard="general" data-seckey="socials" style="margin-top:14px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-share-nodes text-gold" style="margin-right:8px;"></i>Social Links</span><small class="text-muted">Header bar, footer &amp; contact page</small></div>
   <div class="card-body">
     <div id="social_rows"></div>
     <button class="btn btn-ghost btn-sm" onclick="addSocialRow()"><i class="fa-solid fa-plus"></i> Add Social</button>
@@ -937,7 +1000,7 @@ HTML;
 </div>
 
 <!-- Policy Pages -->
-<div class="card fade-in" style="margin-top:18px;">
+<div class="card fade-in" data-subcard="general" data-seckey="policy" style="margin-top:14px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-file-contract text-gold" style="margin-right:8px;"></i>Policy Pages</span><small class="text-muted">Return / Terms / Privacy — shown in footer links</small></div>
   <div class="card-body">
     <div style="display:flex;gap:6px;margin-bottom:10px;">
@@ -955,9 +1018,28 @@ HTML;
 
 </div><!-- /general group -->
 <div data-cfg="catalog">
+<div class="card fade-in" style="margin-top:14px;padding:6px;">
+  <div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px;align-items:center;">
+    <span class="text-muted" style="font-size:.78rem;margin-right:4px;"><i class="fa-solid fa-layer-group text-gold"></i> Section:</span>
+    <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="payment" onclick="showSubSec('catalog','payment')">💳 Payments</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="benefits" onclick="showSubSec('catalog','benefits')">🛡️ Benefits</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="pricing" onclick="showSubSec('catalog','pricing')">🏷️ Pricing</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="offerhero" onclick="showSubSec('catalog','offerhero')">🔥 Offer Zone</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="combospage" onclick="showSubSec('catalog','combospage')">📦 Combos Page</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="gvppage" onclick="showSubSec('catalog','gvppage')">🔥 Great Value Page</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="sbppage" onclick="showSubSec('catalog','sbppage')">₹ Shop by Price Page</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="tier" onclick="showSubSec('catalog','tier')">📦 Tiers</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="presets" onclick="showSubSec('catalog','presets')">₹ Presets</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="sort" onclick="showSubSec('catalog','sort')">↕️ Sort</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="fbt" onclick="showSubSec('catalog','fbt')">🛒 FBT</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="gifts" onclick="showSubSec('catalog','gifts')">🎁 Gifts</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="featured" onclick="showSubSec('catalog','featured')">🌟 Featured</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="content" onclick="showSubSec('catalog','content')">❓ Product Content</button>
+  </div>
+</div>
 <!-- Payments -->
-<div class="card fade-in" style="margin-top:18px;">
-  <div class="card-header"><span class="card-title"><i class="fa-solid fa-credit-card text-gold" style="margin-right:8px;"></i>Payment Methods</span></div>
+<div class="card fade-in" data-subcard="catalog" data-seckey="payment" style="margin-top:14px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-credit-card text-gold" style="margin-right:8px;"></i>Payment Methods</span><small class="text-muted">Checkout payment options</small></div>
   <div class="card-body">
     <div id="pay_rows"></div>
     <button class="btn btn-ghost btn-sm" onclick="addPayRow()"><i class="fa-solid fa-plus"></i> Add Payment</button>
@@ -966,7 +1048,7 @@ HTML;
 </div>
 
 <!-- Product Benefits -->
-<div class="card fade-in" style="margin-top:18px;">
+<div class="card fade-in" data-subcard="catalog" data-seckey="benefits" style="margin-top:14px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-shield-halved text-gold" style="margin-right:8px;"></i>Product Benefits</span><small class="text-muted">Secure Payment / Replacement / Genuine badges</small></div>
   <div class="card-body">
     <div id="benefit_rows"></div>
@@ -976,7 +1058,7 @@ HTML;
 </div>
 
 <!-- Pricing rules: bulk + tier + freeGifts threshold + priceBounds + productDefaults -->
-<div class="card fade-in" style="margin-top:18px;">
+<div class="card fade-in" data-subcard="catalog" data-seckey="pricing" style="margin-top:14px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-tags text-gold" style="margin-right:8px;"></i>Pricing & Offers Rules</span></div>
   <div class="card-body">
     <div class="grid-2" style="gap:16px;">
@@ -994,7 +1076,7 @@ HTML;
 
 <!-- Offer Zone Hero -->
 <?php $OZ = $site['offerZoneHero'] ?? []; ?>
-<div class="card fade-in" style="margin-top:18px;">
+<div class="card fade-in" data-subcard="catalog" data-seckey="offerhero" style="margin-top:14px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-fire text-gold" style="margin-right:8px;"></i>Offer Zone Hero</span><small class="text-muted">Save amount + counts auto-computed from offers</small></div>
   <div class="card-body">
     <div class="grid-2" style="gap:12px;">
@@ -1005,15 +1087,81 @@ HTML;
       <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Subtitle</label><textarea class="form-control" id="oz_subtitle" rows="2"><?= htmlspecialchars($OZ['subtitle'] ?? '') ?></textarea></div>
       <div class="form-group"><label class="form-label">Countdown label</label><input type="text" class="form-control" id="oz_expiryLabel" value="<?= htmlspecialchars($OZ['expiryLabel'] ?? '') ?>"></div>
       <div class="form-group"><label class="form-label">Restock note</label><input type="text" class="form-control" id="oz_restockNote" value="<?= htmlspecialchars($OZ['restockNote'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Card badge: "Limited Time Offer"</label><input type="text" class="form-control" id="oz_limitedLabel" value="<?= htmlspecialchars($OZ['limitedLabel'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Card badge: "Top Deal"</label><input type="text" class="form-control" id="oz_topDealLabel" value="<?= htmlspecialchars($OZ['topDealLabel'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">"Grab This Deal" button</label><input type="text" class="form-control" id="oz_grabCta" value="<?= htmlspecialchars($OZ['grabCta'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">"Free Items Included" label</label><input type="text" class="form-control" id="oz_freeItemsLabel" value="<?= htmlspecialchars($OZ['freeItemsLabel'] ?? '') ?>"></div>
+      <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Urgency note (&lt;12 hrs left)</label><input type="text" class="form-control" id="oz_urgentNote" value="<?= htmlspecialchars($OZ['urgentNote'] ?? '') ?>"></div>
     </div>
-    <button class="btn btn-gold" style="margin-top:10px;" onclick="saveOfferHero()"><i class="fa-solid fa-floppy-disk"></i> Save Offer Zone Hero</button>
+    <label class="form-label" style="font-weight:700;margin-top:10px;">Trust Strip (bottom 4 cards)</label>
+    <div class="text-muted" style="font-size:.72rem;margin-bottom:6px;">icon = shield / ship / doctor / returns</div>
+    <div id="oz_vp_rows"></div>
+    <button class="btn btn-ghost btn-sm" onclick="ozAddVp()"><i class="fa-solid fa-plus"></i> Add Card</button>
+    <button class="btn btn-gold" style="margin-top:10px;margin-left:8px;" onclick="saveOfferHero()"><i class="fa-solid fa-floppy-disk"></i> Save Offer Zone Hero</button>
+  </div>
+</div>
+
+<!-- Combos Page -->
+<?php $CP = $site['combosPage'] ?? []; ?>
+<div class="card fade-in" data-subcard="catalog" data-seckey="combospage" style="margin-top:14px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-box-open text-gold" style="margin-right:8px;"></i>Combos Page</span><small class="text-muted">Hero, labels &amp; trust strip (combo cards = Combos menu)</small></div>
+  <div class="card-body">
+    <div class="grid-2" style="gap:12px;">
+      <div class="form-group"><label class="form-label">Hero Badge</label><input type="text" class="form-control" id="cp_heroBadge" value="<?= htmlspecialchars($CP['heroBadge'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Hero Title</label><input type="text" class="form-control" id="cp_heroTitle" value="<?= htmlspecialchars($CP['heroTitle'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Save prefix</label><input type="text" class="form-control" id="cp_savePrefix" value="<?= htmlspecialchars($CP['savePrefix'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Save suffix (e.g. "across")</label><input type="text" class="form-control" id="cp_saveSuffix" value="<?= htmlspecialchars($CP['saveSuffix'] ?? '') ?>"></div>
+      <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Subtitle</label><textarea class="form-control" id="cp_subtitle" rows="2"><?= htmlspecialchars($CP['subtitle'] ?? '') ?></textarea></div>
+      <div class="form-group"><label class="form-label">Bundle note (card)</label><input type="text" class="form-control" id="cp_bundleNote" value="<?= htmlspecialchars($CP['bundleNote'] ?? '') ?>"></div>
+      <div class="form-group"><label class="form-label">Low-stock threshold <small class="text-muted">(stock ≤ this → "Low Stock! Hurry")</small></label><input type="number" min="0" class="form-control" id="cp_lowStock" value="<?= htmlspecialchars($site['lowStockThreshold'] ?? 10) ?>"></div>
+    </div>
+    <label class="form-label" style="font-weight:700;margin-top:10px;">Trust Strip (4 cards)</label>
+    <div class="text-muted" style="font-size:.72rem;margin-bottom:6px;">icon = shield / save / ship / help</div>
+    <div id="cp_trust_rows"></div>
+    <button class="btn btn-ghost btn-sm" onclick="cpAddTrust()"><i class="fa-solid fa-plus"></i> Add Card</button>
+    <button class="btn btn-gold" style="margin-top:10px;margin-left:8px;" onclick="saveCombosPage()"><i class="fa-solid fa-floppy-disk"></i> Save Combos Page</button>
+  </div>
+</div>
+
+<!-- Great Value Page -->
+<?php $GVP = $site['gvpPage'] ?? []; ?>
+<div class="card fade-in" data-subcard="catalog" data-seckey="gvppage" style="margin-top:14px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-fire text-gold" style="margin-right:8px;"></i>Great Value Page</span><small class="text-muted">Hero copy + stat labels (products auto-filtered by min discount above)</small></div>
+  <div class="card-body">
+    <div class="grid-2" style="gap:12px;">
+      <div class="form-group"><label class="form-label">Hero Badge</label><input type="text" class="form-control" id="gvp_heroBadge" value="<?= htmlspecialchars($GVP['heroBadge'] ?? '') ?>" placeholder="Great Value Deals"></div>
+      <div class="form-group"><label class="form-label">Hero Title</label><input type="text" class="form-control" id="gvp_heroTitle" value="<?= htmlspecialchars($GVP['heroTitle'] ?? '') ?>" placeholder="Best Value Products"></div>
+      <div class="form-group"><label class="form-label">Save prefix</label><input type="text" class="form-control" id="gvp_savePrefix" value="<?= htmlspecialchars($GVP['savePrefix'] ?? '') ?>" placeholder="Save up to"></div>
+      <div class="form-group"><label class="form-label">Save suffix</label><input type="text" class="form-control" id="gvp_saveSuffix" value="<?= htmlspecialchars($GVP['saveSuffix'] ?? '') ?>" placeholder="across"></div>
+      <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Subtitle</label><textarea class="form-control" id="gvp_subtitle" rows="2"><?= htmlspecialchars($GVP['subtitle'] ?? '') ?></textarea></div>
+      <div class="form-group"><label class="form-label">Stat: deals label</label><input type="text" class="form-control" id="gvp_statDeals" value="<?= htmlspecialchars($GVP['statDeals'] ?? '') ?>" placeholder="Live deals"></div>
+      <div class="form-group"><label class="form-label">Stat: discount label</label><input type="text" class="form-control" id="gvp_statDiscount" value="<?= htmlspecialchars($GVP['statDiscount'] ?? '') ?>" placeholder="Max discount"></div>
+      <div class="form-group"><label class="form-label">Stat: savings label</label><input type="text" class="form-control" id="gvp_statSavings" value="<?= htmlspecialchars($GVP['statSavings'] ?? '') ?>" placeholder="Total savings"></div>
+    </div>
+    <button class="btn btn-gold" onclick="saveGvpPage()"><i class="fa-solid fa-floppy-disk"></i> Save Great Value Page</button>
+  </div>
+</div>
+
+<!-- Shop by Price Page -->
+<?php $SBP = $site['shopByPricePage'] ?? []; ?>
+<div class="card fade-in" data-subcard="catalog" data-seckey="sbppage" style="margin-top:14px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-indian-rupee-sign text-gold" style="margin-right:8px;"></i>Shop by Price Page</span><small class="text-muted">Hero copy + custom-range labels (buckets come from Price Presets &amp; Price Min/Max above)</small></div>
+  <div class="card-body">
+    <div class="grid-2" style="gap:12px;">
+      <div class="form-group"><label class="form-label">Hero Badge</label><input type="text" class="form-control" id="sbp_heroBadge" value="<?= htmlspecialchars($SBP['heroBadge'] ?? '') ?>" placeholder="Shop by Budget"></div>
+      <div class="form-group"><label class="form-label">Hero Title</label><input type="text" class="form-control" id="sbp_heroTitle" value="<?= htmlspecialchars($SBP['heroTitle'] ?? '') ?>" placeholder="Shop by Price"></div>
+      <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Subtitle</label><textarea class="form-control" id="sbp_subtitle" rows="2"><?= htmlspecialchars($SBP['subtitle'] ?? '') ?></textarea></div>
+      <div class="form-group"><label class="form-label">Custom range label</label><input type="text" class="form-control" id="sbp_customLabel" value="<?= htmlspecialchars($SBP['customLabel'] ?? '') ?>" placeholder="Custom Range"></div>
+      <div class="form-group"><label class="form-label">Custom range desc</label><input type="text" class="form-control" id="sbp_customDesc" value="<?= htmlspecialchars($SBP['customDesc'] ?? '') ?>" placeholder="Set your own budget"></div>
+    </div>
+    <button class="btn btn-gold" onclick="saveSbpPage()"><i class="fa-solid fa-floppy-disk"></i> Save Shop by Price Page</button>
   </div>
 </div>
 
 <?php
-function listCard($id, $title, $desc, $addLabel, $saveFn, $addFn) {
+function listCard($id, $title, $desc, $addLabel, $saveFn, $addFn, $seckey='') {
   echo <<<HTML
-<div class="card fade-in" style="margin-top:18px;">
+<div class="card fade-in" data-subcard="catalog" data-seckey="$seckey" style="margin-top:14px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-list text-gold" style="margin-right:8px;"></i>$title</span><small class="text-muted">$desc</small></div>
   <div class="card-body">
     <div id="{$id}_rows"></div>
@@ -1023,16 +1171,16 @@ function listCard($id, $title, $desc, $addLabel, $saveFn, $addFn) {
 </div>
 HTML;
 }
-listCard('tier', 'Tier Offers', 'Bulk discount tiers (Buy 2 / Buy 5)', 'Add Tier', 'saveTiers', 'addTierRow');
-listCard('fbt', 'Frequently Bought Together', 'Cart cross-sell items', 'Add Item', 'saveFbt', 'addFbtRow');
-listCard('fg', 'Free Gift Items', 'Gifts unlocked above threshold', 'Add Gift', 'saveFreeGifts', 'addFgRow');
-listCard('feat', 'Featured Showcase Cards', 'Home featured product banners', 'Add Card', 'saveFeatured', 'addFeatRow');
-listCard('sort', 'Sort Options', 'Category / combos sort dropdown', 'Add Option', 'saveSort', 'addSortRow');
-listCard('pp', 'Price Presets', 'Shop-by-price quick filters', 'Add Preset', 'savePresets', 'addPpRow');
+listCard('tier', 'Tier Offers', 'Bulk discount tiers (Buy 2 / Buy 5)', 'Add Tier', 'saveTiers', 'addTierRow', 'tier');
+listCard('pp', 'Price Presets', 'Shop-by-price quick filters', 'Add Preset', 'savePresets', 'addPpRow', 'presets');
+listCard('sort', 'Sort Options', 'Category / combos sort dropdown', 'Add Option', 'saveSort', 'addSortRow', 'sort');
+listCard('fbt', 'Frequently Bought Together', 'Cart cross-sell items', 'Add Item', 'saveFbt', 'addFbtRow', 'fbt');
+listCard('fg', 'Free Gift Items', 'Gifts unlocked above threshold', 'Add Gift', 'saveFreeGifts', 'addFgRow', 'gifts');
+listCard('feat', 'Featured Showcase Cards', 'Home featured product banners', 'Add Card', 'saveFeatured', 'addFeatRow', 'featured');
 ?>
 
 <!-- Product Content (FAQ / Highlights / Accordions) -->
-<div class="card fade-in" style="margin-top:18px;">
+<div class="card fade-in" data-subcard="catalog" data-seckey="content" style="margin-top:14px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-circle-question text-gold" style="margin-right:8px;"></i>Product Content (Default FAQ / Highlights)</span><small class="text-muted">Default content shown on product pages</small></div>
   <div class="card-body">
     <label class="form-label" style="font-weight:700;">Highlights</label>
@@ -1213,6 +1361,31 @@ function renderPp(){ document.getElementById('pp_rows').innerHTML = PP.map((p,i)
   </div>`).join(''); }
 function addPpRow(){ PP.push({label:'',max:0}); renderPp(); }
 function savePresets(){ saveSetting('pricePresets', PP, 'Price presets'); }
+
+// ---- Great Value Page chrome ----
+function saveGvpPage(){
+  saveSetting('gvpPage', {
+    heroBadge:    document.getElementById('gvp_heroBadge').value,
+    heroTitle:    document.getElementById('gvp_heroTitle').value,
+    savePrefix:   document.getElementById('gvp_savePrefix').value,
+    saveSuffix:   document.getElementById('gvp_saveSuffix').value,
+    subtitle:     document.getElementById('gvp_subtitle').value,
+    statDeals:    document.getElementById('gvp_statDeals').value,
+    statDiscount: document.getElementById('gvp_statDiscount').value,
+    statSavings:  document.getElementById('gvp_statSavings').value,
+  }, 'Great Value Page');
+}
+
+// ---- Shop by Price Page chrome ----
+function saveSbpPage(){
+  saveSetting('shopByPricePage', {
+    heroBadge:   document.getElementById('sbp_heroBadge').value,
+    heroTitle:   document.getElementById('sbp_heroTitle').value,
+    subtitle:    document.getElementById('sbp_subtitle').value,
+    customLabel: document.getElementById('sbp_customLabel').value,
+    customDesc:  document.getElementById('sbp_customDesc').value,
+  }, 'Shop by Price Page');
+}
 
 // ---- Product Content (highlights / accordions / faqs) ----
 let PC = <?= json_encode($site['productContent'] ?? ['highlights'=>[],'accordions'=>[],'faqs'=>[]], JSON_UNESCAPED_SLASHES) ?>;
@@ -1455,6 +1628,47 @@ function saveAbout(){
   saveSetting('aboutConfig', cfg, 'About page');
 }
 
+// ---- Navbar menu (show/hide/reorder/rename) ----
+let NAV = <?= json_encode($site['navMenu'] ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?> || [];
+function renderNav(){
+  document.getElementById('nav_rows').innerHTML = NAV.map((m,i)=>`
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;border:1px solid var(--border-color);border-radius:8px;padding:8px;${m.enabled===false?'opacity:.55;':''}">
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <button class="btn btn-ghost btn-sm" style="padding:0 6px;" ${i===0?'disabled':''} onclick="navMove(${i},-1)"><i class="fa-solid fa-chevron-up"></i></button>
+        <button class="btn btn-ghost btn-sm" style="padding:0 6px;" ${i===NAV.length-1?'disabled':''} onclick="navMove(${i},1)"><i class="fa-solid fa-chevron-down"></i></button>
+      </div>
+      <input class="form-control" value="${(m.label||'').replace(/"/g,'&quot;')}" oninput="NAV[${i}].label=this.value" style="flex:1;">
+      <span class="text-muted" style="font-size:.7rem;width:70px;">${m.view}</span>
+      <label style="display:flex;align-items:center;gap:5px;font-size:.78rem;cursor:pointer;white-space:nowrap;">
+        <input type="checkbox" ${m.enabled!==false?'checked':''} onchange="NAV[${i}].enabled=this.checked;renderNav()"> Show
+      </label>
+    </div>`).join('');
+}
+function navMove(i,dir){ const j=i+dir; if(j<0||j>=NAV.length)return; [NAV[i],NAV[j]]=[NAV[j],NAV[i]]; renderNav(); }
+function saveNavMenu(){ saveSetting('navMenu', NAV, 'Navbar menu'); }
+
+// ---- Generic page-layout editor (About / Contact section show-hide + reorder) ----
+let ABOUT_LAYOUT   = <?= json_encode($site['aboutSections']   ?? [], JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?> || [];
+let CONTACT_LAYOUT = <?= json_encode($site['contactSections'] ?? [], JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?> || [];
+function renderLayout(arr, containerId, moveFn){
+  document.getElementById(containerId).innerHTML = arr.map((s,i)=>`
+    <div style="display:flex;gap:10px;align-items:center;border:1px solid var(--border-color);border-radius:8px;padding:10px;margin-bottom:6px;background:${s.enabled===false?'var(--bg-elevated)':'transparent'};">
+      <span style="color:var(--text-muted);font-size:.8rem;width:26px;text-align:center;">${i+1}</span>
+      <div class="font-bold" style="flex:1;font-size:.9rem;color:${s.enabled===false?'var(--text-muted)':'var(--text-primary)'};">${(s.label||s.key).replace(/</g,'&lt;')}</div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--text-secondary);cursor:pointer;">
+        <input type="checkbox" ${s.enabled!==false?'checked':''} onchange="${arr===ABOUT_LAYOUT?'ABOUT_LAYOUT':'CONTACT_LAYOUT'}[${i}].enabled=this.checked;${arr===ABOUT_LAYOUT?'renderAboutLayout':'renderContactLayout'}()"> Show
+      </label>
+      <button class="btn btn-ghost btn-sm" ${i===0?'disabled style="opacity:.3;"':''} onclick="${moveFn}(${i},-1)"><i class="fa-solid fa-arrow-up"></i></button>
+      <button class="btn btn-ghost btn-sm" ${i===arr.length-1?'disabled style="opacity:.3;"':''} onclick="${moveFn}(${i},1)"><i class="fa-solid fa-arrow-down"></i></button>
+    </div>`).join('');
+}
+function renderAboutLayout(){ renderLayout(ABOUT_LAYOUT,'aboutlayout_rows','moveAboutLayout'); }
+function renderContactLayout(){ renderLayout(CONTACT_LAYOUT,'contactlayout_rows','moveContactLayout'); }
+function moveAboutLayout(i,dir){ const j=i+dir; if(j<0||j>=ABOUT_LAYOUT.length)return; [ABOUT_LAYOUT[i],ABOUT_LAYOUT[j]]=[ABOUT_LAYOUT[j],ABOUT_LAYOUT[i]]; renderAboutLayout(); }
+function moveContactLayout(i,dir){ const j=i+dir; if(j<0||j>=CONTACT_LAYOUT.length)return; [CONTACT_LAYOUT[i],CONTACT_LAYOUT[j]]=[CONTACT_LAYOUT[j],CONTACT_LAYOUT[i]]; renderContactLayout(); }
+function saveAboutLayout(){ saveSetting('aboutSections', ABOUT_LAYOUT, 'About layout'); }
+function saveContactLayout(){ saveSetting('contactSections', CONTACT_LAYOUT, 'Contact layout'); }
+
 // ---- Policy pages ----
 let POL = <?= json_encode($site['policies'] ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?> || {};
 ['return','terms','privacy'].forEach(k => { if(!POL[k]) POL[k] = {title:'',sections:[]}; if(!POL[k].sections) POL[k].sections=[]; });
@@ -1478,11 +1692,45 @@ function renderPolSections(){
 function addPolSection(){ POL[polCur].sections.push({h:'',p:''}); renderPolSections(); }
 function savePolicies(){ POL[polCur].title = document.getElementById('pol_title').value; saveSetting('policies', POL, 'Policies'); }
 
+let OZ_VP = <?= json_encode($site['offerZoneHero']['valueProps'] ?? [], JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?> || [];
+function renderOzVp(){
+  document.getElementById('oz_vp_rows').innerHTML = OZ_VP.map((c,i)=>`
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
+      <input class="form-control" placeholder="icon" value="${(c.icon||'').replace(/"/g,'&quot;')}" oninput="OZ_VP[${i}].icon=this.value" style="width:90px;">
+      <input class="form-control" placeholder="Title" value="${(c.title||'').replace(/"/g,'&quot;')}" oninput="OZ_VP[${i}].title=this.value" style="flex:1;">
+      <input class="form-control" placeholder="Description" value="${(c.desc||'').replace(/"/g,'&quot;')}" oninput="OZ_VP[${i}].desc=this.value" style="flex:2;">
+      <button class="btn btn-ghost btn-sm" onclick="OZ_VP.splice(${i},1);renderOzVp()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
+    </div>`).join('');
+}
+function ozAddVp(){ OZ_VP.push({icon:'shield',title:'',desc:''}); renderOzVp(); }
+
+let CP_TRUST = <?= json_encode($site['combosPage']['trust'] ?? [], JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?> || [];
+function renderCpTrust(){
+  document.getElementById('cp_trust_rows').innerHTML = CP_TRUST.map((c,i)=>`
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
+      <input class="form-control" placeholder="icon" value="${(c.icon||'').replace(/"/g,'&quot;')}" oninput="CP_TRUST[${i}].icon=this.value" style="width:90px;">
+      <input class="form-control" placeholder="Title" value="${(c.title||'').replace(/"/g,'&quot;')}" oninput="CP_TRUST[${i}].title=this.value" style="flex:1;">
+      <input class="form-control" placeholder="Description" value="${(c.desc||'').replace(/"/g,'&quot;')}" oninput="CP_TRUST[${i}].desc=this.value" style="flex:2;">
+      <button class="btn btn-ghost btn-sm" onclick="CP_TRUST.splice(${i},1);renderCpTrust()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
+    </div>`).join('');
+}
+function cpAddTrust(){ CP_TRUST.push({icon:'shield',title:'',desc:''}); renderCpTrust(); }
+function saveCombosPage(){
+  const v = id => document.getElementById(id).value;
+  saveSetting('combosPage', {
+    heroBadge:v('cp_heroBadge'), heroTitle:v('cp_heroTitle'), savePrefix:v('cp_savePrefix'), saveSuffix:v('cp_saveSuffix'),
+    subtitle:v('cp_subtitle'), bundleNote:v('cp_bundleNote'), trust:CP_TRUST,
+  });
+  saveSetting('lowStockThreshold', parseInt(v('cp_lowStock'))||10, 'Combos page');
+}
 function saveOfferHero(){
   const v = id => document.getElementById(id).value;
   saveSetting('offerZoneHero', {
     badge:v('oz_badge'), title:v('oz_title'), savePrefix:v('oz_savePrefix'), saveSuffix:v('oz_saveSuffix'),
     subtitle:v('oz_subtitle'), expiryLabel:v('oz_expiryLabel'), restockNote:v('oz_restockNote'),
+    limitedLabel:v('oz_limitedLabel'), topDealLabel:v('oz_topDealLabel'),
+    grabCta:v('oz_grabCta'), freeItemsLabel:v('oz_freeItemsLabel'), urgentNote:v('oz_urgentNote'),
+    valueProps:OZ_VP,
   }, 'Offer Zone hero');
 }
 
@@ -1606,7 +1854,7 @@ function saveTrust(){ saveSetting('trustBadges', TRUST, 'Trust badges'); }
 
 // init
 renderStats(); renderSocials(); renderPay(); renderBenefits(); renderHero(); renderTrust(); renderRfFeatures(); renderPremium();
-renderTiers(); renderFbt(); renderFg(); renderFeat(); renderSort(); renderPp(); renderPC(); renderHome(); renderCC(); renderAbout(); showPolicy('return');
+renderTiers(); renderFbt(); renderFg(); renderFeat(); renderSort(); renderPp(); renderPC(); renderHome(); renderCC(); renderAbout(); showPolicy('return'); renderOzVp(); renderNav(); renderCpTrust(); renderAboutLayout(); renderContactLayout();
 // Show only the active config page's section groups
 (function(){
   const active = '<?= $cfgPage ?>';
@@ -1632,6 +1880,24 @@ renderTiers(); renderFbt(); renderFg(); renderFeat(); renderSort(); renderPp(); 
     const fromHash = location.hash.slice(1);
     showHomeSec(ORDER.includes(fromHash) ? fromHash : 'hero');
   }
+
+  // Generic sub-tabs for Catalog, General, Contact & About (one card per sub-tab, like Home).
+  ['catalog','general','contact','about'].forEach(pg => {
+    if (active !== pg) return;
+    const cards = document.querySelectorAll('[data-sub="'+pg+'"]');
+    window.showSubSec = window.showSubSec || function (pg2, sec) {
+      document.querySelectorAll('[data-subcard="'+pg2+'"]').forEach(c => {
+        c.style.display = (c.getAttribute('data-seckey') === sec) ? '' : 'none';
+      });
+      document.querySelectorAll('.subtab-'+pg2).forEach(b => {
+        const on = b.getAttribute('data-sec') === sec;
+        b.classList.toggle('btn-gold', on);
+        b.classList.toggle('btn-ghost', !on);
+      });
+    };
+    const first = document.querySelector('.subtab-'+pg)?.getAttribute('data-sec');
+    if (first) showSubSec(pg, first);
+  });
 })();
 </script>
 

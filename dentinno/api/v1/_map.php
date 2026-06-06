@@ -48,8 +48,10 @@ function mapCombo(array $r): array {
         'price'    => (float)$r['price'],
         'discount' => (float)$r['discount_percent'],
         'category' => 'combo',
-        'inStock'  => (bool)$r['in_stock'],
+        'stock'    => isset($r['stock']) ? (int)$r['stock'] : null,
+        'inStock'  => isset($r['stock']) ? ((int)$r['stock'] > 0) : (bool)$r['in_stock'],
         'description' => $r['description'],
+        'items'    => jcol($r['items'] ?? null, []),
         'variants' => [],
     ];
 }
@@ -80,6 +82,14 @@ function mapEvent(array $r): array {
 }
 
 function mapOffer(array $r): array {
+    $main      = jcol($r['main_product'] ?? null, null);
+    $freeItems = jcol($r['free_items'] ?? null, []);
+    $special   = (float)$r['special_price'];
+    // Authoritative: recompute totalMrp + youSave from parts so stored values can never drift.
+    $totalMrp = (float)($main['mrp'] ?? 0);
+    foreach ($freeItems as $fi) $totalMrp += (float)($fi['mrp'] ?? 0);
+    if ($totalMrp <= 0) $totalMrp = (float)$r['total_mrp'];   // fallback for legacy rows
+    $youSave = max(0, $totalMrp - $special);
     return [
         'id'           => $r['slug'],
         'dbId'         => (int)$r['id'],
@@ -89,13 +99,14 @@ function mapOffer(array $r): array {
         'accent'       => $r['accent'],
         'gradient'     => $r['gradient'],
         'cta'          => $r['cta'],
-        'mainProduct'  => jcol($r['main_product'] ?? null, null),
-        'freeItems'    => jcol($r['free_items'] ?? null, []),
-        'specialPrice' => (float)$r['special_price'],
-        'totalMrp'     => (float)$r['total_mrp'],
-        'youSave'      => (float)$r['you_save'],
+        'mainProduct'  => $main,
+        'freeItems'    => $freeItems,
+        'specialPrice' => $special,
+        'totalMrp'     => $totalMrp,
+        'youSave'      => $youSave,
         'saveExtra'    => $r['save_extra'],
         'validTill'    => $r['valid_till'],
+        'isTopDeal'    => (bool)($r['is_top_deal'] ?? 0),
     ];
 }
 

@@ -155,6 +155,51 @@ export const aboutConfig = {
   },
 };
 
+// About page section layout — admin can show/hide & reorder each block.
+export const aboutSections = [
+  { key: "hero",          label: "Hero",            enabled: true },
+  { key: "story",         label: "Our Story",       enabled: true },
+  { key: "stats",         label: "Stats Strip",     enabled: true },
+  { key: "milestones",    label: "Milestones",      enabled: true },
+  { key: "coreValues",    label: "Core Values",     enabled: true },
+  { key: "leadership",    label: "Leadership / Team", enabled: true },
+  { key: "whyTrust",      label: "Why Trust Us",    enabled: true },
+  { key: "missionVision", label: "Mission & Vision", enabled: true },
+  { key: "testimonials",  label: "Testimonials",    enabled: true },
+  { key: "certifications", label: "Certifications", enabled: true },
+  { key: "whatWeOffer",   label: "What We Offer",   enabled: true },
+  { key: "cta",           label: "Bottom CTA",      enabled: true },
+  { key: "contactStrip",  label: "Contact Strip",   enabled: true },
+  { key: "socialStrip",   label: "Social Strip",    enabled: true },
+];
+
+// Contact page section layout — admin can show/hide & reorder each block.
+export const contactSections = [
+  { key: "hero",           label: "Hero",            enabled: true },
+  { key: "quickActions",   label: "Quick Actions",   enabled: true },
+  { key: "form",           label: "Contact Form",    enabled: true },
+  { key: "contactMethods", label: "Reach Us",        enabled: true },
+  { key: "businessHours",  label: "Business Hours",  enabled: true },
+  { key: "officeMap",      label: "Our Office (Map)", enabled: true },
+  { key: "faq",            label: "FAQs",            enabled: true },
+];
+
+// Combos page chrome (hero + trust strip + labels). Admin-managed via Settings → Catalog.
+export const combosPage = {
+  heroBadge: "Bundle & Save",
+  heroTitle: "Combo Packs",
+  savePrefix: "Save up to",
+  saveSuffix: "across",
+  subtitle: "Hand-picked product bundles — clinic essentials grouped together at a better price than buying separately.",
+  bundleNote: "Multi-product bundle",
+  trust: [
+    { icon: "shield", title: "100% Genuine", desc: "Manufacturer-sourced" },
+    { icon: "save", title: "Bundle Savings", desc: "Better than buying separately" },
+    { icon: "ship", title: "Pan-India Shipping", desc: "5–7 day delivery" },
+    { icon: "help", title: "Need help?", desc: "We're here to help" },
+  ],
+};
+
 // Contact page config (FAQs, departments, business hours). Admin-managed via Settings → Contact Page.
 export const contactConfig = {
   departments: [
@@ -365,6 +410,44 @@ export const priceBounds = { min: 10, max: 500000 };
 // Great Value Products = products with discount >= this %. Admin-managed.
 export const gvpThreshold = 10;
 
+// Combos: stock at or below this shows the "Low Stock! Hurry" urgency ribbon. Admin-managed.
+export const lowStockThreshold = 10;
+
+// Great Value Products page chrome (hero copy). Admin-managed via Settings → Catalog.
+export const gvpPage = {
+  heroBadge: "Great Value Deals",
+  heroTitle: "Best Value Products",
+  savePrefix: "Save up to",
+  saveSuffix: "across",
+  subtitle: "Hand-picked products with the biggest discounts — clinic essentials at unbeatable prices.",
+  statDeals: "Live deals",
+  statDiscount: "Max discount",
+  statSavings: "Total savings",
+};
+
+// Shop by Price page chrome (hero copy). Admin-managed via Settings → Catalog.
+export const shopByPricePage = {
+  heroBadge: "Shop by Budget",
+  heroTitle: "Shop by Price",
+  subtitle: "Pick a budget — we'll show every product that fits, from quick buys to clinic essentials.",
+  customLabel: "Custom Range",
+  customDesc: "Set your own budget",
+};
+
+// Main navbar menu — admin can rename / reorder / show-hide each item.
+// `view` maps to a route; "price" is the special Shop-by-Price dropdown; auth-gated items use `auth:true`.
+export const navMenu = [
+  { id: "category", label: "Category",            view: "category", enabled: true },
+  { id: "offers",   label: "Offer Zone",          view: "offers",   enabled: true },
+  { id: "combos",   label: "Combos",              view: "combos",   enabled: true },
+  { id: "gvp",      label: "Great Value Products", view: "gvp",     enabled: true },
+  { id: "price",    label: "Shop by Price",       view: "price",    enabled: true },
+  { id: "events",   label: "Events",              view: "events",   enabled: true },
+  { id: "wishlist", label: "Wishlist",            view: "wishlist", enabled: true, auth: true },
+  { id: "about",    label: "About Us",            view: "about",    enabled: true },
+  { id: "contact",  label: "Contact Us",          view: "contact",  enabled: true },
+];
+
 // Offer Zone hero copy (numbers auto-computed from offers). Admin-managed.
 export const offerZoneHero = {
   badge: "Mega Deals Live",
@@ -374,6 +457,17 @@ export const offerZoneHero = {
   subtitle: "Hand-picked combos with free handpieces, free mirrors & free files. Doctor-loved, clinic-tested. New bundles drop every week.",
   expiryLabel: "Next deal expires in",
   restockNote: "⚡ Restocks limited. Once gone, gone.",
+  limitedLabel: "Limited Time Offer",
+  topDealLabel: "Top Deal",
+  grabCta: "Grab This Deal",
+  freeItemsLabel: "Free Items Included",
+  urgentNote: "Hurry! Less than 12 hours left",
+  valueProps: [
+    { icon: "shield", title: "100% Genuine", desc: "Manufacturer-sourced, batch-tested" },
+    { icon: "ship", title: "Pan-India Shipping", desc: "5–7 day delivery to most pincodes" },
+    { icon: "doctor", title: "Doctor-Loved", desc: "Trusted by 1000+ clinics across India" },
+    { icon: "returns", title: "Easy Returns", desc: "7-day no-questions-asked returns" },
+  ],
 };
 
 // Policy pages (Return / Terms / Privacy). Admin-managed via Settings → General.

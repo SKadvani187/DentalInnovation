@@ -14,18 +14,16 @@ const COLLAPSE_COUNT = 10;
 const fmt = (n) => `₹${n.toLocaleString("en-IN")}`;
 
 export default function CategoryPage() {
-  const { view } = useUI();
-  const isGvp = view?.name === "gvp";
+  const { view, navigate } = useUI();
   const initialCategory = view?.params?.category || null;
   const initialPriceMax = view?.params?.priceMax || PRICE_MAX;
   const [selectedCat, setSelectedCat] = useState(initialCategory);
-  const [sort, setSort] = useState(isGvp ? "discount" : "all");
-  const [sortOpen, setSortOpen] = useState(false);
+  const [sort, setSort] = useState("all");
   const [expanded, setExpanded] = useState(false);
   const [priceMin, setPriceMin] = useState(PRICE_MIN);
   const [priceMax, setPriceMax] = useState(initialPriceMax);
+  const [mobileFilters, setMobileFilters] = useState(false);
 
-  const { gvpThreshold = 10 } = useSettings();
   const { data: allProducts } = useProducts();
   const { data: combos } = useCombos();
   const { data: catData } = useCategories();
@@ -45,117 +43,171 @@ export default function CategoryPage() {
     }
   }, [view?.params?.priceMax, view?.params?.category]);
 
+  const priceFiltered = priceMin > PRICE_MIN || priceMax < PRICE_MAX;
   const products = useMemo(() => {
-    let list = [...combos, ...allProducts].filter((p) => p.id);
-    if (isGvp) list = list.filter((p) => p.discount >= gvpThreshold);
+    let list = [...(combos || []), ...(allProducts || [])].filter((p) => p && p.id);
     if (selectedCat) list = list.filter((p) => p.category === selectedCat);
-    list = list.filter((p) => p.price >= priceMin && p.price <= priceMax);
+    list = list.filter((p) => (p.price ?? 0) >= priceMin && (p.price ?? 0) <= priceMax);
     switch (sort) {
-      case "price-asc": list.sort((a, b) => a.price - b.price); break;
-      case "price-desc": list.sort((a, b) => b.price - a.price); break;
-      case "discount": list.sort((a, b) => b.discount - a.discount); break;
-      case "rating": list.sort((a, b) => b.rating - a.rating); break;
+      case "price-asc": list.sort((a, b) => (a.price || 0) - (b.price || 0)); break;
+      case "price-desc": list.sort((a, b) => (b.price || 0) - (a.price || 0)); break;
+      case "discount": list.sort((a, b) => (b.discount || 0) - (a.discount || 0)); break;
+      case "rating": list.sort((a, b) => (b.rating || 0) - (a.rating || 0)); break;
       default: break;
     }
     return list;
-  }, [selectedCat, sort, priceMin, priceMax, isGvp, allProducts, combos, gvpThreshold]);
+  }, [selectedCat, sort, priceMin, priceMax, allProducts, combos]);
 
   const visibleCats = expanded ? CATEGORY_FILTERS : CATEGORY_FILTERS.slice(0, COLLAPSE_COUNT);
+  const catLabel = selectedCat ? (CATEGORY_FILTERS.find((c) => c.id === selectedCat)?.label || view?.params?.title || "Products") : "All Products";
+  const resetAll = () => { setSelectedCat(null); setPriceMin(PRICE_MIN); setPriceMax(PRICE_MAX); setSort("all"); };
+
+  const SidebarFilters = (
+    <>
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="text-base font-bold text-brand-ink">Categories</h3>
+        {(selectedCat || priceFiltered) && (
+          <button onClick={resetAll} className="text-xs font-semibold text-[#3684bf] hover:underline">Clear all</button>
+        )}
+      </div>
+      <ul className="space-y-1">
+        <li><CatRadio label="All Categories" checked={selectedCat === null} onChange={() => setSelectedCat(null)} /></li>
+        {visibleCats.map((c) => (
+          <li key={c.id}><CatRadio label={c.label} checked={selectedCat === c.id} onChange={() => setSelectedCat(c.id)} /></li>
+        ))}
+      </ul>
+      {CATEGORY_FILTERS.length > COLLAPSE_COUNT && (
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-3 w-full py-2 border-t border-b border-gray-200 text-[#3684bf] font-semibold text-sm flex items-center justify-center gap-1 hover:bg-gray-50"
+        >
+          {expanded ? "View Less" : "View All"}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d={expanded ? "M19 12H5M12 19l-7-7 7-7" : "M5 12h14M13 5l7 7-7 7"} />
+          </svg>
+        </button>
+      )}
+      <div className="mt-6">
+        <h3 className="text-base font-bold text-brand-ink mb-3">Price Range</h3>
+        <PriceRange min={PRICE_MIN} max={PRICE_MAX} valueMin={priceMin} valueMax={priceMax} onChange={(lo, hi) => { setPriceMin(lo); setPriceMax(hi); }} />
+        <div className="flex items-center justify-between text-xs text-brand-muted mt-2">
+          <span>₹{priceMin.toLocaleString("en-IN")}</span>
+          <span>₹{priceMax.toLocaleString("en-IN")}</span>
+        </div>
+      </div>
+    </>
+  );
 
   return (
-    <div className="max-w-[1400px] mx-auto px-4 py-6">
-      <div className="flex flex-col lg:flex-row gap-6">
-        <aside className="w-full lg:w-[260px] shrink-0">
-          <h2 className="text-xl font-bold text-brand-ink mb-4">Filters</h2>
+    <div className="bg-[#f6f9fc] min-h-screen">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-100">
+        <div className="max-w-[1400px] mx-auto px-4 py-5">
+          <nav className="flex items-center gap-2 text-xs text-brand-muted mb-2">
+            <button onClick={() => navigate("home")} className="hover:text-[#3684bf]">Home</button>
+            <span>/</span>
+            <button onClick={() => navigate("category")} className="hover:text-[#3684bf]">Category</button>
+            {selectedCat && (<><span>/</span><span className="text-brand-ink font-semibold">{catLabel}</span></>)}
+          </nav>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-brand-ink">{catLabel}</h1>
+          <p className="text-sm text-brand-muted mt-0.5">
+            <span className="font-bold text-brand-ink">{products.length}</span> product{products.length !== 1 ? "s" : ""} found
+          </p>
+        </div>
+      </div>
 
-          <div className="relative mb-6">
-            <button
-              onClick={() => setSortOpen((v) => !v)}
-              className="w-full flex items-center justify-between gap-2 border border-gray-300 rounded-full px-4 py-2.5 text-sm hover:border-gray-400"
-            >
-              <span className="text-brand-ink">
-                Sort By: <span className="font-bold">{SORT_OPTIONS.find((s) => s.id === sort)?.label}</span>
-              </span>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className={`transition ${sortOpen ? "rotate-180" : ""}`}>
-                <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
-              </svg>
-            </button>
-            {sortOpen && (
-              <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
-                {SORT_OPTIONS.map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => { setSort(s.id); setSortOpen(false); }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${sort === s.id ? "font-bold text-[#3684bf]" : "text-brand-ink"}`}
-                  >
-                    {s.label}
-                  </button>
+      <div className="max-w-[1400px] mx-auto px-4 py-5">
+        {/* Mobile filter button + sort */}
+        <div className="flex items-center justify-between gap-3 mb-4 lg:hidden">
+          <button onClick={() => setMobileFilters(true)} className="inline-flex items-center gap-2 border border-gray-300 rounded-full px-4 py-2 text-sm font-semibold text-brand-ink">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z" /></svg>
+            Filters{(selectedCat || priceFiltered) ? " •" : ""}
+          </button>
+          <SortSelect sort={sort} setSort={setSort} />
+        </div>
+
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Desktop sidebar */}
+          <aside className="hidden lg:block w-[260px] shrink-0">
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 sticky top-4">
+              <h2 className="text-lg font-bold text-brand-ink mb-4">Filters</h2>
+              {SidebarFilters}
+            </div>
+          </aside>
+
+          <section className="flex-1 min-w-0">
+            {/* Desktop sort + active chips */}
+            <div className="hidden lg:flex items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-2 flex-wrap">
+                {selectedCat && (
+                  <FilterChip label={catLabel} onClear={() => setSelectedCat(null)} />
+                )}
+                {priceFiltered && (
+                  <FilterChip label={`₹${priceMin.toLocaleString("en-IN")} – ₹${priceMax.toLocaleString("en-IN")}`} onClear={() => { setPriceMin(PRICE_MIN); setPriceMax(PRICE_MAX); }} />
+                )}
+              </div>
+              <SortSelect sort={sort} setSort={setSort} />
+            </div>
+
+            {products.length === 0 ? (
+              <div className="bg-white border border-gray-100 rounded-2xl py-16 px-6 text-center">
+                <div className="text-5xl mb-3">🔍</div>
+                <h3 className="text-xl font-bold text-brand-ink mb-1">No products found</h3>
+                <p className="text-sm text-brand-muted mb-4">Try a different category or widen the price range.</p>
+                <button onClick={resetAll} className="bg-[#3684bf] hover:bg-[#1f5f96] text-white font-semibold text-sm px-5 py-2 rounded-md transition">Clear filters</button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-5">
+                {products.map((p) => (
+                  <ProductCard key={p.id} product={p} />
                 ))}
               </div>
             )}
-          </div>
-
-          <h3 className="text-base font-bold text-brand-ink mb-2">Categories</h3>
-          <ul className="space-y-1">
-            <li>
-              <CatRadio
-                label="All Categories"
-                checked={selectedCat === null}
-                onChange={() => setSelectedCat(null)}
-              />
-            </li>
-            {visibleCats.map((c) => (
-              <li key={c.id}>
-                <CatRadio
-                  label={c.label}
-                  checked={selectedCat === c.id}
-                  onChange={() => setSelectedCat(c.id)}
-                />
-              </li>
-            ))}
-          </ul>
-
-          {CATEGORY_FILTERS.length > COLLAPSE_COUNT && (
-            <button
-              onClick={() => setExpanded((v) => !v)}
-              className="mt-3 w-full py-2 border-t border-b border-gray-200 text-[#3684bf] font-semibold text-sm flex items-center justify-center gap-1 hover:bg-gray-50"
-            >
-              {expanded ? "View Less" : "View All"}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d={expanded ? "M19 12H5M12 19l-7-7 7-7" : "M5 12h14M13 5l7 7-7 7"} />
-              </svg>
-            </button>
-          )}
-
-          <div className="mt-6">
-            <h3 className="text-base font-bold text-brand-ink mb-3">Price Range</h3>
-            <PriceRange
-              min={PRICE_MIN}
-              max={PRICE_MAX}
-              valueMin={priceMin}
-              valueMax={priceMax}
-              onChange={(lo, hi) => { setPriceMin(lo); setPriceMax(hi); }}
-            />
-            <div className="flex items-center justify-between text-xs text-brand-muted mt-2">
-              <span>{priceMin.toLocaleString("en-IN")}</span>
-              <span>{priceMax.toLocaleString("en-IN")}</span>
-            </div>
-          </div>
-        </aside>
-
-        <section className="flex-1 min-w-0">
-          {products.length === 0 ? (
-            <div className="py-20 text-center text-brand-muted">No products found.</div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-              {products.map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
-            </div>
-          )}
-        </section>
+          </section>
+        </div>
       </div>
+
+      {/* Mobile filter drawer */}
+      {mobileFilters && (
+        <div className="lg:hidden fixed inset-0 z-[1100]">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setMobileFilters(false)} />
+          <div className="absolute left-0 top-0 bottom-0 w-[300px] max-w-[85vw] bg-white shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-brand-ink">Filters</h2>
+              <button onClick={() => setMobileFilters(false)} aria-label="Close" className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6L6 18" /></svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">{SidebarFilters}</div>
+            <div className="p-4 border-t border-gray-100">
+              <button onClick={() => setMobileFilters(false)} className="w-full bg-[#3684bf] text-white font-bold py-2.5 rounded-lg">Show {products.length} products</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function SortSelect({ sort, setSort }) {
+  return (
+    <div className="flex items-center gap-2 shrink-0">
+      <span className="text-xs text-brand-muted hidden sm:block">Sort:</span>
+      <select value={sort} onChange={(e) => setSort(e.target.value)} className="bg-white border border-gray-200 rounded-md px-2.5 py-1.5 text-xs sm:text-sm font-semibold text-brand-ink focus:outline-none focus:border-[#3684bf]">
+        {SORT_OPTIONS.map((s) => (<option key={s.id} value={s.id}>{s.label}</option>))}
+      </select>
+    </div>
+  );
+}
+
+function FilterChip({ label, onClear }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 bg-[#eef5fb] text-[#3684bf] text-xs font-semibold rounded-full pl-3 pr-1.5 py-1">
+      {label}
+      <button onClick={onClear} aria-label="Remove filter" className="w-4 h-4 rounded-full bg-white/70 hover:bg-white flex items-center justify-center">
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 6l12 12M18 6L6 18" /></svg>
+      </button>
+    </span>
   );
 }
 

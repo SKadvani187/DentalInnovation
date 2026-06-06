@@ -5,7 +5,8 @@ import { useCart } from "../../context/CartContext";
 import { useSettings } from "../../context/SettingsContext";
 
 export default function NavigationHeader() {
-  const { pricePresets = [] } = useSettings();
+  const { pricePresets = [], navMenu = [] } = useSettings();
+  const navItems = (navMenu.length ? navMenu : []).filter((m) => m.enabled !== false);
   const { openModal, navigate, openSearch, openSearchWithImage, view } = useUI();
   const currentView = view?.name;
   const { user, logout } = useAuth();
@@ -254,56 +255,52 @@ export default function NavigationHeader() {
         </div>
       </div>
 
-      {/* ROW 2: Sub-Navigation (desktop only) */}
+      {/* ROW 2: Sub-Navigation (desktop only) — admin-managed menu (show/hide/reorder/rename) */}
       <div className="hidden lg:flex h-[44px] bg-white border-0 border-t border-b border-solid border-gray-200 items-center justify-around gap-2 w-full overflow-visible px-0 no-scrollbar">
-        <button onClick={() => navigate("category")} className={navClass(currentView === "category")}>Category</button>
-        <button onClick={() => navigate("offers")} className={navClass(currentView === "offers")}>Offer Zone</button>
-        <button onClick={() => navigate("combos")} className={navClass(currentView === "combos")}>Combos</button>
-        <button onClick={() => navigate("gvp")} className={navClass(currentView === "gvp")}>Great Value Products</button>
-
-        <div
-          className="relative"
-          onMouseEnter={openPrice}
-          onMouseLeave={schedulePriceClose}
-        >
-          <button className={navClass(priceOpen)}>
-            <span className="font-bold">₹</span>
-            Shop by Price
-            <svg className={`h-[14px] transition-transform duration-200 ${priceOpen ? "-rotate-180" : ""}`} viewBox="0 0 24 24" fill="currentColor">
-              <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
-            </svg>
-          </button>
-
-          <div className={`absolute left-1/2 -translate-x-1/2 top-full pt-3 z-[1100] ${priceOpen ? "block" : "hidden"}`}>
-            <div className="w-[230px] max-w-[calc(100vw-20px)] bg-white rounded-[14px] shadow-[0_12px_34px_rgba(0,0,0,0.16)] p-2">
-              {pricePresets.map((item, idx) => {
-                const icons = [
-                  "M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
-                  "M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z",
-                  "M20 6h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM10 4h4v2h-4V4z",
-                ];
-                const itemIcon = icons[idx % icons.length];
-                return (
-                <button
-                  key={item.label}
-                  onClick={() => { setPriceOpen(false); navigate("category", { priceMax: item.max }); }}
-                  className="w-full flex items-center gap-[12px] px-[14px] py-[12px] rounded-[10px] text-[15px] font-semibold text-[var(--text-primary)] cursor-pointer hover:bg-[rgba(var(--border-color-1-rgb),0.6)] transition-colors"
-                >
-                  <svg className="h-[18px] w-[18px] shrink-0 text-[var(--text-primary)]" fill="currentColor" viewBox="0 0 24 24">
-                    <path d={itemIcon} />
+        {navItems.map((m) => {
+          if (m.view === "price") {
+            return (
+              <div key={m.id} className="relative" onMouseEnter={openPrice} onMouseLeave={schedulePriceClose}>
+                <button onClick={() => { setPriceOpen(false); navigate("shopByPrice"); }} className={navClass(priceOpen || currentView === "shopByPrice")}>
+                  <span className="font-bold">₹</span>
+                  {m.label}
+                  <svg className={`h-[14px] transition-transform duration-200 ${priceOpen ? "-rotate-180" : ""}`} viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
                   </svg>
-                  {item.label}
                 </button>
-              );
-              })}
-            </div>
-          </div>
-        </div>
-
-        <button onClick={() => navigate("events")} className={navClass(currentView === "events")}>Events</button>
-        <button onClick={() => (user ? navigate("wishlist") : openModal("auth"))} className={navClass(currentView === "wishlist")}>Wishlist</button>
-        <button onClick={() => navigate("about")} className={navClass(currentView === "about")}>About Us</button>
-        <button onClick={() => navigate("contact")} className={navClass(currentView === "contact")}>Contact Us</button>
+                <div className={`absolute left-1/2 -translate-x-1/2 top-full pt-3 z-[1100] ${priceOpen ? "block" : "hidden"}`}>
+                  <div className="w-[230px] max-w-[calc(100vw-20px)] bg-white rounded-[14px] shadow-[0_12px_34px_rgba(0,0,0,0.16)] p-2">
+                    {pricePresets.map((item, idx) => {
+                      const icons = [
+                        "M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
+                        "M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z",
+                        "M20 6h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM10 4h4v2h-4V4z",
+                      ];
+                      return (
+                        <button
+                          key={item.label}
+                          onClick={() => { setPriceOpen(false); navigate("shopByPrice", { priceMax: item.max }); }}
+                          className="w-full flex items-center gap-[12px] px-[14px] py-[12px] rounded-[10px] text-[15px] font-semibold text-[var(--text-primary)] cursor-pointer hover:bg-[rgba(var(--border-color-1-rgb),0.6)] transition-colors"
+                        >
+                          <svg className="h-[18px] w-[18px] shrink-0 text-[var(--text-primary)]" fill="currentColor" viewBox="0 0 24 24">
+                            <path d={icons[idx % icons.length]} />
+                          </svg>
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          const onClick = m.auth
+            ? () => (user ? navigate(m.view) : openModal("auth"))
+            : () => navigate(m.view);
+          return (
+            <button key={m.id} onClick={onClick} className={navClass(currentView === m.view)}>{m.label}</button>
+          );
+        })}
       </div>
 
       {/* Mobile drawer */}
@@ -327,62 +324,54 @@ export default function NavigationHeader() {
               </button>
             </div>
             <nav className="flex-1 overflow-y-auto py-2">
-              {[
-                { label: "Category", fn: () => navigate("category") },
-                { label: "Offer Zone", fn: () => navigate("offers") },
-                { label: "Combos", fn: () => navigate("combos") },
-                { label: "Great Value Products", fn: () => navigate("gvp") },
-              ].map((it) => (
-                <button
-                  key={it.label}
-                  onClick={goAndClose(it.fn)}
-                  className="w-full text-left px-5 py-3 text-sm font-semibold text-brand-ink hover:bg-gray-50"
-                >
-                  {it.label}
-                </button>
-              ))}
-
-              <div className="border-t border-gray-100 my-1" />
-
-              <button
-                onClick={() => setMobilePriceOpen((v) => !v)}
-                className="w-full flex items-center justify-between px-5 py-3 text-sm font-semibold text-brand-ink hover:bg-gray-50"
-              >
-                Shop by Price
-                <svg className={`h-[14px] transition-transform ${mobilePriceOpen ? "-rotate-180" : ""}`} viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
-                </svg>
-              </button>
-              {mobilePriceOpen && (
-                <div className="bg-gray-50">
-                  {pricePresets.map((item) => (
-                    <button
-                      key={item.label}
-                      onClick={goAndClose(() => navigate("category", { priceMax: item.max }))}
-                      className="w-full text-left px-8 py-2.5 text-sm text-brand-ink hover:bg-gray-100"
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div className="border-t border-gray-100 my-1" />
-
-              {[
-                { label: "Events", fn: () => navigate("product", { id: "ev-001" }) },
-                { label: "Wishlist", fn: () => (user ? navigate("wishlist") : openModal("auth")) },
-                { label: "About Us", fn: () => navigate("about") },
-                { label: "Contact Us", fn: () => navigate("contact") },
-              ].map((it) => (
-                <button
-                  key={it.label}
-                  onClick={goAndClose(it.fn)}
-                  className="w-full text-left px-5 py-3 text-sm font-semibold text-brand-ink hover:bg-gray-50"
-                >
-                  {it.label}
-                </button>
-              ))}
+              {navItems.map((m) => {
+                if (m.view === "price") {
+                  return (
+                    <div key={m.id}>
+                      <button
+                        onClick={() => setMobilePriceOpen((v) => !v)}
+                        className="w-full flex items-center justify-between px-5 py-3 text-sm font-semibold text-brand-ink hover:bg-gray-50"
+                      >
+                        {m.label}
+                        <svg className={`h-[14px] transition-transform ${mobilePriceOpen ? "-rotate-180" : ""}`} viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
+                        </svg>
+                      </button>
+                      {mobilePriceOpen && (
+                        <div className="bg-gray-50">
+                          {pricePresets.map((item) => (
+                            <button
+                              key={item.label}
+                              onClick={goAndClose(() => navigate("shopByPrice", { priceMax: item.max }))}
+                              className="w-full text-left px-8 py-2.5 text-sm text-brand-ink hover:bg-gray-100"
+                            >
+                              {item.label}
+                            </button>
+                          ))}
+                          <button
+                            onClick={goAndClose(() => navigate("shopByPrice"))}
+                            className="w-full text-left px-8 py-2.5 text-sm font-semibold text-[#3684bf] hover:bg-gray-100"
+                          >
+                            Shop by Price page →
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+                const fn = m.auth
+                  ? () => (user ? navigate(m.view) : openModal("auth"))
+                  : () => navigate(m.view);
+                return (
+                  <button
+                    key={m.id}
+                    onClick={goAndClose(fn)}
+                    className="w-full text-left px-5 py-3 text-sm font-semibold text-brand-ink hover:bg-gray-50"
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
 
               {user && (
                 <>

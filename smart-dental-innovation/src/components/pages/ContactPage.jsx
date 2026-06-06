@@ -99,6 +99,10 @@ function useOpenStatus() {
 export default function ContactPage() {
   const { navigate, showToast } = useUI();
   const { FAQS } = useContactConfig();
+  const { contactSections } = useSettings();
+  // Admin show/hide: section is visible unless explicitly disabled.
+  const disabled = new Set((contactSections || []).filter((s) => s.enabled === false).map((s) => s.key));
+  const show = (key) => !disabled.has(key);
   const [form, setForm] = useState({
     name: "",
     phone: "",
@@ -145,12 +149,15 @@ export default function ContactPage() {
     showToast?.("Message sent. We'll be in touch soon!", "success");
   };
 
+  const showForm = show("form");
+  const showMethods = show("contactMethods");
+  const showHours = show("businessHours");
   return (
     <div className="bg-gradient-to-b from-[#eef5fb] via-white to-white">
-      <Hero />
+      {show("hero") && <Hero />}
 
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 -mt-12 relative z-10">
-        <QuickActions />
+        {show("quickActions") && <QuickActions />}
 
         <nav className="flex items-center gap-2 text-sm text-brand-muted mb-6 mt-8">
           <button onClick={() => navigate("home")} className="hover:text-[#3684bf]">Home</button>
@@ -158,27 +165,33 @@ export default function ContactPage() {
           <span className="text-brand-ink font-semibold">Contact Us</span>
         </nav>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
-          <div className="lg:col-span-7">
-            <FormCard
-              form={form}
-              setForm={setForm}
-              onChange={onChange}
-              onSubmit={onSubmit}
-              submitted={submitted}
-              error={error}
-              onReset={() => setSubmitted(false)}
-            />
-          </div>
+        {(showForm || showMethods || showHours) && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+            {showForm && (
+              <div className="lg:col-span-7">
+                <FormCard
+                  form={form}
+                  setForm={setForm}
+                  onChange={onChange}
+                  onSubmit={onSubmit}
+                  submitted={submitted}
+                  error={error}
+                  onReset={() => setSubmitted(false)}
+                />
+              </div>
+            )}
 
-          <div className="lg:col-span-5 space-y-5">
-            <ContactMethods />
-            <BusinessHours />
+            {(showMethods || showHours) && (
+              <div className={`${showForm ? "lg:col-span-5" : "lg:col-span-12"} space-y-5`}>
+                {showMethods && <ContactMethods />}
+                {showHours && <BusinessHours />}
+              </div>
+            )}
           </div>
-        </div>
+        )}
 
-        <OfficeMap />
-        <FaqStrip faqs={FAQS} openFaq={openFaq} setOpenFaq={setOpenFaq} />
+        {show("officeMap") && <OfficeMap />}
+        {show("faq") && <FaqStrip faqs={FAQS} openFaq={openFaq} setOpenFaq={setOpenFaq} />}
       </div>
     </div>
   );

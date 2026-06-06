@@ -9,14 +9,17 @@ const fmt = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 function useCountdown(target) {
   const [time, setTime] = useState(() => computeRemaining(target));
   useEffect(() => {
-    const t = setInterval(() => setTime(computeRemaining(target)), 60000);
+    setTime(computeRemaining(target));            // recompute immediately when target changes (e.g. offers load)
+    const t = setInterval(() => setTime(computeRemaining(target)), 1000);
     return () => clearInterval(t);
   }, [target]);
   return time;
 }
 
 function computeRemaining(targetDate) {
+  if (!targetDate) return { days: 0, hrs: 0, mins: 0, ended: true };
   const end = new Date(targetDate).getTime();
+  if (Number.isNaN(end)) return { days: 0, hrs: 0, mins: 0, ended: true };
   const now = Date.now();
   let diff = Math.max(0, end - now);
   const days = Math.floor(diff / 86400000);
@@ -74,8 +77,9 @@ export default function OfferZonePage() {
         return !ended && days <= 2;
       });
     }
-    if (filter === "best-value") {
-      const med = list.map((o) => o.youSave || 0).sort((a, b) => a - b)[Math.floor(list.length / 2)];
+    if (filter === "best-value" && list.length > 1) {
+      const sorted = list.map((o) => o.youSave || 0).sort((a, b) => a - b);
+      const med = sorted[Math.floor(sorted.length / 2)] || 0;
       list = list.filter((o) => (o.youSave || 0) >= med);
     }
 
@@ -117,7 +121,7 @@ export default function OfferZonePage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 pb-12">
             {filtered.map((offer, i) => (
-              <OfferCard key={offer.id} offer={offer} rank={i} />
+              <OfferCard key={offer.id} offer={offer} rank={i} anyFlagged={filtered.some((o) => o.isTopDeal)} />
             ))}
           </div>
         )}
@@ -130,7 +134,7 @@ export default function OfferZonePage() {
 
 function HeroBanner({ stats, deadline }) {
   const { offerZoneHero: hero = {} } = useSettings();
-  const { days, hrs, mins } = useCountdown(deadline || new Date().toISOString());
+  const { days, hrs, mins } = useCountdown(deadline);
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-[#ff6b6b] via-[#ee5253] to-[#c0392b] text-white">
       <div className="absolute inset-0 opacity-20 pointer-events-none">
@@ -162,6 +166,7 @@ function HeroBanner({ stats, deadline }) {
           </div>
         </div>
 
+        {deadline && (
         <div className="shrink-0 bg-white/15 backdrop-blur-md border border-white/25 rounded-2xl px-5 py-4 text-center min-w-[280px]">
           <p className="text-[11px] font-bold uppercase tracking-wider text-yellow-200 mb-2">{hero.expiryLabel}</p>
           <div className="flex items-center justify-center gap-2">
@@ -178,6 +183,7 @@ function HeroBanner({ stats, deadline }) {
           </div>
           <p className="text-[11px] text-white/80 mt-3">{hero.restockNote}</p>
         </div>
+        )}
       </div>
     </section>
   );
@@ -265,30 +271,33 @@ function EmptyState({ onReset }) {
   );
 }
 
-function OfferCard({ offer, rank }) {
+function OfferCard({ offer, rank, anyFlagged }) {
   const { addToCart, items, updateQty, removeFromCart } = useCart();
   const { openModal, navigate } = useUI();
+  const { offerZoneHero: hero = {} } = useSettings();
   const { days, hrs, mins, ended } = useCountdown(offer.validTill);
-  const validDate = new Date(offer.validTill).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const validDate = offer.validTill
+    ? new Date(offer.validTill).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+    : "";
+  const main = offer.mainProduct || {};
 
-  const cartItem = items.find((i) => i.id === offer.mainProduct.productId);
+  const cartItem = items.find((i) => i.id === main.productId);
   const inCart = !!cartItem;
 
-  const discountPct = offer.totalMrp > 0 ? Math.round(((offer.totalMrp - offer.specialPrice) / offer.totalMrp) * 100) : 0;
+  const discountPct = Math.max(0, offer.totalMrp > 0 ? Math.round(((offer.totalMrp - offer.specialPrice) / offer.totalMrp) * 100) : 0);
   const urgent = !ended && days === 0 && hrs <= 12;
-  const isTopDeal = rank === 0;
+  // Top Deal: admin-flagged offers; if none flagged, fall back to the first card.
+  const isTopDeal = anyFlagged ? offer.isTopDeal : rank === 0;
 
-  const social = useMemo(() => {
-    const seed = offer.id.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
-    return 12 + (seed % 38);
-  }, [offer.id]);
+  const boughtToday = offer.boughtToday || 0;   // real count from orders today (API)
 
   const onAdd = () => {
+    if (!main.productId) return;
     addToCart(
       {
-        id: offer.mainProduct.productId,
-        name: offer.mainProduct.name,
-        image: offer.mainProduct.image,
+        id: main.productId,
+        name: main.name,
+        image: main.image,
         price: offer.specialPrice,
         mrp: offer.totalMrp,
         category: "offer",
@@ -305,7 +314,7 @@ function OfferCard({ offer, rank }) {
   };
   const onInc = () => cartItem && updateQty(cartItem.key, cartItem.qty + 1);
   const onView = () => openModal("cart");
-  const goProduct = () => offer.mainProduct.productId && navigate("product", { id: offer.mainProduct.productId });
+  const goProduct = () => main.productId && navigate("product", { id: main.productId });
 
   return (
     <article
@@ -324,7 +333,7 @@ function OfferCard({ offer, rank }) {
       {isTopDeal && (
         <div className="absolute top-3 right-3 z-10 bg-yellow-400 text-yellow-900 font-extrabold text-[10px] px-2 py-1 rounded-md shadow-md uppercase flex items-center gap-1">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" /></svg>
-          Top Deal
+          {hero.topDealLabel || "Top Deal"}
         </div>
       )}
 
@@ -334,7 +343,7 @@ function OfferCard({ offer, rank }) {
           style={{ background: offer.cta }}
         >
           <span className="inline-block w-1.5 h-1.5 bg-white rounded-full mr-1.5 align-middle" />
-          LIMITED TIME OFFER
+          {hero.limitedLabel || "Limited Time Offer"}
         </span>
         <h3 className="text-2xl sm:text-3xl font-bold text-brand-ink leading-tight">{offer.title}</h3>
         {offer.subtitle && (
@@ -344,21 +353,21 @@ function OfferCard({ offer, rank }) {
 
       <div className="mx-4 bg-white rounded-xl p-3 flex items-center gap-3 cursor-pointer hover:shadow-md transition" onClick={goProduct}>
         <div className="w-16 h-16 bg-gray-50 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
-          <img src={offer.mainProduct.image} alt={offer.mainProduct.name} className="max-w-full max-h-full object-contain" />
+          <img src={main.image || ""} alt={main.name || "Product"} className="max-w-full max-h-full object-contain" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-brand-ink line-clamp-2">{offer.mainProduct.name}</p>
-          {offer.mainProduct.variant && (
-            <p className="text-xs text-brand-muted">{offer.mainProduct.variant}</p>
+          <p className="text-sm font-bold text-brand-ink line-clamp-2">{main.name}</p>
+          {main.variant && (
+            <p className="text-xs text-brand-muted">{main.variant}</p>
           )}
-          {offer.mainProduct.rating != null && (
+          {main.rating != null && (
             <p className="text-xs text-amber-500 font-semibold">
-              ★ {offer.mainProduct.rating} <span className="text-brand-muted font-normal">({offer.mainProduct.reviews} reviews)</span>
+              ★ {main.rating} <span className="text-brand-muted font-normal">({main.reviews} reviews)</span>
             </p>
           )}
           <div className="flex items-baseline gap-2 mt-0.5">
-            <span className="text-sm font-bold" style={{ color: offer.accent }}>{fmt(offer.mainProduct.price)}</span>
-            <span className="text-xs text-brand-muted line-through">₹{offer.mainProduct.mrp.toLocaleString("en-IN")}</span>
+            <span className="text-sm font-bold" style={{ color: offer.accent }}>{fmt(main.price || 0)}</span>
+            <span className="text-xs text-brand-muted line-through">₹{(main.mrp||0).toLocaleString("en-IN")}</span>
           </div>
         </div>
       </div>
@@ -368,7 +377,7 @@ function OfferCard({ offer, rank }) {
           <div className="px-4 my-3 flex items-center gap-2">
             <div className="flex-1 border-t border-dashed border-gray-300" />
             <span className="text-[10px] font-bold text-[#3684bf] uppercase tracking-wider bg-white px-3 py-1 rounded-full border border-gray-200 inline-flex items-center gap-1">
-              🎁 FREE ITEMS INCLUDED
+              🎁 {hero.freeItemsLabel || "Free Items Included"}
             </span>
             <div className="flex-1 border-t border-dashed border-gray-300" />
           </div>
@@ -377,12 +386,12 @@ function OfferCard({ offer, rank }) {
               <div key={i} className="relative bg-white rounded-lg p-2 flex items-center gap-3 border border-gray-100">
                 <span className="absolute -top-2 left-2 bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">FREE</span>
                 <div className="w-12 h-12 bg-gray-50 rounded shrink-0 overflow-hidden flex items-center justify-center">
-                  <img src={f.image} alt={f.name} className="max-w-full max-h-full object-contain" />
+                  <img src={f.image || ""} alt={f.name || "Free item"} className="max-w-full max-h-full object-contain" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-brand-ink line-clamp-1">{f.name}</p>
                   {f.variant && <p className="text-[10px] text-brand-muted">{f.variant}</p>}
-                  <span className="text-xs text-brand-muted line-through">₹{f.mrp.toLocaleString("en-IN")}</span>
+                  <span className="text-xs text-brand-muted line-through">₹{(f.mrp || 0).toLocaleString("en-IN")}</span>
                 </div>
               </div>
             ))}
@@ -392,12 +401,12 @@ function OfferCard({ offer, rank }) {
 
       <div className="px-5 pt-5 pb-3 text-center mt-auto">
         <p className="text-[10px] font-bold uppercase tracking-wider text-brand-muted mb-1">SPECIAL OFFER PRICE</p>
-        <div className="text-4xl font-bold tabular-nums" style={{ color: offer.accent }}>{fmt(offer.specialPrice)}</div>
+        <div className="text-4xl font-bold tabular-nums" style={{ color: offer.accent }}>{fmt(offer.specialPrice || 0)}</div>
         <p className="text-xs text-brand-muted mt-1">
-          Total <span className="line-through">₹{offer.totalMrp.toLocaleString("en-IN")}</span>
+          Total <span className="line-through">₹{(offer.totalMrp || 0).toLocaleString("en-IN")}</span>
         </p>
         <span className="inline-block mt-2 text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-full px-3 py-1">
-          ★ You Save ₹{offer.youSave.toLocaleString("en-IN")}{offer.saveExtra ? ` + ${offer.saveExtra}` : ""}
+          ★ You Save ₹{(offer.youSave || 0).toLocaleString("en-IN")}{offer.saveExtra ? ` + ${offer.saveExtra}` : ""}
         </span>
       </div>
 
@@ -405,7 +414,7 @@ function OfferCard({ offer, rank }) {
         <div className="mx-4 mb-2 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5 text-center">
           <span className="text-[11px] font-bold text-red-600 uppercase tracking-wider inline-flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-            Hurry! Less than 12 hours left
+            {hero.urgentNote || "Hurry! Less than 12 hours left"}
           </span>
         </div>
       )}
@@ -477,57 +486,39 @@ function OfferCard({ offer, rank }) {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
             <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z" />
           </svg>
-          Grab This Deal
+          {hero.grabCta || "Grab This Deal"}
         </button>
       )}
 
       <div className="px-5 pb-4 flex items-center justify-between gap-3 text-[11px] text-brand-muted">
-        <span className="inline-flex items-center gap-1">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" /></svg>
-          {social} clinics bought today
-        </span>
+        {boughtToday > 0 ? (
+          <span className="inline-flex items-center gap-1">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" /></svg>
+            {boughtToday} {boughtToday === 1 ? "clinic" : "clinics"} bought today
+          </span>
+        ) : <span />}
         <span>*T&C Apply</span>
       </div>
     </article>
   );
 }
 
+const VP_ICONS = {
+  shield: <svg width="22" height="22" viewBox="0 0 24 24" fill="#3684bf"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1 14l-4-4 1.41-1.41L11 12.17l5.59-5.59L18 8l-7 7z" /></svg>,
+  ship: <svg width="22" height="22" viewBox="0 0 24 24" fill="#16a34a"><path d="M19 7c0-1.1-.9-2-2-2h-3V3H10v2H7c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V7zm-7 3.5L9 13l3 2.5L9 18l3-2.5L15 18l-3-2.5L15 13l-3-2.5z" /></svg>,
+  doctor: <svg width="22" height="22" viewBox="0 0 24 24" fill="#f97316"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2z" /></svg>,
+  returns: <svg width="22" height="22" viewBox="0 0 24 24" fill="#ec4899"><path d="M21 6h-3.17L16 4h-6v2h5.12l1.83 2H21v12H5v-9H3v9c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM8 14c0 2.76 2.24 5 5 5s5-2.24 5-5-2.24-5-5-5-5 2.24-5 5zm5-3c1.65 0 3 1.35 3 3s-1.35 3-3 3-3-1.35-3-3 1.35-3 3-3zM5 6h3V4H5V1H3v3H0v2h3v3h2z" /></svg>,
+};
+
 function ValueProps() {
-  const items = [
-    {
-      icon: (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="#3684bf"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1 14l-4-4 1.41-1.41L11 12.17l5.59-5.59L18 8l-7 7z" /></svg>
-      ),
-      title: "100% Genuine",
-      desc: "Manufacturer-sourced, batch-tested",
-    },
-    {
-      icon: (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="#16a34a"><path d="M19 7c0-1.1-.9-2-2-2h-3V3H10v2H7c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V7zm-7 3.5L9 13l3 2.5L9 18l3-2.5L15 18l-3-2.5L15 13l-3-2.5z" /></svg>
-      ),
-      title: "Pan-India Shipping",
-      desc: "5–7 day delivery to most pincodes",
-    },
-    {
-      icon: (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="#f97316"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2z" /></svg>
-      ),
-      title: "Doctor-Loved",
-      desc: "Trusted by 1000+ clinics across India",
-    },
-    {
-      icon: (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="#ec4899"><path d="M21 6h-3.17L16 4h-6v2h5.12l1.83 2H21v12H5v-9H3v9c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM8 14c0 2.76 2.24 5 5 5s5-2.24 5-5-2.24-5-5-5-5 2.24-5 5zm5-3c1.65 0 3 1.35 3 3s-1.35 3-3 3-3-1.35-3-3 1.35-3 3-3zM5 6h3V4H5V1H3v3H0v2h3v3h2z" /></svg>
-      ),
-      title: "Easy Returns",
-      desc: "7-day no-questions-asked returns",
-    },
-  ];
+  const { offerZoneHero: hero = {} } = useSettings();
+  const items = hero.valueProps?.length ? hero.valueProps : [];
+  if (!items.length) return null;
   return (
     <div className="mt-2 mb-10 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-      {items.map((it) => (
-        <div key={it.title} className="bg-white border border-gray-100 rounded-xl p-4 flex items-start gap-3 hover:border-[#3684bf] hover:shadow-md transition">
-          <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">{it.icon}</div>
+      {items.map((it, i) => (
+        <div key={i} className="bg-white border border-gray-100 rounded-xl p-4 flex items-start gap-3 hover:border-[#3684bf] hover:shadow-md transition">
+          <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">{VP_ICONS[it.icon] || VP_ICONS.shield}</div>
           <div className="min-w-0">
             <p className="text-sm font-bold text-brand-ink leading-tight">{it.title}</p>
             <p className="text-xs text-brand-muted mt-0.5">{it.desc}</p>
