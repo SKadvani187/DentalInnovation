@@ -102,6 +102,10 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
                 <i class="fa-regular fa-star"></i>
                 <span>Reviews</span>
             </a>
+            <a href="<?= APP_URL ?>/pages/questions.php" class="nav-item <?= $current_page === 'questions' ? 'active' : '' ?>">
+                <i class="fa-regular fa-circle-question"></i>
+                <span>Q&amp;A</span>
+            </a>
             <a href="<?= APP_URL ?>/pages/wishlists.php" class="nav-item <?= $current_page === 'wishlists' ? 'active' : '' ?>">
                 <i class="fa-solid fa-heart"></i>
                 <span>Wishlists</span>

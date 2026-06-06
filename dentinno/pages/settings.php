@@ -1024,6 +1024,7 @@ HTML;
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="payment" onclick="showSubSec('catalog','payment')">💳 Payments</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="benefits" onclick="showSubSec('catalog','benefits')">🛡️ Benefits</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="pricing" onclick="showSubSec('catalog','pricing')">🏷️ Pricing</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="paymentopts" onclick="showSubSec('catalog','paymentopts')">💰 Pay Options</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="offerhero" onclick="showSubSec('catalog','offerhero')">🔥 Offer Zone</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="combospage" onclick="showSubSec('catalog','combospage')">📦 Combos Page</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="gvppage" onclick="showSubSec('catalog','gvppage')">🔥 Great Value Page</button>
@@ -1069,8 +1070,21 @@ HTML;
       <div class="form-group"><label class="form-label">Price Min (₹)</label><input type="number" class="form-control" id="pb_min" value="<?= htmlspecialchars($site['priceBounds']['min'] ?? 10) ?>"></div>
       <div class="form-group"><label class="form-label">Price Max (₹)</label><input type="number" class="form-control" id="pb_max" value="<?= htmlspecialchars($site['priceBounds']['max'] ?? 500000) ?>"></div>
       <div class="form-group"><label class="form-label">Great Value min discount (%)</label><input type="number" class="form-control" id="gvp_threshold" value="<?= htmlspecialchars($site['gvpThreshold'] ?? 10) ?>"><small class="text-muted" style="font-size:.7rem;">Products with this % off or more show under "Great Value Products"</small></div>
+      <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Product page: replacement note</label><input type="text" class="form-control" id="pd_replacement" value="<?= htmlspecialchars($site['productDefaults']['replacementText'] ?? 'Easy 7 days replacement available') ?>"><small class="text-muted" style="font-size:.7rem;">Shown after a valid pincode check on the product page</small></div>
+      <div class="form-group"><label class="form-label">Variant: delivery note</label><input type="text" class="form-control" id="pd_varDelivery" value="<?= htmlspecialchars($site['productDefaults']['variantDeliveryNote'] ?? '📦 Get it by 3–5 days') ?>"></div>
+      <div class="form-group"><label class="form-label">Variant: COD note</label><input type="text" class="form-control" id="pd_varCod" value="<?= htmlspecialchars($site['productDefaults']['variantCodNote'] ?? '💳 COD available') ?>"></div>
     </div>
     <button class="btn btn-gold" onclick="savePricingRules()"><i class="fa-solid fa-floppy-disk"></i> Save Pricing Rules</button>
+  </div>
+</div>
+
+<!-- Product Page Payment Options (info card on product detail) -->
+<div class="card fade-in" data-subcard="catalog" data-seckey="paymentopts" style="margin-top:14px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-wallet text-gold" style="margin-right:8px;"></i>Product Page — Payment Options</span><small class="text-muted">The "Payment Options" info grid on the product detail page (label + description + icon)</small></div>
+  <div class="card-body">
+    <div id="po_rows"></div>
+    <button class="btn btn-ghost btn-sm" onclick="addPoRow()"><i class="fa-solid fa-plus"></i> Add Option</button>
+    <button class="btn btn-gold" style="margin-left:8px;" onclick="savePaymentOptions()"><i class="fa-solid fa-floppy-disk"></i> Save Payment Options</button>
   </div>
 </div>
 
@@ -1269,6 +1283,9 @@ function savePricingRules(){
     saveSetting('priceBounds', { min: parseInt(document.getElementById('pb_min').value)||10, max: parseInt(document.getElementById('pb_max').value)||500000 });
     const pd = <?= json_encode($site['productDefaults'] ?? [], JSON_UNESCAPED_SLASHES) ?>;
     pd.deliveryDays = document.getElementById('pd_deliveryDays').value;
+    pd.replacementText = document.getElementById('pd_replacement').value;
+    pd.variantDeliveryNote = document.getElementById('pd_varDelivery').value;
+    pd.variantCodNote = document.getElementById('pd_varCod').value;
     saveSetting('productDefaults', pd);
     saveSetting('gvpThreshold', parseInt(document.getElementById('gvp_threshold').value)||10, 'Pricing rules');
 }
@@ -1361,6 +1378,24 @@ function renderPp(){ document.getElementById('pp_rows').innerHTML = PP.map((p,i)
   </div>`).join(''); }
 function addPpRow(){ PP.push({label:'',max:0}); renderPp(); }
 function savePresets(){ saveSetting('pricePresets', PP, 'Price presets'); }
+
+// ---- Product Page Payment Options ----
+let PO = <?= json_encode($site['paymentOptions'] ?? [], JSON_UNESCAPED_SLASHES) ?> || [];
+function renderPo(){ document.getElementById('po_rows').innerHTML = PO.map((p,i)=>`
+  <div style="border:1px solid var(--border-color);border-radius:8px;padding:10px;margin-bottom:8px;">
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
+      <input class="form-control" placeholder="id (cod)" value="${(p.id||'').replace(/"/g,'&quot;')}" oninput="PO[${i}].id=this.value" style="width:110px;">
+      <input class="form-control" placeholder="Label (COD)" value="${(p.label||'').replace(/"/g,'&quot;')}" oninput="PO[${i}].label=this.value" style="flex:1;">
+      <select class="form-control" onchange="PO[${i}].icon=this.value" style="width:120px;">
+        ${['rupee','bank','card','upi'].map(ic=>`<option value="${ic}" ${p.icon===ic?'selected':''}>${ic}</option>`).join('')}
+      </select>
+      <input class="form-control" type="number" min="1" max="12" placeholder="span" value="${p.span||12}" oninput="PO[${i}].span=parseInt(this.value)||12" style="width:80px;">
+      <button class="btn btn-ghost btn-sm" onclick="PO.splice(${i},1);renderPo()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
+    </div>
+    <textarea class="form-control" placeholder="Description" rows="2" oninput="PO[${i}].desc=this.value">${(p.desc||'')}</textarea>
+  </div>`).join(''); }
+function addPoRow(){ PO.push({id:'',label:'',icon:'rupee',span:12,desc:''}); renderPo(); }
+function savePaymentOptions(){ saveSetting('paymentOptions', PO, 'Payment options'); }
 
 // ---- Great Value Page chrome ----
 function saveGvpPage(){
@@ -1854,7 +1889,7 @@ function saveTrust(){ saveSetting('trustBadges', TRUST, 'Trust badges'); }
 
 // init
 renderStats(); renderSocials(); renderPay(); renderBenefits(); renderHero(); renderTrust(); renderRfFeatures(); renderPremium();
-renderTiers(); renderFbt(); renderFg(); renderFeat(); renderSort(); renderPp(); renderPC(); renderHome(); renderCC(); renderAbout(); showPolicy('return'); renderOzVp(); renderNav(); renderCpTrust(); renderAboutLayout(); renderContactLayout();
+renderTiers(); renderFbt(); renderFg(); renderFeat(); renderSort(); renderPp(); renderPo(); renderPC(); renderHome(); renderCC(); renderAbout(); showPolicy('return'); renderOzVp(); renderNav(); renderCpTrust(); renderAboutLayout(); renderContactLayout();
 // Show only the active config page's section groups
 (function(){
   const active = '<?= $cfgPage ?>';

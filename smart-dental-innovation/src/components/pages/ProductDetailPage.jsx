@@ -5,20 +5,21 @@ import { useUI } from "../../context/UIContext";
 import { useCart } from "../../context/CartContext";
 import { useWishlist } from "../../context/WishlistContext";
 import { categories } from "../../data/categories";
-import { useProducts, useCombos, useEvents } from "../../hooks/useApiData";
+import { useProducts, useCombos, useEvents, useReviews, useFaqs } from "../../hooks/useApiData";
+import api from "../../lib/api";
 import { useSettings } from "../../context/SettingsContext";
 
 const fmt = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 
 export default function ProductDetailPage() {
-  const { view, navigate, openModal, setSelectedProduct, showToast } = useUI();
+  const { view, navigate, openModal, setSelectedProduct } = useUI();
   const { addToCart, items, updateQty, removeFromCart } = useCart();
   const { has, toggle } = useWishlist();
 
   const { data: apiProducts } = useProducts();
   const { data: combos } = useCombos();
   const { data: events } = useEvents();
-  const { company, tierOffers, productDefaults, sampleReviews: SAMPLE_REVIEWS, productContent } = useSettings();
+  const { company, tierOffers, productDefaults, productContent } = useSettings();
 
   const id = view?.params?.id;
   const product = useMemo(() => {
@@ -54,6 +55,16 @@ export default function ProductDetailPage() {
     );
   }, [id, apiProducts, combos, events]);
 
+  // Real reviews from DB (approved only) + aggregate. No sample fallback — shows 0 until
+  // a customer review is approved.
+  const { reviews: dbReviews, summary: reviewSummary, reload: reloadReviews } = useReviews(product.id);
+  const { faqs: dbFaqs } = useFaqs(product.id);
+  // Per-product FAQs if any, else the global default set.
+  const faqList = dbFaqs.length ? dbFaqs : (productContent.faqs || []);
+  const reviewList = dbReviews;
+  const ratingValue = reviewSummary.avg || 0;
+  const reviewCount = reviewSummary.count || 0;
+
   const cartItem = items.find((i) => i.id === product.id && !i.variant);
   const qty = cartItem?.qty || 0;
   const outOfStock = product.inStock === false;
@@ -61,6 +72,7 @@ export default function ProductDetailPage() {
   const [pincode, setPincode] = useState("");
   const [pinMsg, setPinMsg] = useState("");
   const [pinInfo, setPinInfo] = useState(null);
+  const [pinChecking, setPinChecking] = useState(false);
   const [catalogueDownloaded, setCatalogueDownloaded] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [reviewsOpen, setReviewsOpen] = useState(false);
@@ -87,29 +99,36 @@ export default function ProductDetailPage() {
     return [...tierOffers]
       .filter((t) => displayQty >= t.minQty)
       .sort((a, b) => b.minQty - a.minQty)[0];
-  }, [displayQty]);
+  }, [displayQty, tierOffers]);
   const effectivePrice = activeTier ? product.price * (1 - activeTier.rate) : product.price;
   const subtotal = Math.round(effectivePrice * displayQty);
   const mrpTotal = product.mrp * displayQty;
   const off = Math.round(((mrpTotal - subtotal) / mrpTotal) * 100);
   const bulkSaved = activeTier ? Math.round((product.price - effectivePrice) * displayQty) : 0;
 
-  const checkPin = () => {
+  const checkPin = async () => {
     if (!/^\d{6}$/.test(pincode)) {
       setPinMsg("Please enter a valid 6-digit pincode.");
       setPinInfo(null);
       return;
     }
-    const daysStr = String(productDefaults.deliveryDays || "");
-    const m = daysStr.match(/(\d+)\s*-\s*(\d+)/) || daysStr.match(/(\d+)/);
-    const baseDays = m ? parseInt(m[2] || m[1], 10) : 5;
-    const pinSum = pincode.split("").reduce((s, d) => s + parseInt(d, 10), 0);
-    const addDays = baseDays + (pinSum % 3);
-    const eta = new Date();
-    eta.setDate(eta.getDate() + addDays);
-    const iso = `${eta.getFullYear()}-${String(eta.getMonth() + 1).padStart(2, "0")}-${String(eta.getDate()).padStart(2, "0")}`;
-    setPinInfo({ ok: true, date: iso });
+    setPinChecking(true);
     setPinMsg("");
+    setPinInfo(null);
+    try {
+      const r = await api.checkDelivery(pincode);
+      if (r.serviceable) {
+        setPinInfo({ ok: true, date: r.eta, cod: r.cod, label: r.label, days: r.days });
+      } else {
+        setPinInfo(null);
+        setPinMsg("Sorry, we don't deliver to this pincode yet.");
+      }
+    } catch (err) {
+      setPinInfo(null);
+      setPinMsg(err.message || "Could not check delivery for this pincode.");
+    } finally {
+      setPinChecking(false);
+    }
   };
 
   const onAdd = () => {
@@ -222,27 +241,27 @@ export default function ProductDetailPage() {
                 className="inline-flex items-center gap-2 border border-gray-300 rounded px-3 py-1.5 hover:border-gray-400 transition"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="#22c55e"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14l-5-4.87 6.91-1.01z" /></svg>
-                <span className="text-sm font-semibold text-brand-ink">{product.rating?.toFixed(1) || productDefaults.rating.toFixed(1)}</span>
-                <span className="text-sm text-brand-muted">| {product.reviews ?? productDefaults.reviews} Reviews</span>
+                <span className="text-sm font-semibold text-brand-ink">{Number(ratingValue).toFixed(1)}</span>
+                <span className="text-sm text-brand-muted">| {reviewCount} Reviews</span>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className={`text-brand-muted transition ${reviewsOpen ? "rotate-180" : ""}`}><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" /></svg>
               </button>
 
               {reviewsOpen && (
                 <div className="absolute z-20 mt-2 w-full max-w-md bg-white border border-gray-200 rounded-lg shadow-xl p-4">
                   <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
-                    <div className="text-3xl font-bold text-brand-ink">{product.rating?.toFixed(1) || productDefaults.rating.toFixed(1)}</div>
+                    <div className="text-3xl font-bold text-brand-ink">{Number(ratingValue).toFixed(1)}</div>
                     <div className="flex-1">
                       <div className="flex text-amber-400 text-sm">
                         {Array.from({ length: 5 }).map((_, i) => (
-                          <span key={i}>{i < Math.round(product.rating || 0) ? "★" : "☆"}</span>
+                          <span key={i}>{i < Math.round(ratingValue) ? "★" : "☆"}</span>
                         ))}
                       </div>
-                      <p className="text-xs text-brand-muted mt-0.5">Based on {product.reviews ?? 0} verified reviews</p>
+                      <p className="text-xs text-brand-muted mt-0.5">Based on {reviewCount} reviews</p>
                     </div>
                   </div>
 
                   <div className="space-y-3 mt-3 max-h-[260px] overflow-y-auto">
-                    {SAMPLE_REVIEWS.map((r) => (
+                    {reviewList.map((r) => (
                       <div key={r.id} className="text-sm">
                         <div className="flex items-center justify-between">
                           <span className="font-semibold text-brand-ink">{r.name}</span>
@@ -342,9 +361,10 @@ export default function ProductDetailPage() {
               <button
                 onClick={checkPin}
                 type="button"
-                className="text-[#3684bf] hover:bg-blue-50 active:bg-blue-100 font-medium text-sm uppercase tracking-wide px-2 py-1 rounded transition-colors"
+                disabled={pinChecking}
+                className="text-[#3684bf] hover:bg-blue-50 active:bg-blue-100 font-medium text-sm uppercase tracking-wide px-2 py-1 rounded transition-colors disabled:opacity-60"
               >
-                Check
+                {pinChecking ? "…" : "Check"}
               </button>
             </div>
             {pinInfo?.ok ? (
@@ -362,8 +382,17 @@ export default function ProductDetailPage() {
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3684bf" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
                     <path d="M3 7h13l-3-3M21 17H8l3 3" />
                   </svg>
-                  <span>Easy 7 days replacement available</span>
+                  <span>{productDefaults.replacementText || "Easy 7 days replacement available"}</span>
                 </div>
+                <div className="flex items-center gap-2 text-brand-ink">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={pinInfo.cod ? "#16a34a" : "#9ca3af"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                    <rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" />
+                  </svg>
+                  <span>{pinInfo.cod ? "Cash on Delivery available" : "Prepaid only (no COD)"}</span>
+                </div>
+                {pinInfo.label && (
+                  <div className="text-xs text-brand-muted pl-7">Region: {pinInfo.label}</div>
+                )}
               </div>
             ) : (
               <p className="text-xs text-brand-muted mt-2 transition-opacity duration-300 group-hover:opacity-90">
@@ -377,11 +406,11 @@ export default function ProductDetailPage() {
 
           <AvailableVariants product={product} />
 
-          <ProductHighlights highlights={productContent.highlights} />
+          <ProductHighlights highlights={product.highlights?.length ? product.highlights : productContent.highlights} />
 
-          <ProductAccordions sections={productContent.accordions} description={product.description} />
+          <ProductAccordions product={product} fallback={productContent.accordions} />
 
-          <FaqsSection faqs={productContent.faqs} productId={product.id} />
+          <FaqsSection faqs={faqList} productId={product.id} />
         </div>
 
         {/* RIGHT — Available Offers */}
@@ -501,7 +530,13 @@ export default function ProductDetailPage() {
 
           <SmartBenefitsCard />
 
-          <RatingsReviewsCard product={product} />
+          <RatingsReviewsCard
+            product={product}
+            rating={ratingValue}
+            count={reviewCount}
+            reviews={reviewList}
+            onSubmitted={reloadReviews}
+          />
         </div>
       </div>
 
@@ -722,6 +757,7 @@ function ProductGallery({ product, wished, onWish }) {
 function AvailableVariants({ product }) {
   const { addToCart } = useCart();
   const { openModal, navigate } = useUI();
+  const { productDefaults } = useSettings();
   const [tab, setTab] = useState("All");
   const { data: allProducts } = useProducts();
 
@@ -763,7 +799,7 @@ function AvailableVariants({ product }) {
               <span className="text-xs font-bold text-green-600">{v.discount}% off</span>
             </div>
             <div className="flex items-center justify-between mt-2 gap-2">
-              <p className="text-xs text-brand-muted">📦 Get it by Thu, May 28</p>
+              <p className="text-xs text-brand-muted">{productDefaults.variantDeliveryNote || "📦 Get it by 3–5 days"}</p>
               <div className="flex gap-2">
                 <button
                   onClick={() => navigate("product", { id: v.id })}
@@ -779,7 +815,7 @@ function AvailableVariants({ product }) {
                 </button>
               </div>
             </div>
-            <p className="text-xs text-brand-muted mt-1">💳 COD available</p>
+            <p className="text-xs text-brand-muted mt-1">{productDefaults.variantCodNote || "💳 COD available"}</p>
           </div>
         ))}
       </div>
@@ -803,7 +839,7 @@ function ProductHighlights({ highlights }) {
         <ul className="m-0 list-disc pl-5 space-y-1">
           {highlights.map((h, i) => (
             <li key={i} className="leading-relaxed">
-              <strong className="text-brand-ink">{h.title}: </strong>{h.text}
+              {h.title && <strong className="text-brand-ink">{h.title}: </strong>}{h.text}
             </li>
           ))}
         </ul>
@@ -824,11 +860,36 @@ function ProductHighlights({ highlights }) {
   );
 }
 
-function ProductAccordions({ sections, description }) {
+// Product detail accordions built from per-product DB fields. Any field left blank in
+// admin is skipped; if a product has NO content at all, we fall back to the global set.
+function ProductAccordions({ product, fallback = [] }) {
   const [open, setOpen] = useState(null);
+
+  const specs = Array.isArray(product.keySpecifications) ? product.keySpecifications.filter((s) => s.key) : [];
+
+  const sections = [
+    { id: "desc", title: "Description", body: product.fullDescription || product.description },
+    { id: "specs", title: "Key Specifications", specs },
+    { id: "directions", title: "Directions to Use", body: product.directions },
+    { id: "packing", title: "Packaging Info", body: product.packingInfo },
+    { id: "additional", title: "Additional Information", body: product.additionalInfo },
+    { id: "warranty", title: "Warranty", body: product.warrantyInfo },
+  ].filter((s) => (s.specs ? s.specs.length > 0 : !!(s.body && String(s.body).trim())));
+
+  // No per-product content -> use the admin global accordions.
+  const list = sections.length
+    ? sections
+    : (fallback || []).map((s) => ({
+        id: s.id,
+        title: s.title,
+        body: s.id === "desc" && product.description ? product.description : s.body,
+      }));
+
+  if (!list.length) return null;
+
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
-      {sections.map((s) => (
+      {list.map((s) => (
         <div key={s.id}>
           <button
             onClick={() => setOpen(open === s.id ? null : s.id)}
@@ -839,7 +900,20 @@ function ProductAccordions({ sections, description }) {
           </button>
           {open === s.id && (
             <div className="px-5 pb-4 text-sm text-brand-muted leading-relaxed">
-              {s.id === "desc" && description ? description : s.body}
+              {s.specs && s.specs.length > 0 ? (
+                <table className="w-full text-sm">
+                  <tbody>
+                    {s.specs.map((sp, i) => (
+                      <tr key={i} className="border-b border-gray-100 last:border-0">
+                        <td className="py-2 pr-4 font-semibold text-brand-ink align-top w-2/5">{sp.key}</td>
+                        <td className="py-2 text-brand-muted">{sp.value}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="whitespace-pre-line">{s.body}</p>
+              )}
             </div>
           )}
         </div>
@@ -851,6 +925,7 @@ function ProductAccordions({ sections, description }) {
 function FaqsSection({ faqs, productId }) {
   const { navigate } = useUI();
   const [showAll, setShowAll] = useState(false);
+  if (!faqs.length) return null;
   const visible = showAll ? faqs : faqs.slice(0, 2);
 
   return (
@@ -877,12 +952,14 @@ function FaqsSection({ faqs, productId }) {
           </div>
         ))}
       </div>
-      <button
-        onClick={() => navigate("qna", { id: productId })}
-        className="mt-4 w-full text-orange-500 font-bold text-sm flex items-center justify-center gap-1 hover:underline"
-      >
-        View all {faqs.length + 3} questions →
-      </button>
+      {faqs.length > 2 && (
+        <button
+          onClick={() => setShowAll((v) => !v)}
+          className="mt-4 w-full text-orange-500 font-bold text-sm flex items-center justify-center gap-1 hover:underline"
+        >
+          {showAll ? "Show less" : `View all ${faqs.length} questions →`}
+        </button>
+      )}
     </div>
   );
 }
@@ -993,17 +1070,13 @@ function InstantAnswerModal({ faqs, onClose }) {
 }
 
 function PaymentOptionsCard() {
+  const { paymentOptions } = useSettings();
   const [modalOpen, setModalOpen] = useState(false);
   const [focusId, setFocusId] = useState(null);
-  const items = [
-    { id: "cod", label: "COD", icon: "rupee", span: 5, desc: "Experience Convenience and Trust with Our Cash on Delivery (COD) Payment Service" },
-    { id: "nb", label: "Net Banking", icon: "bank", span: 7, desc: "Net banking, also known as online banking or internet banking, is a digital platform that allows customers to perform various financial transactions and manage their bank accounts through the internet." },
-    { id: "upi", label: "UPI", icon: "upi", span: 5, desc: "UPI (Unified Payments Interface) is a real-time payment system that allows you to link multiple bank accounts to a single mobile application, enabling seamless and instant money transfers and payments." },
-    { id: "partial", label: "Partial Payment", icon: "rupee", span: 7, desc: "You can partially pay for your order now and the remaining amount can be paid at the time of delivery." },
-    { id: "card", label: "Credit / Debit cards", icon: "card", span: 12, desc: "Pay securely with your Credit or Debit card via our trusted payment gateway." },
-  ];
-  const modalOrder = ["cod", "partial", "upi", "nb"];
-  const modalItems = modalOrder.map((id) => items.find((i) => i.id === id)).filter(Boolean);
+  const items = (paymentOptions && paymentOptions.length ? paymentOptions : []);
+  if (!items.length) return null;
+  // Modal lists every option except the catch-all card row; preserves admin order.
+  const modalItems = items.filter((i) => i.id !== "card");
   const renderIcon = (kind) => {
     switch (kind) {
       case "rupee":
@@ -1138,7 +1211,7 @@ function SmartBenefitsCard() {
   );
 }
 
-function RatingsReviewsCard({ product }) {
+function RatingsReviewsCard({ product, rating = 0, count = 0, reviews = [], onSubmitted }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="border border-gray-200 rounded-xl p-5">
@@ -1146,9 +1219,9 @@ function RatingsReviewsCard({ product }) {
       <div className="flex items-center gap-3 mb-4">
         <div className="flex items-center gap-1 bg-green-50 px-2 py-1 rounded">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="#22c55e"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14l-5-4.87 6.91-1.01z" /></svg>
-          <span className="text-sm font-bold text-brand-ink">{product.rating?.toFixed(1) || "0.0"}</span>
+          <span className="text-sm font-bold text-brand-ink">{Number(rating).toFixed(1)}</span>
         </div>
-        <span className="text-sm text-brand-muted">{product.reviews ?? 0} Reviews</span>
+        <span className="text-sm text-brand-muted">{count} Reviews</span>
       </div>
       <button
         onClick={() => setOpen(true)}
@@ -1156,20 +1229,29 @@ function RatingsReviewsCard({ product }) {
       >
         View All Reviews
       </button>
-      {open && <ReviewsModal product={product} onClose={() => setOpen(false)} />}
+      {open && (
+        <ReviewsModal
+          product={product}
+          rating={rating}
+          count={count}
+          reviews={reviews}
+          onSubmitted={onSubmitted}
+          onClose={() => setOpen(false)}
+        />
+      )}
     </div>
   );
 }
 
-function ReviewsModal({ product, onClose }) {
-  const { sampleReviews: SAMPLE_REVIEWS } = useSettings();
-  const rating = product.rating || 0;
-  const totalReviews = product.reviews ?? SAMPLE_REVIEWS.length;
+function ReviewsModal({ product, rating = 0, count = 0, reviews = [], onSubmitted, onClose }) {
+  const { showToast } = useUI();
+  const [writing, setWriting] = useState(false);
+  const totalReviews = count || reviews.length;
   const distribution = useMemo(() => {
     const counts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-    SAMPLE_REVIEWS.forEach((r) => { counts[r.stars] = (counts[r.stars] || 0) + 1; });
+    reviews.forEach((r) => { counts[r.stars] = (counts[r.stars] || 0) + 1; });
     return counts;
-  }, []);
+  }, [reviews]);
   const totalCount = Object.values(distribution).reduce((s, c) => s + c, 0) || 1;
 
   return createPortal(
@@ -1195,7 +1277,7 @@ function ReviewsModal({ product, onClose }) {
         <div className="bg-gray-100 px-6 py-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center mb-4">
             <div>
-              <div className="text-5xl font-bold text-brand-ink">{rating.toFixed(1)}</div>
+              <div className="text-5xl font-bold text-brand-ink">{Number(rating).toFixed(1)}</div>
               <div className="flex text-amber-400 text-lg mt-1">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <span key={i}>{i < Math.round(rating) ? "★" : "☆"}</span>
@@ -1221,20 +1303,30 @@ function ReviewsModal({ product, onClose }) {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button className="bg-[#3684bf] hover:bg-[#1f5f96] text-white font-semibold px-5 py-2 rounded-md text-sm">
-              Write a Review
-            </button>
-            <button className="bg-white border border-gray-300 hover:border-gray-400 text-brand-ink font-semibold px-5 py-2 rounded-md text-sm inline-flex items-center gap-2">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2L9.91 8.84 3 9.27l5.46 4.73L6.91 21 12 17.27 17.09 21l-1.55-6.99L21 9.27l-6.91-.43z" />
-              </svg>
-              Review Summary
+            <button
+              onClick={() => setWriting((v) => !v)}
+              className="bg-[#3684bf] hover:bg-[#1f5f96] text-white font-semibold px-5 py-2 rounded-md text-sm"
+            >
+              {writing ? "Cancel" : "Write a Review"}
             </button>
           </div>
         </div>
 
+        {writing && (
+          <WriteReviewForm
+            productId={product.id}
+            showToast={showToast}
+            onDone={() => { setWriting(false); onSubmitted?.(); }}
+          />
+        )}
+
+        {reviews.length === 0 ? (
+          <div className="px-6 py-10 text-center text-sm text-brand-muted">
+            No reviews yet. Be the first to review this product.
+          </div>
+        ) : (
         <ul className="px-6 py-4 space-y-3 max-h-[55vh] overflow-y-auto">
-          {SAMPLE_REVIEWS.map((r) => (
+          {reviews.map((r) => (
             <li key={r.id} className="bg-gray-50 rounded-xl p-4">
               <div className="flex items-start gap-3">
                 <div className="relative shrink-0">
@@ -1271,9 +1363,99 @@ function ReviewsModal({ product, onClose }) {
             </li>
           ))}
         </ul>
+        )}
       </div>
     </div>,
     document.body
+  );
+}
+
+function WriteReviewForm({ productId, showToast, onDone }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [stars, setStars] = useState(5);
+  const [title, setTitle] = useState("");
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!name.trim() || !text.trim()) {
+      showToast?.("Please enter your name and review.", "error");
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await api.submitReview({
+        product: productId,
+        name: name.trim(),
+        email: email.trim() || undefined,
+        rating: stars,
+        title: title.trim() || undefined,
+        review: text.trim(),
+      });
+      showToast?.(r.message || "Review submitted for moderation.", "success");
+      onDone?.();
+    } catch (err) {
+      showToast?.(err.message || "Could not submit review.", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="px-6 py-4 border-b border-gray-100 space-y-3 bg-white">
+      <div className="flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setStars(s)}
+            className="text-2xl leading-none"
+            aria-label={`${s} star`}
+          >
+            <span className={s <= stars ? "text-amber-400" : "text-gray-300"}>★</span>
+          </button>
+        ))}
+        <span className="ml-2 text-sm text-brand-muted">{stars}/5</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Your name *"
+          className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[#3684bf]"
+        />
+        <input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Email (optional)"
+          type="email"
+          className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[#3684bf]"
+        />
+      </div>
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Review title (optional)"
+        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[#3684bf]"
+      />
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Share your experience *"
+        rows={3}
+        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[#3684bf]"
+      />
+      <button
+        type="submit"
+        disabled={busy}
+        className="bg-[#3684bf] hover:bg-[#1f5f96] disabled:opacity-60 text-white font-semibold px-5 py-2 rounded-md text-sm"
+      >
+        {busy ? "Submitting…" : "Submit Review"}
+      </button>
+      <p className="text-xs text-brand-muted">Reviews appear after admin approval.</p>
+    </form>
   );
 }
 

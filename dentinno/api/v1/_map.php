@@ -6,6 +6,16 @@ function mapProduct(array $r): array {
     $specs = jcol($r['specifications'] ?? null, []);
     $mrp   = (float)$r['price'];                       // DB price = MRP (see seed)
     $sell  = $r['discount_price'] !== null ? (float)$r['discount_price'] : $mrp;
+    // Per-product highlights live in `features` as [{title,text}].
+    // Legacy rows are plain strings -> normalize to {title:'', text}.
+    $highlights = [];
+    foreach (jcol($r['features'] ?? null, []) as $f) {
+        if (is_array($f)) {
+            $highlights[] = ['title' => $f['title'] ?? '', 'text' => $f['text'] ?? ''];
+        } elseif (is_string($f) && $f !== '') {
+            $highlights[] = ['title' => '', 'text' => $f];
+        }
+    }
     return [
         'id'          => $r['slug'],
         'dbId'        => (int)$r['id'],
@@ -23,9 +33,30 @@ function mapProduct(array $r): array {
         'inStock'     => (int)$r['stock'] > 0,
         'stock'       => (int)$r['stock'],
         'description' => $r['description'],
+        // Per-product accordion content (product detail page). Empty -> storefront falls back to global.
+        'fullDescription' => $r['full_description'] ?? null,
+        'keySpecifications' => normalizeSpecs($r['key_specifications'] ?? null),
+        'directions'  => $r['directions_for_use'] ?? null,
+        'packingInfo' => $r['packing_info'] ?? null,
+        'additionalInfo' => $r['additional_information'] ?? null,
+        'warrantyInfo' => $r['warranty_info'] ?? null,
         'variants'    => jcol($r['variants'] ?? null, []),
+        'highlights'  => $highlights,
         'isFeatured'  => (bool)($r['is_featured'] ?? 0),
     ];
+}
+
+// Key specifications -> always [{key,value}]. Stored either as that array or as a {key:value} object.
+function normalizeSpecs($v): array {
+    $out = [];
+    foreach (jcol($v, []) as $k => $row) {
+        if (is_array($row) && isset($row['key'])) {
+            $out[] = ['key' => $row['key'], 'value' => $row['value'] ?? ''];
+        } elseif (!is_array($row)) {
+            $out[] = ['key' => (string)$k, 'value' => (string)$row];
+        }
+    }
+    return $out;
 }
 
 function mapCategory(array $r): array {
@@ -107,6 +138,39 @@ function mapOffer(array $r): array {
         'saveExtra'    => $r['save_extra'],
         'validTill'    => $r['valid_till'],
         'isTopDeal'    => (bool)($r['is_top_deal'] ?? 0),
+    ];
+}
+
+function mapQuestion(array $r): array {
+    return [
+        'id'   => (int)$r['id'],
+        'q'    => $r['question'],
+        'a'    => $r['answer'],
+        'name' => $r['asker_name'] ?: 'Customer',
+        'date' => date('d M Y', strtotime($r['answered_at'] ?: $r['created_at'])),
+        'up'   => (int)($r['helpful_up'] ?? 0),
+        'down' => (int)($r['helpful_down'] ?? 0),
+    ];
+}
+
+function mapFaq(array $r): array {
+    return [
+        'id' => (int)$r['id'],
+        'q'  => $r['question'],
+        'a'  => $r['answer'],
+    ];
+}
+
+function mapReview(array $r): array {
+    return [
+        'id'         => (int)$r['id'],
+        'name'       => $r['reviewer_name'],
+        'stars'      => (int)$r['rating'],
+        'title'      => $r['title'] ?: null,
+        'text'       => $r['review'],
+        'date'       => date('d M Y', strtotime($r['created_at'])),
+        'verified'   => (bool)($r['is_verified'] ?? 0),
+        'helpful'    => (int)($r['helpful_count'] ?? 0),
     ];
 }
 

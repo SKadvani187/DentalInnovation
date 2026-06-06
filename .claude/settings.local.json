@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(cd /d \"d:\\\\Shubham\\\\OtherData\\\\DentalInnovation\\\\DentalInnovation-main\\\\smart-dental-innovation\")",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(/d/DIP/OtherData/xampp/php/php.exe -r ' *)",
+      "Bash(/d/DIP/OtherData/xampp/php/php.exe -l dentinno/api/v1/faqs.php)",
+      "Bash(/d/DIP/OtherData/xampp/php/php.exe -l dentinno/pages/questions.php)",
+      "Bash(/d/DIP/OtherData/xampp/php/php.exe -l dentinno/api/v1/questions.php)",
+      "Bash(/d/DIP/OtherData/xampp/php/php.exe -l dentinno/includes/header.php)"
     ]
   }
 }

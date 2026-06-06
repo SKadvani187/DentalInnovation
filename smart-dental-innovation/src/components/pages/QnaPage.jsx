@@ -1,19 +1,14 @@
 import { useMemo, useState } from "react";
 import { findProductById } from "../../data/products";
-import { useProducts, useCombos } from "../../hooks/useApiData";
+import { useProducts, useCombos, useFaqs, useQuestions } from "../../hooks/useApiData";
 import { useUI } from "../../context/UIContext";
 import { useSettings } from "../../context/SettingsContext";
+import api from "../../lib/api";
 
 const fmt = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 
-const EXTRA_QNA = [
-  { id: "qx1", q: "What maintenance is required for the radio frequency advance cautery?", a: "Regular cleaning of the exterior, proper sterilization of electrodes, and periodic service checks following the manufacturer's guidelines help maintain performance." },
-  { id: "qx2", q: "What items are included with the radio frequency advance cautery unit?", a: "The standard kit includes the main unit, handpiece, set of standard electrodes, footswitch, power cable, user manual, and basic setup tools." },
-  { id: "qx3", q: "Does the radio frequency advance cautery come with a warranty?", a: "Yes, it has a 2-Year limited warranty on the main unit, with optional extended support plans and spare parts available through authorized service centers." },
-];
-
 export default function QnaPage() {
-  const { view, navigate } = useUI();
+  const { view, navigate, showToast } = useUI();
   const { data: allProducts } = useProducts();
   const { data: combos } = useCombos();
   const { productContent } = useSettings();
@@ -23,26 +18,32 @@ export default function QnaPage() {
     [id, allProducts, combos]
   );
 
+  // Per-product FAQs (admin) + answered customer questions (DB). FAQs fall back to global.
+  const { faqs: dbFaqs } = useFaqs(product.id);
+  const { questions: answeredQ, reload: reloadQ } = useQuestions(product.id);
+
   const [postOpen, setPostOpen] = useState(false);
-  const [customQna, setCustomQna] = useState([]);
   const [question, setQuestion] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const qnaList = [...customQna, ...productContent.faqs, ...EXTRA_QNA];
+  const faqList = dbFaqs.length ? dbFaqs : (productContent.faqs || []);
+  const qnaList = [...answeredQ, ...faqList];
 
-  const onPost = (e) => {
+  const onPost = async (e) => {
     e.preventDefault();
     if (!question.trim()) return;
-    setCustomQna((prev) => [
-      {
-        id: `c-${Date.now()}`,
-        q: question.trim(),
-        a: "Awaiting answer from product team. We'll respond within 24 hours.",
-        date: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
-      },
-      ...prev,
-    ]);
-    setQuestion("");
-    setPostOpen(false);
+    setBusy(true);
+    try {
+      const r = await api.submitQuestion({ product: product.id, question: question.trim() });
+      showToast?.(r.message || "Question submitted.", "success");
+      setQuestion("");
+      setPostOpen(false);
+      reloadQ();
+    } catch (err) {
+      showToast?.(err.message || "Could not submit your question.", "error");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const todayStr = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -106,10 +107,10 @@ export default function QnaPage() {
               <div className="flex gap-2">
                 <button
                   type="submit"
-                  disabled={!question.trim()}
+                  disabled={!question.trim() || busy}
                   className="bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm px-5 py-2 rounded transition disabled:opacity-60"
                 >
-                  Submit Question
+                  {busy ? "Submitting…" : "Submit Question"}
                 </button>
                 <button
                   type="button"
@@ -122,8 +123,13 @@ export default function QnaPage() {
             </form>
           )}
 
-          {qnaList.map((f) => (
-            <article key={f.id} className="border border-gray-200 rounded-xl p-5">
+          {qnaList.length === 0 && (
+            <div className="border border-gray-200 rounded-xl p-10 text-center text-sm text-brand-muted">
+              No questions yet. Be the first to ask about this product.
+            </div>
+          )}
+          {qnaList.map((f, i) => (
+            <article key={`${f.id}-${i}`} className="border border-gray-200 rounded-xl p-5">
               <div className="flex items-start gap-2 mb-2">
                 <span className="bg-green-500 text-white text-[10px] font-bold uppercase px-2 py-1 rounded shrink-0">QUESTION</span>
                 <p className="font-semibold text-brand-ink text-sm flex-1">{f.q}</p>
@@ -134,8 +140,8 @@ export default function QnaPage() {
               <div className="flex items-center justify-between text-xs text-brand-muted border-t border-gray-100 pt-3">
                 <span>| {f.date || todayStr}</span>
                 <div className="flex items-center gap-4">
-                  <ReactionBtn icon="up" />
-                  <ReactionBtn icon="down" />
+                  <ReactionBtn icon="up" initial={f.up} />
+                  <ReactionBtn icon="down" initial={f.down} />
                 </div>
               </div>
             </article>
@@ -146,8 +152,8 @@ export default function QnaPage() {
   );
 }
 
-function ReactionBtn({ icon }) {
-  const [count, setCount] = useState(0);
+function ReactionBtn({ icon, initial = 0 }) {
+  const [count, setCount] = useState(initial);
   return (
     <button onClick={() => setCount((c) => c + 1)} className="flex items-center gap-1 hover:text-[#3684bf]">
       {icon === "up" ? (

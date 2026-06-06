@@ -29,6 +29,7 @@ const STATIC = {
   combosPage: siteStatic.combosPage,
   tierOffers: siteStatic.tierOffers,
   productDefaults: siteStatic.productDefaults,
+  paymentOptions: siteStatic.paymentOptions,
   sectionToCategory: siteStatic.sectionToCategory,
   sampleReviews: siteStatic.sampleReviews,
   productBenefits: siteStatic.productBenefits,

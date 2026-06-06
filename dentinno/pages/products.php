@@ -236,7 +236,11 @@ include __DIR__ . '/../includes/header.php';
         <!-- CONTENT -->
         <div id="tab-content" class="tab-pane">
           <div class="form-group"><label class="form-label">Full Description</label><textarea class="form-control" id="prod_full_desc" rows="4" placeholder="Detailed product description..."></textarea></div>
-          <div class="form-group"><label class="form-label">Features <small class="text-muted">(one per line)</small></label><textarea class="form-control" id="prod_features" rows="4" placeholder="High precision RF technology&#10;Digital display panel&#10;Autoclavable tips&#10;CE & ISO certified"></textarea></div>
+          <div class="form-group">
+            <label class="form-label">Product Highlights <small class="text-muted">(Title + Text — shown as bullets on the product page; leave empty to use the global default)</small></label>
+            <div id="highlights_container"></div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="addHighlightRow()" style="margin-top:6px;"><i class="fa-solid fa-plus"></i> Add Highlight</button>
+          </div>
           <div class="form-group"><label class="form-label">Directions for Use</label><textarea class="form-control" id="prod_directions" rows="3" placeholder="Step-by-step usage instructions..."></textarea></div>
           <div class="form-group"><label class="form-label">Packing Information</label><textarea class="form-control" id="prod_packing" rows="2" placeholder="e.g. 1 Unit, Accessory Kit, Power Adapter, User Manual"></textarea></div>
           <div class="form-group"><label class="form-label">Additional Information</label><textarea class="form-control" id="prod_additional" rows="3" placeholder="Regulatory compliance, certifications, legal disclaimers..."></textarea></div>
@@ -349,6 +353,17 @@ function addSpecRow(k='',v=''){
   document.getElementById('specs_container').appendChild(d);
 }
 
+// Highlight rows (Title + Text) -> saved into the `features` column as [{title,text}]
+function addHighlightRow(t='',x=''){
+  const id='h'+Date.now()+Math.random().toString(36).slice(2,6);
+  const d=document.createElement('div');d.className='highlight-row';d.id=id;
+  d.style.cssText='display:flex;gap:6px;margin-bottom:6px;align-items:flex-start;';
+  d.innerHTML=`<input type="text" class="form-control" placeholder="Title (e.g. Key Features)" value="${t.replace(/"/g,'&quot;')}" data-hl-title style="flex:1;">
+    <textarea class="form-control" placeholder="Text..." rows="2" data-hl-text style="flex:2;">${x}</textarea>
+    <button type="button" class="btn btn-ghost btn-sm btn-icon" onclick="this.closest('.highlight-row').remove()"><i class="fa-solid fa-minus" style="color:var(--danger);"></i></button>`;
+  document.getElementById('highlights_container').appendChild(d);
+}
+
 // FAQ rows
 function addFaqRow(q='',a=''){
   const id='f'+Date.now()+Math.random().toString(36).slice(2,6);
@@ -420,10 +435,18 @@ function openProductModal(p=null){
   document.getElementById('prod_featured').value=p?.is_featured??0;
   document.getElementById('prod_new').value=p?.is_new??0;
   document.getElementById('prod_weight').value=p?.weight_kg||'';
+  // Highlights (per-product). Stored in `features` column as [{title,text}].
+  // Back-compat: old rows are plain strings -> convert to {title:'', text}.
+  document.getElementById('highlights_container').innerHTML='';
   try{
     const feats=p?.features?JSON.parse(p.features):[];
-    document.getElementById('prod_features').value=Array.isArray(feats)?feats.join('\n'):'';
-  }catch(e){document.getElementById('prod_features').value='';}
+    if(Array.isArray(feats)){
+      feats.forEach(f=>{
+        if(f && typeof f==='object') addHighlightRow(f.title||'', f.text||'');
+        else addHighlightRow('', String(f||''));
+      });
+    }
+  }catch(e){}
   document.getElementById('prod_directions').value=p?.directions_for_use||'';
   document.getElementById('prod_packing').value=p?.packing_info||'';
   document.getElementById('prod_additional').value=p?.additional_information||'';
@@ -467,8 +490,13 @@ async function saveProduct(){
     const a=item.querySelector('[data-faq-a]')?.value.trim();
     if(q&&a)faqs.push({question:q,answer:a});
   });
-  const featText=document.getElementById('prod_features').value;
-  const features=featText.split('\n').map(l=>l.replace(/^[•\-*]\s*/,'')).filter(l=>l.trim());
+  // Highlights -> stored in `features` column as [{title,text}]
+  const features=[];
+  document.querySelectorAll('#highlights_container .highlight-row').forEach(row=>{
+    const t=row.querySelector('[data-hl-title]').value.trim();
+    const x=row.querySelector('[data-hl-text]').value.trim();
+    if(t||x)features.push({title:t,text:x});
+  });
   let images=[];try{images=JSON.parse(document.getElementById('prod_images_json').value);}catch(e){}
   const hover_image=document.getElementById('prod_hover_image').value;
   const payload={action:'save',id:document.getElementById('prod_id').value,name,price,stock,hover_image,

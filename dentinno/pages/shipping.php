@@ -50,6 +50,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     } elseif ($action === 'delete_rule') {
         db()->execute("DELETE FROM shipping_rules WHERE id=?",[$data['id']]);
         echo json_encode(['success'=>true]);
+    } elseif ($action === 'save_pincode') {
+        $d = $data;
+        $pfx = preg_replace('/\D/', '', $d['pincode_prefix'] ?? '');
+        if ($pfx === '') { echo json_encode(['success'=>false,'message'=>'Pincode / prefix required']); exit; }
+        $days = max(0, (int)($d['delivery_days'] ?? 5));
+        $cod  = !empty($d['cod_available']) ? 1 : 0;
+        $act  = isset($d['is_active']) ? (int)$d['is_active'] : 1;
+        if (!empty($d['id'])) {
+            db()->execute("UPDATE delivery_pincodes SET pincode_prefix=?,label=?,delivery_days=?,cod_available=?,is_active=? WHERE id=?",
+                [$pfx,$d['label']??null,$days,$cod,$act,$d['id']]);
+        } else {
+            db()->execute("INSERT INTO delivery_pincodes (pincode_prefix,label,delivery_days,cod_available,is_active) VALUES (?,?,?,?,1)
+                ON DUPLICATE KEY UPDATE label=VALUES(label),delivery_days=VALUES(delivery_days),cod_available=VALUES(cod_available),is_active=1",
+                [$pfx,$d['label']??null,$days,$cod]);
+        }
+        echo json_encode(['success'=>true,'message'=>'Pincode saved']);
+    } elseif ($action === 'delete_pincode') {
+        db()->execute("DELETE FROM delivery_pincodes WHERE id=?",[$data['id']]);
+        echo json_encode(['success'=>true,'message'=>'Pincode deleted']);
     }
     exit;
 }
@@ -57,6 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
 $methods = db()->fetchAll("SELECT * FROM shipping_methods ORDER BY sort_order,id");
 $zones   = db()->fetchAll("SELECT * FROM shipping_zones ORDER BY id");
 $rules   = db()->fetchAll("SELECT r.*,m.name as method_name,z.name as zone_name FROM shipping_rules r LEFT JOIN shipping_methods m ON r.method_id=m.id LEFT JOIN shipping_zones z ON r.zone_id=z.id ORDER BY r.method_id,r.rule_type,r.min_value");
+$pincodes = db()->fetchAll("SELECT * FROM delivery_pincodes ORDER BY CHAR_LENGTH(pincode_prefix) DESC, pincode_prefix");
 
 include __DIR__ . '/../includes/header.php';
 ?>
@@ -87,6 +107,7 @@ include __DIR__ . '/../includes/header.php';
   <button class="ship-tab active" onclick="showShipTab('methods',this)"><i class="fa-solid fa-list-check" style="margin-right:6px;"></i>Methods</button>
   <button class="ship-tab" onclick="showShipTab('rules',this)"><i class="fa-solid fa-sliders" style="margin-right:6px;"></i>Rules</button>
   <button class="ship-tab" onclick="showShipTab('zones',this)"><i class="fa-solid fa-map-location-dot" style="margin-right:6px;"></i>Zones</button>
+  <button class="ship-tab" onclick="showShipTab('pincodes',this)"><i class="fa-solid fa-location-dot" style="margin-right:6px;"></i>Pincode ETA</button>
   <button class="ship-tab" onclick="showShipTab('calculator',this)"><i class="fa-solid fa-calculator" style="margin-right:6px;"></i>Calculator</button>
 </div>
 
@@ -201,6 +222,42 @@ include __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
+<!-- PINCODE ETA -->
+<div id="ship-pincodes" class="ship-section fade-in">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div>
+      <h3 style="font-family:'Playfair Display',serif;">Pincode Delivery & COD</h3>
+      <p class="text-muted" style="font-size:.8rem;margin-top:2px;">Powers the "Delivery Details" pincode check on the product page. Longest matching prefix wins (e.g. <b>395006</b> overrides <b>39</b>).</p>
+    </div>
+    <button class="btn btn-gold btn-sm" onclick="openPinModal()"><i class="fa-solid fa-plus"></i> Add Pincode</button>
+  </div>
+  <div class="card">
+    <div class="table-responsive">
+      <table>
+        <thead><tr><th>Pincode / Prefix</th><th>Region Label</th><th>Delivery Days</th><th>COD</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+          <?php foreach($pincodes as $pc): ?>
+          <tr>
+            <td class="font-bold" style="font-size:.9rem;"><?= htmlspecialchars($pc['pincode_prefix']) ?><?= strlen($pc['pincode_prefix'])<6 ? '<span class="text-muted" style="font-size:.72rem;"> (prefix)</span>' : '' ?></td>
+            <td style="font-size:.85rem;"><?= htmlspecialchars($pc['label'] ?? '—') ?></td>
+            <td><span class="badge badge-info"><?= (int)$pc['delivery_days'] ?> days</span></td>
+            <td><?= $pc['cod_available'] ? '<span class="badge badge-success"><i class="fa-solid fa-check"></i> Yes</span>' : '<span class="badge badge-secondary">No</span>' ?></td>
+            <td><span class="badge badge-<?= $pc['is_active']?'success':'secondary' ?>"><?= $pc['is_active']?'Active':'Inactive' ?></span></td>
+            <td>
+              <div style="display:flex;gap:5px;">
+                <button class="btn btn-ghost btn-sm btn-icon" onclick='openPinModal(<?= json_encode($pc) ?>)'><i class="fa-solid fa-pen"></i></button>
+                <button class="btn btn-ghost btn-sm btn-icon" onclick="deletePin(<?= $pc['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+              </div>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+          <?php if(empty($pincodes)): ?><tr><td colspan="6"><div class="empty-state"><i class="fa-solid fa-location-dot"></i><p>No pincodes yet — add a broad prefix like "39" to start</p></div></td></tr><?php endif; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <!-- CALCULATOR -->
 <div id="ship-calculator" class="ship-section fade-in">
   <h3 style="font-family:'Playfair Display',serif;margin-bottom:20px;">Shipping Cost Calculator</h3>
@@ -310,6 +367,29 @@ include __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
+<!-- PINCODE MODAL -->
+<div class="modal-overlay" id="pinModal" style="display:none;" onclick="if(event.target===this)closeModal('pinModal')">
+  <div class="modal-box" style="max-width:480px;">
+    <div class="modal-head"><h2 id="pinModalTitle">Add Pincode</h2><button class="close-btn" onclick="closeModal('pinModal')"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="modal-body">
+      <input type="hidden" id="pin_id">
+      <div class="form-group"><label class="form-label">Pincode or Prefix *</label><input type="text" class="form-control" id="pin_prefix" maxlength="6" placeholder="e.g. 39 (region) or 395006 (exact)"><small class="text-muted" style="font-size:.72rem;">Leading digits. Longer match wins over shorter.</small></div>
+      <div class="form-group"><label class="form-label">Region Label</label><input type="text" class="form-control" id="pin_label" placeholder="e.g. Surat & South Gujarat"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Delivery Days *</label><input type="number" min="0" class="form-control" id="pin_days" placeholder="e.g. 3"></div>
+        <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:6px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="pin_cod" style="width:16px;height:16px;accent-color:var(--gold-primary);"><span class="form-label" style="margin:0;">COD Available</span></label>
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label">Status</label><select class="form-control" id="pin_status"><option value="1">Active</option><option value="0">Inactive</option></select></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('pinModal')">Cancel</button>
+      <button class="btn btn-gold" onclick="savePin()"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+    </div>
+  </div>
+</div>
+
 <script>
 function showShipTab(name,btn){
   document.querySelectorAll('.ship-section').forEach(s=>s.classList.remove('active'));
@@ -399,6 +479,36 @@ function deleteZone(id){
   showConfirm('Delete Zone','Remove this shipping zone?',async()=>{
     await fetch('shipping.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'delete_zone',id})});
     showToast('Zone deleted','success');setTimeout(()=>location.reload(),700);
+  });
+}
+
+// Pincodes
+function openPinModal(p=null){
+  document.getElementById('pin_id').value=p?.id||'';
+  document.getElementById('pin_prefix').value=p?.pincode_prefix||'';
+  document.getElementById('pin_label').value=p?.label||'';
+  document.getElementById('pin_days').value=p?.delivery_days??'';
+  document.getElementById('pin_cod').checked=p?(!!Number(p.cod_available)):true;
+  document.getElementById('pin_status').value=p?.is_active??1;
+  document.getElementById('pinModalTitle').textContent=p?'Edit Pincode':'Add Pincode';
+  openModal('pinModal');
+}
+async function savePin(){
+  const pfx=document.getElementById('pin_prefix').value.replace(/\D/g,'');
+  if(!pfx){showToast('Pincode / prefix required','warning');return;}
+  const payload={action:'save_pincode',id:document.getElementById('pin_id').value,
+    pincode_prefix:pfx,label:document.getElementById('pin_label').value,
+    delivery_days:document.getElementById('pin_days').value||5,
+    cod_available:document.getElementById('pin_cod').checked?1:0,
+    is_active:document.getElementById('pin_status').value};
+  const res=await fetch('shipping.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(payload)});
+  const r=await res.json();if(r.success){showToast(r.message,'success');closeModal('pinModal');setTimeout(()=>location.reload(),700);}
+  else showToast(r.message||'Save failed','danger');
+}
+function deletePin(id){
+  showConfirm('Delete Pincode','Remove this pincode rule?',async()=>{
+    await fetch('shipping.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'delete_pincode',id})});
+    showToast('Pincode deleted','success');setTimeout(()=>location.reload(),700);
   });
 }
 

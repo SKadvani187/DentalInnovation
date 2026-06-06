@@ -50,10 +50,20 @@ export const api = {
   events: () => get("events.php").then((j) => j.events),
   offers: () => get("offers.php").then((j) => j.offers),
   testimonials: () => get("testimonials.php").then((j) => j.testimonials),
+  // per-product FAQs (active)
+  faqs: (slug) => get("faqs.php", { product: slug }).then((j) => j.faqs),
+  // per-product customer Q&A (answered + approved) + submit
+  questions: (slug) => get("questions.php", { product: slug }).then((j) => j.questions),
+  submitQuestion: (payload) => post("questions.php", payload), // { product, question, name?, email? }
+  // product reviews (real DB; approved only) + aggregate summary
+  reviews: (slug) => get("reviews.php", { product: slug }), // { reviews, summary }
+  submitReview: (payload) => post("reviews.php", payload),  // { product, name, email?, rating, title?, review }
   // combined home feed
   home: () => get("home.php"),
   // site settings (company, payments, featured, etc)
   settings: () => get("settings.php").then((j) => j.settings),
+  // pincode delivery ETA + COD check
+  checkDelivery: (pincode) => get("delivery.php", { pincode }), // { serviceable, days, cod, label, eta }
   // contact form submit
   contact: (payload) => post("contact.php", payload),
   // AI image search (Claude Vision) — endpoint lives at /api/image_search.php (above /v1)

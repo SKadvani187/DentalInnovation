@@ -506,7 +506,20 @@ export const productDefaults = {
   rating: 5.0,
   deliveryDays: "3–5 business days",
   breadcrumbExtraCount: 5,
+  replacementText: "Easy 7 days replacement available",
+  variantDeliveryNote: "📦 Get it by 3–5 days",
+  variantCodNote: "💳 COD available",
 };
+
+// Product page "Payment Options" card. Admin-managed via Settings → Catalog → Payments.
+// icon = rupee | bank | card | upi ; span = grid columns (1–12).
+export const paymentOptions = [
+  { id: "cod", label: "COD", icon: "rupee", span: 5, desc: "Experience Convenience and Trust with Our Cash on Delivery (COD) Payment Service" },
+  { id: "nb", label: "Net Banking", icon: "bank", span: 7, desc: "Net banking, also known as online banking or internet banking, is a digital platform that allows customers to perform various financial transactions and manage their bank accounts through the internet." },
+  { id: "upi", label: "UPI", icon: "upi", span: 5, desc: "UPI (Unified Payments Interface) is a real-time payment system that allows you to link multiple bank accounts to a single mobile application, enabling seamless and instant money transfers and payments." },
+  { id: "partial", label: "Partial Payment", icon: "rupee", span: 7, desc: "You can partially pay for your order now and the remaining amount can be paid at the time of delivery." },
+  { id: "card", label: "Credit / Debit cards", icon: "card", span: 12, desc: "Pay securely with your Credit or Debit card via our trusted payment gateway." },
+];
 
 // Section title → category filter mapping (used by home ProductSection View All)
 export const sectionToCategory = {
