@@ -18,7 +18,7 @@ function mapSavedAddress(a) {
 
 export default function CheckoutModal() {
   const { modal, closeModal, showToast, openModal } = useUI();
-  const { items, pricing, appliedCoupon, clearCart } = useCart();
+  const { items, pricing, appliedCoupon, clearCart, setDeliveryPincode } = useCart();
   const orderTotal = pricing.finalTotal;   // server-mirrored total (incl. coupon/bulk/shipping/tax)
   const { user, token } = useAuth();
   const [step, setStep] = useState(1);
@@ -43,6 +43,13 @@ export default function CheckoutModal() {
         : { ...a, fullName: user?.name || a.fullName, phone: user?.mobile || user?.phone || a.phone }
     );
   }, [modal, user]);
+
+  // Keep the cart's shipping quote in sync with the checkout destination pincode so the
+  // total shown here matches what the server will charge for this address.
+  useEffect(() => {
+    const pin = (address.pincode || "").replace(/\D/g, "");
+    if (pin.length === 6) setDeliveryPincode(pin);
+  }, [address.pincode, setDeliveryPincode]);
 
   if (modal !== "checkout") return null;
 

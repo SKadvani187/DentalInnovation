@@ -23,6 +23,7 @@ export default function AuthModal() {
   const otpRefs = useRef([]);
   const mobileRef = useRef(null);
   const verifyingRef = useRef(false);
+  const sendingRef = useRef(false);
 
   useEffect(() => {
     if (modal === "auth" && step === "mobile") {
@@ -67,11 +68,14 @@ export default function AuthModal() {
   if (modal !== "auth") return null;
 
   const startOtp = async (m) => {
+    if (sendingRef.current) return false;   // guard: auto-fire (10th digit) + manual click double-request
+    sendingRef.current = true;
     setError("");
     setInfo("");
     setLoading(true);
     const res = await requestOtp(m);
     setLoading(false);
+    sendingRef.current = false;
     if (!res.ok) {
       setToastType("error");
       setToast(res.error);
@@ -90,7 +94,8 @@ export default function AuthModal() {
 
   const onMobileSubmit = (e) => {
     e.preventDefault();
-    if (mobile.length !== 10) {
+    if (!/^[6-9]\d{9}$/.test(mobile)) {
+      setToastType("error");
       setToast("Please enter a valid 10-digit mobile number");
       return;
     }

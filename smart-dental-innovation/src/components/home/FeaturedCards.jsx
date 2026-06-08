@@ -10,7 +10,7 @@ export default function FeaturedCards() {
   const { addToCart } = useCart();
   const { openProduct } = useUI();
   const { data: allProducts } = useProducts();
-  const { featured } = useSettings();
+  const { featured = [] } = useSettings();
   const resolve = (pid) => allProducts.find((p) => p.id === pid) || findProductById(pid);
 
   return (

@@ -23,8 +23,8 @@ export default function CartDrawer() {
   const { items, updateQty, removeFromCart, subtotal, itemCount, pricing, appliedCoupon, applyCoupon: applyCouponCtx, removeCoupon } = useCart();
   const { user } = useAuth();
   const { toggle: toggleWish } = useWishlist();
-  const { fbtItems: FBT_ITEMS, freeGifts, coupons: COUPONS, bulkRule } = useSettings();
-  const FREE_GIFTS = freeGifts.items;
+  const { freeGifts = {}, coupons: COUPONS = [], bulkRule = {} } = useSettings();
+  const FREE_GIFTS = freeGifts.items || [];
   const [priceOpen, setPriceOpen] = useState(true);
   const [confirmRemove, setConfirmRemove] = useState(null);
   const [view, setView] = useState("cart");
@@ -488,7 +488,7 @@ function RemoveConfirmDialog({ item, onCancel, onRemove, onWishlist }) {
 
 function FrequentlyBought() {
   const { addToCart } = useCart();
-  const { fbtItems: FBT_ITEMS } = useSettings();
+  const { fbtItems: FBT_ITEMS = [] } = useSettings();
   const scroller = useRef(null);
 
   const onAdd = (item) => {

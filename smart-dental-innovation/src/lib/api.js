@@ -56,6 +56,8 @@ export const api = {
   events: () => get("events.php").then((j) => j.events),
   offers: () => get("offers.php").then((j) => j.offers),
   testimonials: () => get("testimonials.php").then((j) => j.testimonials),
+  // Live shipping quote (server computes via DB shipping engine). { items:[{slug,qty}], pincode? }
+  shippingQuote: (payload) => post("shipping_quote.php", payload), // -> { shipping, free, weight, methods }
   // per-product FAQs (active)
   faqs: (slug) => get("faqs.php", { product: slug }).then((j) => j.faqs),
   // per-product customer Q&A (answered + approved) + submit

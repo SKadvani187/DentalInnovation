@@ -1,10 +1,11 @@
 import ProductCard from "./ProductCard";
 import { useUI } from "../../context/UIContext";
 import { useSettings } from "../../context/SettingsContext";
-import { sectionToCategory as TITLE_TO_CATEGORY } from "../../data/site";
 
 export default function ProductSection({ title, eyebrow, products, accent = "navy" }) {
   const { navigate } = useUI();
+  // Section title → category filter map is admin-managed (DB via settings API).
+  const { sectionToCategory: TITLE_TO_CATEGORY = {} } = useSettings();
 
   const onViewAll = () => {
     const category = TITLE_TO_CATEGORY[title];

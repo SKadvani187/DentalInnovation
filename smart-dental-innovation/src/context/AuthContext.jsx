@@ -4,17 +4,10 @@ import api, { setAuthToken } from "../lib/api";
 
 const AuthContext = createContext(null);
 
-const OTP_TTL_MS = 5 * 60 * 1000;
-
-function genOtp() {
-  return String(Math.floor(1000 + Math.random() * 9000));
-}
-
 export function AuthProvider({ children }) {
   const [user, setUser] = useLocalStorage("sdi:user", null);
   const [accounts, setAccounts] = useLocalStorage("sdi:accounts", []);
   const [token, setToken] = useLocalStorage("sdi:token", null);
-  const otpStore = useRef(new Map());
 
   // Restore token into the API client on load.
   useEffect(() => { setAuthToken(token); }, [token]);
@@ -68,16 +61,45 @@ export function AuthProvider({ children }) {
     } catch (err) {
       return { ok: false, error: err.message || "Invalid OTP." };
     }
-    // Verified — persist customer + token.
+    // Verified — persist customer + token (backend find-or-create).
     const existing = accounts.find((a) => a.mobile === mobile);
     const res = await syncToApi(mobile, existing ? { name: existing.name, email: existing.email } : {});
+
+    // Backend is authoritative: if it returns an existing customer with a real name,
+    // log them straight in — even if this browser has no local account (incognito,
+    // cleared storage, different device). This is the main "OTP ok but not logged in" fix.
+    const apiCust = res?.customer;
+    const apiHasProfile = apiCust && res?.isNew === false && apiCust.name && apiCust.name.trim() !== "";
+    if (apiHasProfile) {
+      const merged = {
+        mobile,
+        name: apiCust.name,
+        email: apiCust.email || "",
+        address: apiCust.address || "",
+        addresses: apiCust.addresses || [],
+        city: apiCust.city || "",
+        state: apiCust.state || "",
+        pincode: apiCust.pincode || "",
+        clinicName: apiCust.clinicName || "",
+      };
+      setUser(merged);
+      // Cache locally so future logins on this browser are instant.
+      setAccounts((prev) => {
+        const without = prev.filter((a) => a.mobile !== mobile);
+        return [...without, { mobile, name: merged.name, email: merged.email, address: merged.address }];
+      });
+      return { ok: true, isNew: false };
+    }
+
+    // Local account known (offline / API down) — log in from it.
     if (existing) {
       setUser({ ...existing });
       return { ok: true, isNew: false };
     }
-    // New customer: backend created a record; ask for name to complete profile.
-    return { ok: true, isNew: !res || res.isNew !== false, mobile };
-  }, [accounts, setUser, syncToApi]);
+
+    // Genuinely new (no profile yet): ask for name to complete profile.
+    return { ok: true, isNew: true, mobile };
+  }, [accounts, setUser, setAccounts, syncToApi]);
 
   const completeProfile = useCallback(({ mobile, name, email, address }) => {
     if (!name?.trim()) return { ok: false, error: "Enter your name." };

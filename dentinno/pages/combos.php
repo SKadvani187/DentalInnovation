@@ -9,9 +9,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['combo_image'])) {
     $upload_dir = __DIR__ . '/../assets/images/products/';
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
     $file = $_FILES['combo_image'];
+    // Check PHP's upload status first (a file over upload_max_filesize arrives with error=1,
+    // empty tmp_name and size=0 — would otherwise fail later as a misleading "Upload failed").
+    if ($file['error'] !== UPLOAD_ERR_OK) {
+        $msgs = [
+            UPLOAD_ERR_INI_SIZE   => 'File exceeds the server upload limit (upload_max_filesize).',
+            UPLOAD_ERR_FORM_SIZE  => 'File is too large.',
+            UPLOAD_ERR_PARTIAL    => 'File was only partially uploaded — please try again.',
+            UPLOAD_ERR_NO_FILE    => 'No file was received.',
+            UPLOAD_ERR_NO_TMP_DIR => 'Server is missing its temporary upload folder.',
+            UPLOAD_ERR_CANT_WRITE => 'Server could not write the upload to disk.',
+            UPLOAD_ERR_EXTENSION  => 'A PHP extension blocked the upload.',
+        ];
+        echo json_encode(['success'=>false,'message'=> $msgs[$file['error']] ?? ('Upload error (code '.$file['error'].')')]); exit;
+    }
     $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     if (!in_array($ext, ['jpg','jpeg','png','webp','gif'])) { echo json_encode(['success'=>false,'message'=>'Invalid file type']); exit; }
-    if ($file['size'] > 5*1024*1024) { echo json_encode(['success'=>false,'message'=>'File too large']); exit; }
+    if ($file['size'] > 5*1024*1024) { echo json_encode(['success'=>false,'message'=>'File too large (max 5MB)']); exit; }
     $fname = 'combo_' . time() . '_' . rand(1000,9999) . '.' . $ext;
     if (move_uploaded_file($file['tmp_name'], $upload_dir . $fname)) {
         echo json_encode(['success'=>true,'url'=> APP_URL.'/assets/images/products/'.$fname]);
@@ -22,6 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['combo_image'])) {
 // AJAX JSON actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
+    // Never let a PHP warning/exception leak HTML into the JSON response (breaks res.json()).
+    try {
     $d = json_decode(file_get_contents('php://input'), true);
     $action = $d['action'] ?? '';
 
@@ -30,15 +46,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $items = is_array($d['items'] ?? null) ? $d['items'] : [];
         $price = (float)($d['price'] ?? 0);
         if ($name === '')       { echo json_encode(['success'=>false,'message'=>'Name is required']); exit; }
-        if (count($items) === 0){ echo json_encode(['success'=>false,'message'=>'Add at least one product']); exit; }
-        // MRP is authoritative = sum of bundled product MRPs (never trust client).
-        $mrp = 0; foreach ($items as $it) $mrp += (float)($it['mrp'] ?? 0);
+        // A combo must bundle at least 2 products (a 1-item combo is just that product's listing).
+        if (count($items) < 2)  { echo json_encode(['success'=>false,'message'=>'A combo needs at least 2 products']); exit; }
+
+        // Authoritative recompute from LIVE products (never trust client price/mrp).
+        // mrp = Σ product MRP (strike-through anchor); sellTotal = Σ product selling price.
+        $mrp = 0; $sellTotal = 0; $cleanItems = [];
+        foreach ($items as $it) {
+            $slug = $it['productId'] ?? '';
+            if ($slug === '') continue;
+            $p = db()->fetchOne("SELECT name, price, discount_price, JSON_EXTRACT(images,'$[0]') AS img FROM products WHERE slug=?", [$slug]);
+            if (!$p) continue;
+            $pMrp  = (float)$p['price'];
+            $pSell = ($p['discount_price'] !== null && (float)$p['discount_price'] > 0) ? (float)$p['discount_price'] : $pMrp;
+            $qty   = max(1, (int)($it['qty'] ?? 1));
+            $mrp       += $pMrp  * $qty;
+            $sellTotal += $pSell * $qty;
+            $cleanItems[] = [
+                'productId' => $slug,
+                'name'      => $p['name'],
+                'mrp'       => $pMrp,
+                'sell'      => $pSell,
+                'image'     => trim((string)$p['img'], '"') ?: ($it['image'] ?? null),
+                'qty'       => $qty,
+            ];
+        }
+        if (count($cleanItems) < 2) { echo json_encode(['success'=>false,'message'=>'A combo needs at least 2 valid products']); exit; }
         if ($mrp <= 0)          { echo json_encode(['success'=>false,'message'=>'Selected products have no MRP']); exit; }
         if ($price <= 0)        { echo json_encode(['success'=>false,'message'=>'Combo price must be greater than 0']); exit; }
         if ($price > $mrp)      { echo json_encode(['success'=>false,'message'=>'Combo price cannot exceed total MRP (₹'.$mrp.')']); exit; }
+        // Real-deal check: combo must beat buying each item separately at its normal selling price.
+        if ($price >= $sellTotal) { echo json_encode(['success'=>false,'message'=>'Combo price must be less than buying separately (₹'.$sellTotal.')']); exit; }
         $disc  = ($mrp > 0 && $price < $mrp) ? round((($mrp - $price) / $mrp) * 100, 0) : 0;
         $images_json = !empty($d['images']) ? json_encode($d['images']) : null;
-        $items_json  = json_encode($items);
+        $items_json  = json_encode($cleanItems);
         $stock     = max(0, (int)($d['stock'] ?? 0));
         $inStock   = $stock > 0 ? 1 : 0;
         if (!empty($d['id'])) {
@@ -62,12 +103,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         db()->execute("UPDATE combos SET is_active=? WHERE id=?", [$d['is_active'],$d['id']]);
         echo json_encode(['success'=>true]);
     }
+    } catch (Throwable $e) {
+        echo json_encode(['success'=>false,'message'=>'Server error: ' . $e->getMessage()]);
+    }
     exit;
 }
 
 $combos = db()->fetchAll("SELECT * FROM combos ORDER BY sort_order, id");
 // Product list for the "what's inside" item picker (auto-fill name/image/mrp).
-$prodList = db()->fetchAll("SELECT slug, name, price, JSON_EXTRACT(images,'$[0]') AS img FROM products WHERE is_active=1 ORDER BY name");
+$prodList = db()->fetchAll("SELECT slug, name, price, discount_price, JSON_EXTRACT(images,'$[0]') AS img FROM products WHERE is_active=1 ORDER BY name");
 foreach ($prodList as &$pl) { $pl['img'] = trim((string)$pl['img'], '"'); } unset($pl);
 $prodJson = json_encode($prodList);
 include __DIR__ . '/../includes/header.php';
@@ -151,7 +195,9 @@ include __DIR__ . '/../includes/header.php';
             </div>
             <div id="combo_calc" style="background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:.82rem;">
                 <div style="display:flex;justify-content:space-between;"><span class="text-muted">Total MRP (auto)</span><span class="font-bold">₹<span id="combo_mrp_disp">0</span></span></div>
-                <div style="display:flex;justify-content:space-between;margin-top:3px;"><span class="text-muted">You Save / Discount</span><span class="font-bold" style="color:var(--success);">₹<span id="combo_save">0</span> (<span id="combo_disc">0</span>%)</span></div>
+                <div style="display:flex;justify-content:space-between;margin-top:3px;"><span class="text-muted">If bought separately</span><span class="font-bold">₹<span id="combo_selltotal">0</span></span></div>
+                <div style="display:flex;justify-content:space-between;margin-top:3px;"><span class="text-muted">Discount off MRP</span><span class="font-bold" style="color:var(--success);">₹<span id="combo_save">0</span> (<span id="combo_disc">0</span>%)</span></div>
+                <div style="display:flex;justify-content:space-between;margin-top:3px;"><span class="text-muted">Real save vs separate</span><span class="font-bold" style="color:var(--success);">₹<span id="combo_realsave">0</span></span></div>
             </div>
             <div id="combo_warn" style="color:var(--danger);font-size:.76rem;margin-top:-4px;margin-bottom:10px;display:none;"><i class="fa-solid fa-triangle-exclamation"></i> Combo price is higher than total MRP.</div>
 
@@ -191,6 +237,7 @@ function comboItemRowHtml(it={}) {
         <select class="form-control" data-ci-select onchange="onPickComboItem(this)" style="flex:1;"><option value="">— Select product —</option>${opts}</select>
         <input type="hidden" data-ci-name value="${(it.name||'').replace(/"/g,'&quot;')}">
         <input type="hidden" data-ci-mrp value="${it.mrp||0}">
+        <input type="hidden" data-ci-sell value="${it.sell||it.mrp||0}">
         <input type="hidden" data-ci-image value="${(it.image||'').replace(/"/g,'&quot;')}">
         <button type="button" class="btn btn-ghost btn-sm" onclick="this.parentElement.remove();comboAutoFill()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
     </div>`;
@@ -200,6 +247,7 @@ function onPickComboItem(sel){
     const row=sel.closest('.combo-item-row'); const p=cbProdBySlug[sel.value];
     row.querySelector('[data-ci-name]').value=p?p.name:'';
     row.querySelector('[data-ci-mrp]').value=p?p.price:0;
+    row.querySelector('[data-ci-sell]').value=p?((p.discount_price!=null&&p.discount_price>0)?p.discount_price:p.price):0;
     row.querySelector('[data-ci-image]').value=p?(p.img||''):'';
     comboAutoFill();
 }
@@ -207,7 +255,7 @@ function collectComboItems(){
     const out=[];
     document.querySelectorAll('#comboItemsContainer .combo-item-row').forEach(row=>{
         const id=row.querySelector('[data-ci-select]').value;
-        if(id) out.push({productId:id, name:row.querySelector('[data-ci-name]').value, mrp:parseFloat(row.querySelector('[data-ci-mrp]').value)||0, image:row.querySelector('[data-ci-image]').value});
+        if(id) out.push({productId:id, name:row.querySelector('[data-ci-name]').value, mrp:parseFloat(row.querySelector('[data-ci-mrp]').value)||0, sell:parseFloat(row.querySelector('[data-ci-sell]').value)||0, image:row.querySelector('[data-ci-image]').value});
     });
     return out;
 }
@@ -244,14 +292,26 @@ function openComboModal(c = null) {
     openModal('comboModal');
 }
 function comboCalc(){
+    const items = collectComboItems();
     const mrp = parseFloat(document.getElementById('combo_mrp').value)||0;
+    const sellTotal = items.reduce((s,it)=>s+(it.sell||it.mrp||0),0);
     const price = parseFloat(document.getElementById('combo_price').value)||0;
     const save = (mrp>price) ? mrp-price : 0;
     const disc = (mrp>0 && price<mrp) ? Math.round((save/mrp)*100) : 0;
+    // Real saving vs buying each item separately at its normal selling price.
+    const realSave = (sellTotal>price) ? sellTotal-price : 0;
     document.getElementById('combo_mrp_disp').textContent = mrp.toLocaleString('en-IN');
     document.getElementById('combo_save').textContent = save.toLocaleString('en-IN');
     document.getElementById('combo_disc').textContent = disc;
-    document.getElementById('combo_warn').style.display = (price>mrp && mrp>0) ? 'block' : 'none';
+    document.getElementById('combo_selltotal').textContent = sellTotal.toLocaleString('en-IN');
+    document.getElementById('combo_realsave').textContent = realSave.toLocaleString('en-IN');
+    // Warn: combo price must beat the separate-purchase total (real deal), and not exceed MRP.
+    const warn = document.getElementById('combo_warn');
+    let msg = '';
+    if (price>mrp && mrp>0) msg = 'Combo price is higher than total MRP.';
+    else if (price>0 && sellTotal>0 && price>=sellTotal) msg = 'Combo price must be less than buying separately (₹'+sellTotal.toLocaleString('en-IN')+').';
+    warn.style.display = msg ? 'block' : 'none';
+    if (msg) warn.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> ' + msg;
 }
 async function uploadComboImg(files) {
     const file = files[0]; if(!file) return;
@@ -271,15 +331,20 @@ function renderComboImg() {
 }
 async function saveCombo() {
     const items = collectComboItems();
-    if(items.length === 0){ showToast('Add at least one product to the combo','warning'); return; }
     const name = document.getElementById('combo_name').value.trim();
-    const mrp = document.getElementById('combo_mrp').value;
-    const price = document.getElementById('combo_price').value;
+    const mrp = parseFloat(document.getElementById('combo_mrp').value)||0;
+    const price = parseFloat(document.getElementById('combo_price').value)||0;
+    const sellTotal = items.reduce((s,it)=>s+(it.sell||it.mrp||0),0);
+    // A combo must bundle ≥ 2 products (a 1-item combo is just that product's listing).
+    if(items.length < 2){ showToast('A combo needs at least 2 products','warning'); return; }
     if(!name){ showToast('Combo name is required','warning'); return; }
     if(!price){ showToast('Combo price is required','warning'); return; }
-    if(parseFloat(price) > parseFloat(mrp)){ showToast('Combo price cannot exceed total MRP','warning'); return; }
-    // image defaults to the first product's image if none uploaded
-    const image = document.getElementById('combo_image').value || (items[0] && items[0].image) || '';
+    if(price > mrp){ showToast('Combo price cannot exceed total MRP','warning'); return; }
+    // Real-deal check: combo must be cheaper than buying each item separately.
+    if(price >= sellTotal){ showToast('Combo price must be less than buying separately (₹'+sellTotal.toLocaleString('en-IN')+')','warning'); return; }
+    // Only the admin-uploaded combo cover (empty if none). Storefront falls back to the
+    // bundled-product thumbnails when there's no custom cover.
+    const image = document.getElementById('combo_image').value || '';
     const data = { action:'save', id:document.getElementById('combo_id').value, name,
         description:document.getElementById('combo_desc').value, mrp, price,
         image, items,

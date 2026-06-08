@@ -4,8 +4,7 @@ import { findProductById } from "../../data/products";
 import { useUI } from "../../context/UIContext";
 import { useCart } from "../../context/CartContext";
 import { useWishlist } from "../../context/WishlistContext";
-import { categories } from "../../data/categories";
-import { useProducts, useCombos, useEvents, useReviews, useFaqs } from "../../hooks/useApiData";
+import { useProducts, useCombos, useEvents, useCategories, useReviews, useFaqs } from "../../hooks/useApiData";
 import api from "../../lib/api";
 import { useSettings } from "../../context/SettingsContext";
 import { discountPct } from "../../lib/pricing";
@@ -20,7 +19,8 @@ export default function ProductDetailPage() {
   const { data: apiProducts } = useProducts();
   const { data: combos } = useCombos();
   const { data: events } = useEvents();
-  const { company, tierOffers, productDefaults, productContent } = useSettings();
+  const { data: categories } = useCategories();
+  const { company = {}, tierOffers = [], productDefaults = {}, productContent = {} } = useSettings();
 
   const id = view?.params?.id;
   const resolvedProduct = useMemo(() => {
@@ -90,11 +90,15 @@ export default function ProductDetailPage() {
   const wished = has(product.id);
 
   const fromCategory = view?.params?.fromCategory;
+  const cats = Array.isArray(categories) ? categories : [];
+  // Falls back to the product's own category id/name when the categories list is empty
+  // (e.g. before the API responds), so the breadcrumb never reads from undefined.
   const crumbCategory =
-    (fromCategory && categories.find((c) => c.id === fromCategory)) ||
-    categories.find((c) => c.id === product.category) ||
-    categories[0];
-  const otherCategories = categories.filter((c) => c.id !== crumbCategory.id).slice(0, 8);
+    (fromCategory && cats.find((c) => c.id === fromCategory)) ||
+    cats.find((c) => c.id === product.category) ||
+    cats[0] ||
+    { id: product.category || "", title: product.category || "Products" };
+  const otherCategories = cats.filter((c) => c.id !== crumbCategory.id).slice(0, 8);
 
   const catalogueFile = `${product.name.split(" ")[0]}_${product.name.split(" ")[1] || "Catalogue"}.pdf`;
   const onDownloadCatalogue = () => {
@@ -778,7 +782,7 @@ function ProductGallery({ product, wished, onWish }) {
 function AvailableVariants({ product }) {
   const { addToCart } = useCart();
   const { openModal, navigate } = useUI();
-  const { productDefaults } = useSettings();
+  const { productDefaults = {} } = useSettings();
   const [tab, setTab] = useState("All");
   const { data: allProducts } = useProducts();
 
@@ -846,6 +850,8 @@ function AvailableVariants({ product }) {
 
 function ProductHighlights({ highlights }) {
   const [expanded, setExpanded] = useState(false);
+  const list = Array.isArray(highlights) ? highlights : [];
+  if (list.length === 0) return null;
 
   return (
     <div className="w-full flex flex-col items-start border border-[#ff6b1a] rounded-[10px] overflow-hidden">
@@ -858,14 +864,14 @@ function ProductHighlights({ highlights }) {
         style={{ maxHeight: expanded ? "1000px" : "100px" }}
       >
         <ul className="m-0 list-disc pl-5 space-y-1">
-          {highlights.map((h, i) => (
+          {list.map((h, i) => (
             <li key={i} className="leading-relaxed">
               {h.title && <strong className="text-brand-ink">{h.title}: </strong>}{h.text}
             </li>
           ))}
         </ul>
       </div>
-      {highlights.length > 2 && (
+      {list.length > 2 && (
         <button
           onClick={() => setExpanded((v) => !v)}
           className="w-full flex items-center justify-between px-[15px] py-[9px] font-semibold text-[#ff6b1a] text-sm mt-[7px]"
@@ -1091,7 +1097,7 @@ function InstantAnswerModal({ faqs, onClose }) {
 }
 
 function PaymentOptionsCard() {
-  const { paymentOptions } = useSettings();
+  const { paymentOptions = [] } = useSettings();
   const [modalOpen, setModalOpen] = useState(false);
   const [focusId, setFocusId] = useState(null);
   const items = (paymentOptions && paymentOptions.length ? paymentOptions : []);
@@ -1195,7 +1201,7 @@ function PaymentOptionsModal({ items, initialId, onClose }) {
 }
 
 function SmartBenefitsCard() {
-  const { productBenefits } = useSettings();
+  const { productBenefits = [] } = useSettings();
   const { navigate } = useUI();
   const icons = {
     shield: <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" />,

@@ -1,20 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { categoryFilters as STATIC_FILTERS } from "../../data/categories";
-import { sortOptions as SORT_OPTIONS, priceBounds } from "../../data/site";
 import { useCart } from "../../context/CartContext";
 import { useUI } from "../../context/UIContext";
 import { useSettings } from "../../context/SettingsContext";
 import { useProducts, useCombos, useCategories } from "../../hooks/useApiData";
 
-const PRICE_MIN = priceBounds.min;
-const PRICE_MAX = priceBounds.max;
+// Bounds fallback only for the first render before settings resolve; admin value (DB) wins.
+const FALLBACK_BOUNDS = { min: 10, max: 500000 };
 const COLLAPSE_COUNT = 10;
 
 const fmt = (n) => `₹${n.toLocaleString("en-IN")}`;
 
 export default function CategoryPage() {
   const { view, navigate } = useUI();
+  // Price bounds are admin-managed (DB via settings API). Sort options read in <SortSelect>.
+  const { priceBounds = FALLBACK_BOUNDS } = useSettings();
+  const PRICE_MIN = priceBounds.min ?? FALLBACK_BOUNDS.min;
+  const PRICE_MAX = priceBounds.max ?? FALLBACK_BOUNDS.max;
   const initialCategory = view?.params?.category || null;
   const initialPriceMax = view?.params?.priceMax || PRICE_MAX;
   const [selectedCat, setSelectedCat] = useState(initialCategory);
@@ -190,6 +193,7 @@ export default function CategoryPage() {
 }
 
 function SortSelect({ sort, setSort }) {
+  const { sortOptions: SORT_OPTIONS = [] } = useSettings();
   return (
     <div className="flex items-center gap-2 shrink-0">
       <span className="text-xs text-brand-muted hidden sm:block">Sort:</span>

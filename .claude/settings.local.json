@@ -7,7 +7,10 @@
       "Bash(/d/DIP/OtherData/xampp/php/php.exe -l dentinno/api/v1/faqs.php)",
       "Bash(/d/DIP/OtherData/xampp/php/php.exe -l dentinno/pages/questions.php)",
       "Bash(/d/DIP/OtherData/xampp/php/php.exe -l dentinno/api/v1/questions.php)",
-      "Bash(/d/DIP/OtherData/xampp/php/php.exe -l dentinno/includes/header.php)"
+      "Bash(/d/DIP/OtherData/xampp/php/php.exe -l dentinno/includes/header.php)",
+      "PowerShell(try { $r = Invoke-RestMethod \"http://localhost:8088/api/v1/offers.php\" -TimeoutSec 6; \"API offers count: $\\($r.offers.Count\\)\"; $r.offers | Select-Object -First 3 | ForEach-Object { \"  - $\\($_.title\\) | gradient=$\\($_.gradient\\) | accent=$\\($_.accent\\)\" } } catch { \"OFFERS API ERR: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(try { $r = Invoke-RestMethod \"http://localhost:8088/api/v1/offers.php\" -TimeoutSec 6; $r.offers | ForEach-Object { \"  $\\($_.title\\): accent=$\\($_.accent\\) gradient=$\\($_.gradient.Substring\\(0,[Math]::Min\\(35,$_.gradient.Length\\)\\)\\) cta=$\\($_.cta\\)\" } } catch { \"ERR: $\\($_.Exception.Message\\)\" })",
+      "Bash(/d/DIP/OtherData/xampp/php/php.exe -l dentinno/pages/offers.php)"
     ]
   }
 }

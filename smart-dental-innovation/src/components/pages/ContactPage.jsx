@@ -99,7 +99,7 @@ function useOpenStatus() {
 export default function ContactPage() {
   const { navigate, showToast } = useUI();
   const { FAQS } = useContactConfig();
-  const { contactSections } = useSettings();
+  const { contactSections = [] } = useSettings();
   // Admin show/hide: section is visible unless explicitly disabled.
   const disabled = new Set((contactSections || []).filter((s) => s.enabled === false).map((s) => s.key));
   const show = (key) => !disabled.has(key);

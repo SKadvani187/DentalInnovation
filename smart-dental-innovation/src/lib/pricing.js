@@ -35,9 +35,25 @@ export function couponDiscountFor(coupon, subtotal) {
 // Compute the full cart price breakdown.
 // opts: { bulkRule:{minQty,rate}, shipping:{freeThreshold,flatRate}, tax:{enabled,rate,inclusive}, coupon }
 export function computeCartPricing(items, opts = {}) {
-  const bulkRule = opts.bulkRule || { minQty: 2, rate: 0.1 };
-  const shipping = opts.shipping || { freeThreshold: 20000, flatRate: 600 };
-  const tax = opts.tax || { enabled: false, rate: 0, inclusive: true };
+  // Per-field fallbacks: an empty/partial config object (e.g. DB row missing) must
+  // not produce NaN totals, so we default each field rather than the whole object.
+  const DEF_BULK = { minQty: 2, rate: 0.1 };
+  const DEF_SHIP = { freeThreshold: 20000, flatRate: 600 };
+  const DEF_TAX  = { enabled: false, rate: 0, inclusive: true };
+  const ob = opts.bulkRule || {}, os = opts.shipping || {}, ot = opts.tax || {};
+  const bulkRule = {
+    minQty: Number.isFinite(+ob.minQty) ? +ob.minQty : DEF_BULK.minQty,
+    rate:   Number.isFinite(+ob.rate)   ? +ob.rate   : DEF_BULK.rate,
+  };
+  const shipping = {
+    freeThreshold: Number.isFinite(+os.freeThreshold) ? +os.freeThreshold : DEF_SHIP.freeThreshold,
+    flatRate:      Number.isFinite(+os.flatRate)      ? +os.flatRate      : DEF_SHIP.flatRate,
+  };
+  const tax = {
+    enabled:   typeof ot.enabled === "boolean" ? ot.enabled : DEF_TAX.enabled,
+    rate:      Number.isFinite(+ot.rate) ? +ot.rate : DEF_TAX.rate,
+    inclusive: typeof ot.inclusive === "boolean" ? ot.inclusive : DEF_TAX.inclusive,
+  };
   const coupon = opts.coupon || null;
 
   // Free-gift lines (price 0) are excluded from MRP/"you saved" so their value

@@ -15,6 +15,101 @@ function settingVal(string $key, $default = null) {
     return $v === null ? $default : $v;
 }
 
+// ---- Shipping engine (DB-driven: shipping_methods / shipping_rules / shipping_zones) ----
+
+// Resolve a destination zone id from a 6-digit pincode. A zone matches if any of its
+// JSON `pincodes` entries is a prefix of the pincode; longest prefix wins. Returns the
+// zone id, or null (meaning "use zone-agnostic rules only").
+function resolveShippingZone(?string $pincode): ?int {
+    $pin = preg_replace('/\D/', '', (string)$pincode);
+    if (strlen($pin) !== 6) return null;
+    $zones = db()->fetchAll("SELECT id, pincodes FROM shipping_zones WHERE is_active=1");
+    $bestId = null; $bestLen = -1;
+    foreach ($zones as $z) {
+        $pfxs = json_decode($z['pincodes'] ?? 'null', true);
+        if (!is_array($pfxs)) continue;
+        foreach ($pfxs as $pfx) {
+            $pfx = preg_replace('/\D/', '', (string)$pfx);
+            if ($pfx !== '' && strpos($pin, $pfx) === 0 && strlen($pfx) > $bestLen) {
+                $bestId = (int)$z['id']; $bestLen = strlen($pfx);
+            }
+        }
+    }
+    return $bestId;
+}
+
+// Cost of one shipping method for the given order facts. Returns ['cost'=>float,'free'=>bool]
+// or null if the method has no applicable rule (so it's excluded from the options).
+function methodShippingCost(array $method, float $price, float $weight, int $qty, ?int $zoneId): ?array {
+    $type = $method['type'] ?? 'flat';
+    if ($type === 'free') return ['cost' => 0.0, 'free' => true];
+    if ($type === 'flat') return ['cost' => (float)($method['base_cost'] ?? 0), 'free' => false];
+
+    // weight / price / product / flexible -> best matching rule (zone-specific beats global).
+    $rules = db()->fetchAll(
+        "SELECT * FROM shipping_rules
+         WHERE method_id=? AND is_active=1 AND (zone_id IS NULL " . ($zoneId ? "OR zone_id=?" : "") . ")
+         ORDER BY (zone_id IS NOT NULL) DESC, min_value ASC",
+        $zoneId ? [(int)$method['id'], $zoneId] : [(int)$method['id']]
+    );
+    foreach ($rules as $rule) {
+        $val = match ($rule['rule_type']) {
+            'weight'   => $weight,
+            'price'    => $price,
+            'quantity' => $qty,
+            default    => 0.0,
+        };
+        $max = $rule['max_value'] !== null ? (float)$rule['max_value'] : PHP_FLOAT_MAX;
+        if ($val >= (float)$rule['min_value'] && $val <= $max) {
+            $free = (bool)$rule['is_free'];
+            return ['cost' => $free ? 0.0 : (float)$rule['cost'], 'free' => $free];
+        }
+    }
+    return null;  // no rule matched
+}
+
+// Authoritative shipping cost for an order. Picks the CHEAPEST applicable active method
+// (free beats paid). Falls back to the flat shippingConfig if no methods table/rows
+// exist (back-compat with the pre-engine behaviour).
+function computeShipping(array $lines, float $subtotal, float $weight, int $qty, ?int $zoneId): float {
+    if (count($lines) === 0) return 0.0;
+
+    $methods = db()->fetchAll("SELECT * FROM shipping_methods WHERE is_active=1 ORDER BY sort_order");
+    if (!$methods) {
+        // No engine configured — legacy flat rate.
+        $ship = settingVal('shippingConfig', ['freeThreshold' => 20000, 'flatRate' => 600]);
+        $freeThreshold = (float)($ship['freeThreshold'] ?? 20000);
+        $flatRate      = (float)($ship['flatRate'] ?? 600);
+        return ($subtotal >= $freeThreshold) ? 0.0 : $flatRate;
+    }
+
+    $best = null;
+    foreach ($methods as $m) {
+        $r = methodShippingCost($m, $subtotal, $weight, $qty, $zoneId);
+        if ($r === null) continue;
+        if ($best === null
+            || ($r['free'] && !$best['free'])
+            || (!($best['free']) && $r['cost'] < $best['cost'])) {
+            $best = $r;
+        }
+    }
+    // No method applied at all -> free (don't block the order on a config gap).
+    return $best ? round((float)$best['cost'], 2) : 0.0;
+}
+
+// Total billable weight (kg) for the resolved order lines. Gift lines count too (they
+// still ship). Per-product weight comes from products.weight_kg (0 when unset).
+function linesWeight(array $lines): float {
+    $w = 0.0;
+    foreach ($lines as $l) {
+        $pid = $l['product_id'] ?? null;
+        if (!$pid) continue;
+        $row = db()->fetchOne("SELECT weight_kg FROM products WHERE id=?", [(int)$pid]);
+        $w += (float)($row['weight_kg'] ?? 0) * (int)($l['qty'] ?? 1);
+    }
+    return round($w, 3);
+}
+
 // Evaluate a coupon code against a subtotal.
 // Returns: ['valid'=>bool, 'message'=>string, 'discount'=>float, 'coupon'=>row|null]
 // Discount rule: percent (capped at max_discount) or fixed; CAP first, THEN round to
@@ -45,7 +140,7 @@ function couponEvaluate(string $code, float $subtotal): array {
 // order lines (each ['price','qty','line_type']) + an optional coupon code.
 // Mirrors the storefront cart util (src/lib/pricing.js). Returns a breakdown incl.
 // the coupon row (so the caller can bump uses_count) and the final rounded total.
-function computeOrderTotals(float $subtotal, array $lines, ?string $couponCode): array {
+function computeOrderTotals(float $subtotal, array $lines, ?string $couponCode, ?string $pincode = null): array {
     $subtotal = round($subtotal, 2);
 
     // Bulk savings: rate% off each line with qty >= minQty (gift lines excluded).
@@ -69,11 +164,15 @@ function computeOrderTotals(float $subtotal, array $lines, ?string $couponCode):
     $discount      = round($bulkSavings + $couponDiscount, 2);
     $afterDiscount = max(0.0, round($subtotal - $discount, 2));
 
-    // Shipping: flat rate unless free over a threshold (both admin-configurable).
-    $ship          = settingVal('shippingConfig', ['freeThreshold'=>20000, 'flatRate'=>600]);
-    $freeThreshold = (float)($ship['freeThreshold'] ?? 20000);
-    $flatRate      = (float)($ship['flatRate'] ?? 600);
-    $shipping      = (count($lines) === 0 || $subtotal >= $freeThreshold) ? 0.0 : $flatRate;
+    // Shipping: DB-driven engine (shipping_methods/rules/zones). Picks the cheapest
+    // applicable method using the order's weight, subtotal, qty and destination zone
+    // (resolved from the delivery pincode). Falls back to flat shippingConfig if the
+    // engine has no methods configured. See computeShipping().
+    $shipQty  = 0;
+    foreach ($lines as $l) $shipQty += (int)($l['qty'] ?? 0);
+    $weight   = linesWeight($lines);
+    $zoneId   = resolveShippingZone($pincode);
+    $shipping = computeShipping($lines, $subtotal, $weight, $shipQty, $zoneId);
 
     // Tax: disabled by default (prices treated as tax-inclusive). When enabled and
     // NOT inclusive, add rate% of the discounted amount.

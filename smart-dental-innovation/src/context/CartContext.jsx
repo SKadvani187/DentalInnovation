@@ -1,7 +1,8 @@
-import { createContext, useContext, useMemo, useCallback } from "react";
+import { createContext, useContext, useMemo, useCallback, useState, useEffect } from "react";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useSettings } from "./SettingsContext";
 import { computeCartPricing } from "../lib/pricing";
+import api from "../lib/api";
 
 const CartContext = createContext(null);
 
@@ -9,7 +10,24 @@ export function CartProvider({ children }) {
   const [items, setItems] = useLocalStorage("sdi:cart", []);
   // Applied coupon is shared (cart + checkout) and survives reloads.
   const [appliedCoupon, setAppliedCoupon] = useLocalStorage("sdi:coupon", null);
+  // Delivery pincode drives the server shipping quote (zone + weight aware). Persisted.
+  const [deliveryPincode, setDeliveryPincode] = useLocalStorage("sdi:pincode", "");
   const { bulkRule, shippingConfig, taxConfig } = useSettings();
+
+  // Server-authoritative shipping quote (shipping_methods/rules/zones). null until fetched;
+  // until then the cart shows the flat shippingConfig estimate from computeCartPricing.
+  const [shippingQuote, setShippingQuote] = useState(null);
+  useEffect(() => {
+    const lines = items
+      .filter((i) => i.type !== "gift")
+      .map((i) => ({ slug: i.id, qty: i.qty }));
+    if (lines.length === 0) { setShippingQuote(null); return; }
+    let alive = true;
+    api.shippingQuote({ items: lines, pincode: deliveryPincode })
+      .then((q) => { if (alive && q && typeof q.shipping === "number") setShippingQuote(q); })
+      .catch(() => { if (alive) setShippingQuote(null); });   // fall back to flat estimate
+    return () => { alive = false; };
+  }, [items, deliveryPincode]);
 
   const addToCart = useCallback((product, qty = 1, variant = null) => {
     setItems((prev) => {
@@ -83,15 +101,21 @@ export function CartProvider({ children }) {
   const removeCoupon = useCallback(() => setAppliedCoupon(null), [setAppliedCoupon]);
 
   // Single source of truth for all cart money (mirrors the server: lib/pricing.js).
-  const pricing = useMemo(
-    () => computeCartPricing(items, {
+  // Shipping: prefer the server quote (DB shipping engine); fall back to the flat
+  // computeCartPricing estimate until/if the quote is unavailable. Re-derive the total
+  // so deliveryCharges and finalTotal stay consistent with whichever shipping we use.
+  const pricing = useMemo(() => {
+    const base = computeCartPricing(items, {
       bulkRule,
       shipping: shippingConfig,
       tax: taxConfig,
       coupon: appliedCoupon,
-    }),
-    [items, bulkRule, shippingConfig, taxConfig, appliedCoupon]
-  );
+    });
+    if (!shippingQuote || typeof shippingQuote.shipping !== "number") return base;
+    const deliveryCharges = items.length === 0 ? 0 : shippingQuote.shipping;
+    const finalTotal = Math.max(0, Math.round((base.finalTotal - base.deliveryCharges + deliveryCharges) * 100) / 100);
+    return { ...base, deliveryCharges, finalTotal };
+  }, [items, bulkRule, shippingConfig, taxConfig, appliedCoupon, shippingQuote]);
 
   const itemCount = useMemo(() => items.reduce((c, i) => c + i.qty, 0), [items]);
   const subtotal = pricing.subtotal;
@@ -101,8 +125,9 @@ export function CartProvider({ children }) {
       items, addToCart, removeFromCart, updateQty, clearCart,
       subtotal, itemCount, pricing,
       appliedCoupon, applyCoupon, removeCoupon,
+      deliveryPincode, setDeliveryPincode, shippingQuote,
     }),
-    [items, addToCart, removeFromCart, updateQty, clearCart, subtotal, itemCount, pricing, appliedCoupon, applyCoupon, removeCoupon]
+    [items, addToCart, removeFromCart, updateQty, clearCart, subtotal, itemCount, pricing, appliedCoupon, applyCoupon, removeCoupon, deliveryPincode, setDeliveryPincode, shippingQuote]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

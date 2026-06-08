@@ -523,10 +523,13 @@ async function saveCompany() {
 }
 
 // Shared: save any setting key with a JSON value
-async function saveSetting(key, value, label) {
+async function saveSetting(key, value, label, silent) {
     const res = await fetch('settings.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'save_setting',key,value})});
     const r = await res.json();
+    // silent = skip the per-key toast (used when one button saves several keys → one toast at the end).
+    if (silent && r.success) return r;
     showToast(r.success ? ((label||key)+' saved') : (r.message||'Save failed'), r.success?'success':'danger');
+    return r;
 }
 </script>
 
@@ -993,6 +996,7 @@ HTML;
     <button type="button" class="btn btn-ghost btn-sm subtab-general" data-sec="branding" onclick="showSubSec('general','branding')">🖼️ Logos & WhatsApp</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-general" data-sec="navmenu" onclick="showSubSec('general','navmenu')">🧭 Navbar Menu</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-general" data-sec="socials" onclick="showSubSec('general','socials')">🔗 Social Links</button>
+    <button type="button" class="btn btn-ghost btn-sm subtab-general" data-sec="footer" onclick="showSubSec('general','footer')">📎 Footer</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-general" data-sec="policy" onclick="showSubSec('general','policy')">📄 Policy Pages</button>
   </div>
 </div>
@@ -1023,6 +1027,48 @@ HTML;
     <div class="text-muted" style="font-size:.74rem;margin-bottom:8px;">Drag arrows to reorder. Toggle to show/hide. Rename label freely (route stays fixed).</div>
     <div id="nav_rows"></div>
     <button class="btn btn-gold" style="margin-top:8px;" onclick="saveNavMenu()"><i class="fa-solid fa-floppy-disk"></i> Save Navbar Menu</button>
+  </div>
+</div>
+
+<!-- Footer -->
+<div class="card fade-in" data-subcard="general" data-seckey="footer" style="margin-top:14px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-shoe-prints text-gold" style="margin-right:8px;"></i>Footer</span><small class="text-muted">Link columns, payment strip, rating label &amp; tagline (storefront footer)</small></div>
+  <div class="card-body">
+    <label class="form-label" style="font-weight:700;">Link Columns</label>
+    <div class="text-muted" style="font-size:.72rem;margin-bottom:8px;">Each column = a heading + links. Link: type a <b>route</b> (contact / about / orders / policy) OR a full <b>URL</b> (https://...). Leave route blank for an external URL.</div>
+    <div id="footer_cols"></div>
+    <button class="btn btn-ghost btn-sm" onclick="footerAddCol()"><i class="fa-solid fa-plus"></i> Add Column</button>
+
+    <hr style="border:none;border-top:1px solid var(--border-color);margin:16px 0;">
+    <label class="form-label" style="font-weight:700;">Payment Strip</label>
+    <div class="grid-2" style="gap:12px;margin-bottom:8px;">
+      <div class="form-group"><label class="form-label">Title</label><input type="text" class="form-control" id="ft_pay_title" placeholder="100% Secure Payments"></div>
+      <div class="form-group"><label class="form-label">Subtitle</label><input type="text" class="form-control" id="ft_pay_sub" placeholder="Secure SSL Encrypted Payment"></div>
+    </div>
+    <div class="text-muted" style="font-size:.72rem;margin-bottom:6px;">Methods (icon = card / netbanking / upi / cod / wallet)</div>
+    <div id="footer_pay"></div>
+    <button class="btn btn-ghost btn-sm" onclick="footerAddPay()"><i class="fa-solid fa-plus"></i> Add Method</button>
+
+    <hr style="border:none;border-top:1px solid var(--border-color);margin:16px 0;">
+    <label class="form-label" style="font-weight:700;">Registered Office (footer)</label>
+    <div class="text-muted" style="font-size:.72rem;margin-bottom:8px;">Leave blank to use the shared Company Info (Contact Page). Fill to override just the footer.</div>
+    <div class="grid-2" style="gap:12px;">
+      <div class="form-group"><label class="form-label">Address Heading</label><input type="text" class="form-control" id="ft_addr_head" placeholder="REGISTERED OFFICE ADDRESS"></div>
+      <div class="form-group"><label class="form-label">Rating (number)</label><input type="text" class="form-control" id="ft_rating" placeholder="e.g. 4.5"></div>
+      <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Address</label><textarea class="form-control" id="ft_address" rows="2" placeholder="(blank = use Company address)"></textarea></div>
+      <div class="form-group"><label class="form-label">Phone</label><input type="text" class="form-control" id="ft_phone" placeholder="(blank = company phone)"></div>
+      <div class="form-group"><label class="form-label">Email</label><input type="text" class="form-control" id="ft_email" placeholder="(blank = company email)"></div>
+      <div class="form-group"><label class="form-label">Business Hours</label><input type="text" class="form-control" id="ft_hours" placeholder="(blank = company hours)"></div>
+      <div class="form-group"><label class="form-label">Rating Label</label><input type="text" class="form-control" id="ft_rating_label" placeholder="Average online rating"></div>
+      <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Bottom Tagline</label><input type="text" class="form-control" id="ft_tagline" placeholder="Crafted with ♥ in India"></div>
+    </div>
+
+    <hr style="border:none;border-top:1px solid var(--border-color);margin:16px 0;">
+    <label class="form-label" style="font-weight:700;">Show / Hide Blocks</label>
+    <div class="text-muted" style="font-size:.72rem;margin-bottom:8px;">Untick to hide a block from the storefront footer.</div>
+    <div id="footer_show" class="grid-2" style="gap:8px;"></div>
+
+    <button class="btn btn-gold" style="margin-top:14px;" onclick="saveFooter()"><i class="fa-solid fa-floppy-disk"></i> Save Footer</button>
   </div>
 </div>
 <!-- Socials -->
@@ -1110,6 +1156,22 @@ HTML;
       <div class="form-group"><label class="form-label">Variant: delivery note</label><input type="text" class="form-control" id="pd_varDelivery" value="<?= htmlspecialchars($site['productDefaults']['variantDeliveryNote'] ?? '📦 Get it by 3–5 days') ?>"></div>
       <div class="form-group"><label class="form-label">Variant: COD note</label><input type="text" class="form-control" id="pd_varCod" value="<?= htmlspecialchars($site['productDefaults']['variantCodNote'] ?? '💳 COD available') ?>"></div>
     </div>
+
+    <div style="border-top:1px solid var(--border-color);margin-top:8px;padding-top:12px;">
+      <div class="font-bold" style="margin-bottom:8px;color:var(--gold-primary);"><i class="fa-solid fa-truck"></i> Shipping &amp; Tax</div>
+      <div class="grid-2" style="gap:16px;">
+        <div class="form-group"><label class="form-label">Flat Shipping Rate (₹)</label><input type="number" min="0" class="form-control" id="ship_flat" value="<?= htmlspecialchars($site['shippingConfig']['flatRate'] ?? 600) ?>"></div>
+        <div class="form-group"><label class="form-label">Free Shipping Above (₹)</label><input type="number" min="0" class="form-control" id="ship_free" value="<?= htmlspecialchars($site['shippingConfig']['freeThreshold'] ?? 20000) ?>"><small class="text-muted" style="font-size:.7rem;">Orders at/above this = free shipping</small></div>
+        <div class="form-group"><label class="form-label">Tax</label>
+          <select class="form-control" id="tax_enabled">
+            <option value="0" <?= empty($site['taxConfig']['enabled']) ? 'selected' : '' ?>>Disabled (prices tax-inclusive)</option>
+            <option value="1" <?= !empty($site['taxConfig']['enabled']) ? 'selected' : '' ?>>Enabled (add tax at checkout)</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Tax Rate (%)</label><input type="number" min="0" step="0.01" class="form-control" id="tax_rate" value="<?= htmlspecialchars($site['taxConfig']['rate'] ?? 0) ?>"><small class="text-muted" style="font-size:.7rem;">Applied only when Tax = Enabled</small></div>
+      </div>
+    </div>
+
     <button class="btn btn-gold" onclick="savePricingRules()"><i class="fa-solid fa-floppy-disk"></i> Save Pricing Rules</button>
   </div>
 </div>
@@ -1311,19 +1373,26 @@ function addBenefitRow(){ BENEFITS.push({id:'',label:'',icon:'check'}); renderBe
 function saveBenefits(){ saveSetting('productBenefits', BENEFITS, 'Benefits'); }
 
 // ---- Pricing rules ----
-function savePricingRules(){
-    saveSetting('bulkRule', { minQty: parseInt(document.getElementById('bulk_minQty').value)||2, rate: parseFloat(document.getElementById('bulk_rate').value)||0.1 });
+async function savePricingRules(){
     const fg = <?= json_encode($site['freeGifts'] ?? ['items'=>[]], JSON_UNESCAPED_SLASHES) ?>;
     fg.threshold = parseInt(document.getElementById('fg_threshold').value)||5000;
-    saveSetting('freeGifts', fg);
-    saveSetting('priceBounds', { min: parseInt(document.getElementById('pb_min').value)||10, max: parseInt(document.getElementById('pb_max').value)||500000 });
     const pd = <?= json_encode($site['productDefaults'] ?? [], JSON_UNESCAPED_SLASHES) ?>;
     pd.deliveryDays = document.getElementById('pd_deliveryDays').value;
     pd.replacementText = document.getElementById('pd_replacement').value;
     pd.variantDeliveryNote = document.getElementById('pd_varDelivery').value;
     pd.variantCodNote = document.getElementById('pd_varCod').value;
-    saveSetting('productDefaults', pd);
-    saveSetting('gvpThreshold', parseInt(document.getElementById('gvp_threshold').value)||10, 'Pricing rules');
+    // Save every key silently, then show ONE toast for the whole card.
+    const results = await Promise.all([
+        saveSetting('bulkRule', { minQty: parseInt(document.getElementById('bulk_minQty').value)||2, rate: parseFloat(document.getElementById('bulk_rate').value)||0.1 }, null, true),
+        saveSetting('freeGifts', fg, null, true),
+        saveSetting('priceBounds', { min: parseInt(document.getElementById('pb_min').value)||10, max: parseInt(document.getElementById('pb_max').value)||500000 }, null, true),
+        saveSetting('productDefaults', pd, null, true),
+        saveSetting('shippingConfig', { flatRate: parseFloat(document.getElementById('ship_flat').value)||0, freeThreshold: parseFloat(document.getElementById('ship_free').value)||0 }, null, true),
+        saveSetting('taxConfig', { enabled: document.getElementById('tax_enabled').value === '1', rate: parseFloat(document.getElementById('tax_rate').value)||0, inclusive: document.getElementById('tax_enabled').value !== '1' }, null, true),
+        saveSetting('gvpThreshold', parseInt(document.getElementById('gvp_threshold').value)||10, null, true),
+    ]);
+    const ok = results.every(r => r && r.success);
+    showToast(ok ? 'Pricing rules saved' : 'Some settings failed to save', ok ? 'success' : 'danger');
 }
 
 // ---- Tier Offers ----
@@ -1728,6 +1797,87 @@ function renderNav(){
 function navMove(i,dir){ const j=i+dir; if(j<0||j>=NAV.length)return; [NAV[i],NAV[j]]=[NAV[j],NAV[i]]; renderNav(); }
 function saveNavMenu(){ saveSetting('navMenu', NAV, 'Navbar menu'); }
 
+// ---- Footer ----
+let FOOTER = <?= json_encode($site['footerConfig'] ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?> || {};
+FOOTER.sections = Array.isArray(FOOTER.sections) ? FOOTER.sections : [];
+FOOTER.paymentBox = FOOTER.paymentBox || {};
+FOOTER.paymentBox.methods = Array.isArray(FOOTER.paymentBox.methods) ? FOOTER.paymentBox.methods : [];
+FOOTER.show = FOOTER.show || {};
+function renderFooterCols(){
+  document.getElementById('footer_cols').innerHTML = FOOTER.sections.map((s,si)=>`
+    <div style="border:1px solid var(--border-color);border-radius:8px;padding:10px;margin-bottom:10px;">
+      <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;">
+        <input class="form-control" placeholder="Column heading (e.g. HELP)" value="${(s.title||'').replace(/"/g,'&quot;')}" oninput="FOOTER.sections[${si}].title=this.value" style="flex:1;font-weight:600;">
+        <button class="btn btn-ghost btn-sm" onclick="FOOTER.sections.splice(${si},1);renderFooterCols()"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+      </div>
+      <div>${(s.links||[]).map((l,li)=>`
+        <div style="display:flex;gap:6px;margin-bottom:6px;">
+          <input class="form-control" placeholder="Label" value="${(l.label||'').replace(/"/g,'&quot;')}" oninput="FOOTER.sections[${si}].links[${li}].label=this.value" style="flex:1;">
+          <input class="form-control" placeholder="route (e.g. about)" value="${(l.route||'').replace(/"/g,'&quot;')}" oninput="FOOTER.sections[${si}].links[${li}].route=this.value||undefined" style="width:130px;">
+          <input class="form-control" placeholder="OR full URL" value="${(l.external||'').replace(/"/g,'&quot;')}" oninput="FOOTER.sections[${si}].links[${li}].external=this.value||undefined" style="flex:1;">
+          <button class="btn btn-ghost btn-sm" onclick="FOOTER.sections[${si}].links.splice(${li},1);renderFooterCols()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
+        </div>`).join('')}</div>
+      <button class="btn btn-ghost btn-sm" onclick="FOOTER.sections[${si}].links=FOOTER.sections[${si}].links||[];FOOTER.sections[${si}].links.push({label:''});renderFooterCols()" style="margin-top:4px;"><i class="fa-solid fa-plus"></i> Add Link</button>
+    </div>`).join('');
+}
+function footerAddCol(){ FOOTER.sections.push({title:'',links:[{label:''}]}); renderFooterCols(); }
+function renderFooterPay(){
+  document.getElementById('footer_pay').innerHTML = FOOTER.paymentBox.methods.map((m,i)=>`
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
+      <input class="form-control" placeholder="Label (e.g. UPI)" value="${(m.label||'').replace(/"/g,'&quot;')}" oninput="FOOTER.paymentBox.methods[${i}].label=this.value" style="flex:1;">
+      <select class="form-control" onchange="FOOTER.paymentBox.methods[${i}].id=this.value" style="width:150px;">
+        ${['card','netbanking','upi','cod','wallet'].map(ic=>`<option value="${ic}" ${m.id===ic?'selected':''}>${ic}</option>`).join('')}
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="FOOTER.paymentBox.methods.splice(${i},1);renderFooterPay()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
+    </div>`).join('');
+}
+function footerAddPay(){ FOOTER.paymentBox.methods.push({id:'card',label:''}); renderFooterPay(); }
+// Footer block show/hide. Undefined = shown (back-compat). key -> label.
+const FOOTER_BLOCKS = [
+  ['socials','Social Bar (top)'],
+  ['linkColumns','Link Columns'],
+  ['address','Registered Office'],
+  ['payment','Payment Strip'],
+  ['rating','Rating'],
+  ['copyright','Copyright Bar'],
+];
+function renderFooterShow(){
+  FOOTER.show = FOOTER.show || {};
+  document.getElementById('footer_show').innerHTML = FOOTER_BLOCKS.map(([k,lbl])=>`
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.85rem;">
+      <input type="checkbox" data-fblock="${k}" ${FOOTER.show[k]!==false?'checked':''} onchange="FOOTER.show['${k}']=this.checked">
+      <span>${lbl}</span>
+    </label>`).join('');
+}
+function renderFooter(){
+  renderFooterCols();
+  renderFooterPay();
+  renderFooterShow();
+  document.getElementById('ft_pay_title').value = FOOTER.paymentBox.title || '';
+  document.getElementById('ft_pay_sub').value   = FOOTER.paymentBox.subtitle || '';
+  document.getElementById('ft_addr_head').value = FOOTER.addressHeading || '';
+  document.getElementById('ft_rating').value    = FOOTER.rating || '';
+  document.getElementById('ft_address').value   = FOOTER.address || '';
+  document.getElementById('ft_phone').value     = FOOTER.phone || '';
+  document.getElementById('ft_email').value     = FOOTER.email || '';
+  document.getElementById('ft_hours').value     = FOOTER.hours || '';
+  document.getElementById('ft_rating_label').value = FOOTER.ratingLabel || '';
+  document.getElementById('ft_tagline').value   = FOOTER.tagline || '';
+}
+function saveFooter(){
+  FOOTER.paymentBox.title = document.getElementById('ft_pay_title').value;
+  FOOTER.paymentBox.subtitle = document.getElementById('ft_pay_sub').value;
+  FOOTER.addressHeading = document.getElementById('ft_addr_head').value;
+  FOOTER.rating  = document.getElementById('ft_rating').value;
+  FOOTER.address = document.getElementById('ft_address').value;
+  FOOTER.phone   = document.getElementById('ft_phone').value;
+  FOOTER.email   = document.getElementById('ft_email').value;
+  FOOTER.hours   = document.getElementById('ft_hours').value;
+  FOOTER.ratingLabel = document.getElementById('ft_rating_label').value;
+  FOOTER.tagline = document.getElementById('ft_tagline').value;
+  saveSetting('footerConfig', FOOTER, 'Footer');
+}
+
 // ---- Generic page-layout editor (About / Contact section show-hide + reorder) ----
 let ABOUT_LAYOUT   = <?= json_encode($site['aboutSections']   ?? [], JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?> || [];
 let CONTACT_LAYOUT = <?= json_encode($site['contactSections'] ?? [], JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?> || [];
@@ -1935,7 +2085,7 @@ function saveTrust(){ saveSetting('trustBadges', TRUST, 'Trust badges'); }
 
 // init
 renderStats(); renderSocials(); renderPay(); renderBenefits(); renderHero(); renderTrust(); renderRfFeatures(); renderPremium();
-renderTiers(); renderFbt(); renderFg(); renderFeat(); renderSort(); renderPp(); renderPo(); renderPC(); renderHome(); renderCC(); renderAbout(); showPolicy('return'); renderOzVp(); renderNav(); renderCpTrust(); renderAboutLayout(); renderContactLayout();
+renderTiers(); renderFbt(); renderFg(); renderFeat(); renderSort(); renderPp(); renderPo(); renderPC(); renderHome(); renderCC(); renderAbout(); showPolicy('return'); renderOzVp(); renderNav(); renderFooter(); renderCpTrust(); renderAboutLayout(); renderContactLayout();
 // Show only the active config page's section groups
 (function(){
   const active = '<?= $cfgPage ?>';

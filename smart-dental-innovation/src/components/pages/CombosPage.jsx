@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { sortOptions as SORT_OPTIONS } from "../../data/site";
 import { useCart } from "../../context/CartContext";
 import { useUI } from "../../context/UIContext";
 import { useSettings } from "../../context/SettingsContext";
@@ -11,7 +10,7 @@ const fmt = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 export default function CombosPage() {
   const { items, addToCart, updateQty, removeFromCart } = useCart();
   const { openModal, navigate } = useUI();
-  const { company = {}, combosPage: cfg = {}, lowStockThreshold = 10 } = useSettings();
+  const { company = {}, combosPage: cfg = {}, lowStockThreshold = 10, sortOptions: SORT_OPTIONS = [] } = useSettings();
   const { data: combos } = useCombos();
   const [sort, setSort] = useState("all");
 
@@ -117,6 +116,10 @@ function ComboCard({ combo: c, bundleNote, lowStockThreshold = 10, cartItem, onO
   const inCart = !!cartItem;
   const save = Math.max(0, (c.mrp || 0) - (c.price || 0));
   const disc = c.discount || discountPct(c.mrp, c.price);
+  // Honest saving vs buying each item separately (real deal). Old combos have no per-item
+  // selling data (sellingTotal 0) → fall back to the MRP-based save so the badge still shows.
+  const sellingTotal = Number(c.sellingTotal) || 0;
+  const realSave = sellingTotal > 0 ? Math.max(0, Number(c.youSaveVsSeparate) || 0) : save;
   const out = c.inStock === false;
   // Low-stock urgency: stock known, in stock, and at/under the admin threshold.
   const lowStock = !out && typeof c.stock === "number" && c.stock > 0 && c.stock <= lowStockThreshold;
@@ -149,9 +152,14 @@ function ComboCard({ combo: c, bundleNote, lowStockThreshold = 10, cartItem, onO
         <span className="absolute top-3 right-3 z-10 bg-gray-700 text-white text-[10px] font-bold px-2 py-0.5 rounded-md uppercase">Out of stock</span>
       )}
 
-      {/* "A + B + C" product strip — clean bundle visual like the reference site */}
+      {/* Image: admin's combo cover wins. Multi-item combos with no custom cover show the
+          "A + B + C" bundle strip. Single image shows big. */}
       <button onClick={onOpen} className="w-full bg-gradient-to-br from-[#f6f9fc] to-gray-50 px-4 pt-7 pb-4 cursor-pointer">
-        {itemCount > 1 ? (
+        {c.image ? (
+          <div className="aspect-square max-h-[180px] flex items-center justify-center">
+            <img src={c.image} alt={c.name || "Combo"} loading="lazy" className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-200" />
+          </div>
+        ) : itemCount > 1 ? (
           <div className="flex items-center justify-center gap-1.5">
             {thumbItems.map((it, i) => (
               <div key={i} className="flex items-center gap-1.5">
@@ -167,7 +175,7 @@ function ComboCard({ combo: c, bundleNote, lowStockThreshold = 10, cartItem, onO
           </div>
         ) : (
           <div className="aspect-square max-h-[180px] flex items-center justify-center">
-            <img src={gallery[0] || c.image || ""} alt={c.name || "Combo"} loading="lazy" className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-200" />
+            <img src={gallery[0] || ""} alt={c.name || "Combo"} loading="lazy" className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-200" />
           </div>
         )}
       </button>
@@ -190,10 +198,16 @@ function ComboCard({ combo: c, bundleNote, lowStockThreshold = 10, cartItem, onO
           <div className="flex items-baseline gap-2 flex-wrap">
             <span className="text-lg font-extrabold text-brand-ink">{fmt(c.price)}</span>
             {save > 0 && <span className="text-xs text-brand-muted line-through">{fmt(c.mrp)}</span>}
+            {disc > 0 && <span className="text-[11px] font-bold text-green-600">{disc}% off</span>}
           </div>
-          {save > 0 && (
+          {sellingTotal > c.price && (
+            <p className="text-[11px] text-brand-muted mt-0.5">
+              {fmt(sellingTotal)} if bought separately
+            </p>
+          )}
+          {realSave > 0 && (
             <span className="inline-block mt-1 text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
-              You save {fmt(save)}
+              You save {fmt(realSave)}
             </span>
           )}
 

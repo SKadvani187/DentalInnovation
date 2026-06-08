@@ -25,7 +25,7 @@ const ABOUT_DEFAULT = [
 ];
 
 export default function AboutPage() {
-  const { aboutSections } = useSettings();
+  const { aboutSections = [] } = useSettings();
   const layout = (aboutSections?.length ? aboutSections : ABOUT_DEFAULT.map((k) => ({ key: k, enabled: true })))
     .filter((s) => s.enabled !== false);
   return (

@@ -66,7 +66,7 @@ export default function App() {
 function Shell() {
   const { view } = useUI();
   const { sections, categories, testimonials } = useHomeData();
-  const { premiumCategories, homeSections } = useSettings();
+  const { premiumCategories = [], homeSections = [] } = useSettings();
 
   // Global: pressing Esc must NOT close any popup/drawer/modal anywhere in the storefront.
   // A single capture-phase listener swallows Escape before each modal's own keydown handler runs,

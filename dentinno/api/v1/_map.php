@@ -69,6 +69,16 @@ function mapCategory(array $r): array {
 }
 
 function mapCombo(array $r): array {
+    $items = jcol($r['items'] ?? null, []);
+    $price = (float)$r['price'];
+    // Selling total = Σ each component's normal selling price (sell), falling back to mrp for
+    // old combos saved before per-item sell existed. Drives the honest "save vs buying separately".
+    $sellingTotal = 0;
+    foreach ($items as $it) {
+        $sell = isset($it['sell']) ? (float)$it['sell'] : (float)($it['mrp'] ?? 0);
+        $qty  = max(1, (int)($it['qty'] ?? 1));
+        $sellingTotal += $sell * $qty;
+    }
     return [
         'id'       => $r['slug'],
         'dbId'     => (int)$r['id'],
@@ -76,13 +86,15 @@ function mapCombo(array $r): array {
         'image'    => $r['image'],
         'images'   => jcol($r['images'] ?? null, []),
         'mrp'      => (float)$r['mrp'],
-        'price'    => (float)$r['price'],
+        'price'    => $price,
         'discount' => (float)$r['discount_percent'],
+        'sellingTotal'      => $sellingTotal,
+        'youSaveVsSeparate' => max(0, $sellingTotal - $price),
         'category' => 'combo',
         'stock'    => isset($r['stock']) ? (int)$r['stock'] : null,
         'inStock'  => isset($r['stock']) ? ((int)$r['stock'] > 0) : (bool)$r['in_stock'],
         'description' => $r['description'],
-        'items'    => jcol($r['items'] ?? null, []),
+        'items'    => $items,
         'variants' => [],
     ];
 }
@@ -151,15 +163,21 @@ function mapOffer(array $r, array $giftRows = []): array {
     // explicit offset so the browser's `new Date()` is unambiguous.
     $validTill = !empty($r['valid_till']) ? date('c', strtotime($r['valid_till'])) : null;
 
+    // Card styling: fall back to sensible defaults so an offer created without theme
+    // colours still renders a proper card (background gradient + accent border + CTA).
+    $accent   = trim((string)($r['accent'] ?? '')) ?: '#3684bf';
+    $gradient = trim((string)($r['gradient'] ?? '')) ?: 'linear-gradient(135deg, #ffffff 0%, #f6f9fc 100%)';
+    $cta      = trim((string)($r['cta'] ?? '')) ?: $accent;
+
     return [
         'id'           => $r['slug'],
         'dbId'         => (int)$r['id'],
         'title'        => $r['title'],
         'subtitle'     => $r['subtitle'],
-        'theme'        => $r['theme'],
-        'accent'       => $r['accent'],
-        'gradient'     => $r['gradient'],
-        'cta'          => $r['cta'],
+        'theme'        => $r['theme'] ?: 'default',
+        'accent'       => $accent,
+        'gradient'     => $gradient,
+        'cta'          => $cta,
         'mainProduct'  => $main,
         'freeItems'    => $freeItems,
         'specialPrice' => $special,

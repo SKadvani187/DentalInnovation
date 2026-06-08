@@ -1,11 +1,10 @@
 import React from 'react';
 import { useSettings } from '../../context/SettingsContext';
-import { trustBadges as staticBadges } from '../../data/site';
 
 // Trust badges strip — admin-managed (Settings → Trust Badges). FA icons + Poppins.
 export default function ResponsiveImageBanner() {
   const { trustBadges, liveCounts } = useSettings();
-  const badges = (trustBadges && trustBadges.length) ? trustBadges : staticBadges;
+  const badges = Array.isArray(trustBadges) ? trustBadges : [];
 
   // Real-time product count from the DB (falls back to a marketing number if unavailable).
   const productCount = liveCounts?.products ? `${liveCounts.products}` : "1,000+";

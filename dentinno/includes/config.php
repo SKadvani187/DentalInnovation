@@ -25,7 +25,7 @@ define('OTP_TTL', 300);            // OTP valid for 5 minutes (seconds)
 define('OTP_MAX_ATTEMPTS', 5);    // send+verify attempts before block
 define('OTP_BLOCK_MINUTES', 60);  // block duration after limit (1 hour)
 define('OTP_RESEND_COOLDOWN', 30);// min seconds between resends
-define('OTP_DEV_RETURN', false);   // DEV: return OTP in API response (set false in prod)
+define('OTP_DEV_RETURN', true);   // DEV: return OTP in API response (set false in prod)
 define('OTP_SSL_INSECURE', true); // DEV-only: skip SSL verify (local AV/proxy MITM). SET false IN PRODUCTION.
 
 // ---- OTP SMS provider ----
@@ -35,9 +35,9 @@ define('OTP_SSL_INSECURE', true); // DEV-only: skip SSL verify (local AV/proxy M
 // OTP_SSL_INSECURE=false (ship includes/cacert.pem).
 //
 // Fast2SMS (https://www.fast2sms.com/ -> Dev API -> API Key). Paste your key:
-define('FAST2SMS_API_KEY', 'Li3OedADUckqG0gmfuhxSCWKVIwXJ1HRnEB4Mvbl76ytoQZYjNAtYFvI73NyxMLhO4ul9Skw1VbXazR6');   // <-- PASTE FAST2SMS KEY HERE
-define('FAST2SMS_SENDER_ID', 'TXTIND');
-define('FAST2SMS_ROUTE', 'q');    // 'q'=Quick SMS (no verification needed). 'otp'=needs account verification.
+define('FAST2SMS_API_KEY', '');   // <-- PASTE FAST2SMS KEY HERE
+define('FAST2SMS_SENDER_ID', '');
+define('FAST2SMS_ROUTE', '');    // 'q'=Quick SMS (no verification needed). 'otp'=needs account verification.
 
 // Email OTP via SMTP (used when OTP_CHANNEL='email'). Gmail app password recommended.
 define('SMTP_HOST', 'smtp.gmail.com');

@@ -55,9 +55,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
 
         // Resolve the main product slug -> products.id (must be an active catalog product).
         // products.price is the MRP; discount_price is the normal selling price.
-        $mainRow = db()->fetchOne("SELECT id, price FROM products WHERE slug=? AND is_active=1", [$mainProduct['productId']]);
+        $mainRow = db()->fetchOne("SELECT id, price, discount_price FROM products WHERE slug=? AND is_active=1", [$mainProduct['productId']]);
         if (!$mainRow) { echo json_encode(['success'=>false,'message'=>'Main product not found or inactive']); exit; }
         $productId = (int)$mainRow['id'];
+        // Selling price = discount_price if set, else MRP. Special offer must beat this.
+        $sellingPrice = ($mainRow['discount_price'] !== null && (float)$mainRow['discount_price'] > 0)
+            ? (float)$mainRow['discount_price']
+            : (float)$mainRow['price'];
 
         // ---- Authoritative calculations (recompute MRPs from live products, never trust client) ----
         // Build the relational gift list, resolving each gift slug -> product + live MRP.
@@ -81,24 +85,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             ];
             $totalMrp += $gmrp * $gqty;
         }
-        if ($special > $totalMrp) { echo json_encode(['success'=>false,'message'=>'Special price (₹'.$special.') cannot exceed total MRP (₹'.$totalMrp.')']); exit; }
+        // Special price must be below the main product's selling (discount) price, not the MRP.
+        if ($special >= $sellingPrice) { echo json_encode(['success'=>false,'message'=>'Special price (₹'.$special.') must be less than the product price (₹'.$sellingPrice.')']); exit; }
         $youSave = max(0, $totalMrp - $special);
 
         // valid_till: past dates allowed only when EDITING (so admins can fix/extend old offers);
         // new offers must be today or future. Stored as end-of-day DATETIME so "valid through
         // that day" matches the storefront countdown.
         $validDate = $d['valid_till'] ?: null;
-        if ($validDate && empty($d['id']) && $validDate < date('Y-m-d')) {
+        if (!$validDate) { echo json_encode(['success'=>false,'message'=>'Valid Till date is required']); exit; }
+        if (empty($d['id']) && $validDate < date('Y-m-d')) {
             echo json_encode(['success'=>false,'message'=>'Valid Till must be today or a future date']); exit;
         }
-        $validTill = $validDate ? ($validDate . ' 23:59:59') : null;
+        $validTill = $validDate . ' 23:59:59';
 
         $sortOrder  = (int)($d['sort_order'] ?? 0);
         $socialMode = ($d['social_mode'] ?? 'live') === 'manual' ? 'manual' : 'live';
         $socialCount= max(0, (int)($d['social_count'] ?? 0));
         $isTopDeal  = !empty($d['is_top_deal']) ? 1 : 0;
+
+        // Authoritative main-product snapshot: overwrite client-sent price/mrp with the live
+        // DB values so totalMrp / youSave / discount can never be tampered or go stale.
+        $mainProduct['mrp']   = (float)$mainRow['price'];
+        $mainProduct['price'] = $sellingPrice;
         $mainJson = json_encode($mainProduct);   // kept for back-compat; relational is source of truth
         $freeJson = json_encode($freeItems);
+
+        // Theme -> card colours (accent = price/border, gradient = card bg, cta = badges/button).
+        // The storefront card reads gradient/accent/cta directly, so derive them from the theme
+        // here. Keeps admin simple (one dropdown) while the card renders the chosen palette.
+        $theme = $d['theme'] ?? 'orange';
+        $themePalette = [
+            'orange' => ['accent' => '#ea580c', 'cta' => '#f97316', 'gradient' => 'linear-gradient(135deg,#fff7ed 0%,#ffffff 100%)'],
+            'blue'   => ['accent' => '#2563eb', 'cta' => '#3b82f6', 'gradient' => 'linear-gradient(135deg,#eff6ff 0%,#ffffff 100%)'],
+            'green'  => ['accent' => '#16a34a', 'cta' => '#22c55e', 'gradient' => 'linear-gradient(135deg,#f0fdf4 0%,#ffffff 100%)'],
+            'pink'   => ['accent' => '#db2777', 'cta' => '#ec4899', 'gradient' => 'linear-gradient(135deg,#fdf2f8 0%,#ffffff 100%)'],
+            'purple' => ['accent' => '#7c3aed', 'cta' => '#8b5cf6', 'gradient' => 'linear-gradient(135deg,#f5f3ff 0%,#ffffff 100%)'],
+            'yellow' => ['accent' => '#ca8a04', 'cta' => '#eab308', 'gradient' => 'linear-gradient(135deg,#fefce8 0%,#ffffff 100%)'],
+            'maroon' => ['accent' => '#9f1239', 'cta' => '#be123c', 'gradient' => 'linear-gradient(135deg,#fff1f2 0%,#ffffff 100%)'],
+        ];
+        $pal      = $themePalette[$theme] ?? $themePalette['orange'];
+        $accent   = $pal['accent'];
+        $gradient = $pal['gradient'];
+        $cta      = $pal['cta'];
 
         // Write the offer + its gift rows atomically.
         $pdo = db()->getConnection();
@@ -107,15 +136,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             if (!empty($d['id'])) {
                 $offerId = (int)$d['id'];
                 db()->execute(
-                    "UPDATE offers SET product_id=?,title=?,subtitle=?,theme=?,main_product=?,free_items=?,special_price=?,total_mrp=?,you_save=?,save_extra=?,valid_till=?,is_active=?,sort_order=?,social_mode=?,social_count=?,is_top_deal=? WHERE id=?",
-                    [$productId,$title,$d['subtitle']??'',$d['theme']??'orange',$mainJson,$freeJson,$special,$totalMrp,$youSave,($d['save_extra'] ?? null) ?: null,$validTill,$d['is_active']??1,$sortOrder,$socialMode,$socialCount,$isTopDeal,$offerId]
+                    "UPDATE offers SET product_id=?,title=?,subtitle=?,theme=?,accent=?,gradient=?,cta=?,main_product=?,free_items=?,special_price=?,total_mrp=?,you_save=?,save_extra=?,valid_till=?,is_active=?,sort_order=?,social_mode=?,social_count=?,is_top_deal=? WHERE id=?",
+                    [$productId,$title,$d['subtitle']??'',$theme,$accent,$gradient,$cta,$mainJson,$freeJson,$special,$totalMrp,$youSave,($d['save_extra'] ?? null) ?: null,$validTill,$d['is_active']??1,$sortOrder,$socialMode,$socialCount,$isTopDeal,$offerId]
                 );
                 $msg = 'Offer updated';
             } else {
                 $slug = 'offer-' . substr((string)time(), -6);
                 $offerId = (int) db()->insert(
-                    "INSERT INTO offers (slug,product_id,title,subtitle,theme,main_product,free_items,special_price,total_mrp,you_save,save_extra,valid_till,is_active,sort_order,social_mode,social_count,is_top_deal) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    [$slug,$productId,$title,$d['subtitle']??'',$d['theme']??'orange',$mainJson,$freeJson,$special,$totalMrp,$youSave,($d['save_extra'] ?? null) ?: null,$validTill,$d['is_active']??1,$sortOrder,$socialMode,$socialCount,$isTopDeal]
+                    "INSERT INTO offers (slug,product_id,title,subtitle,theme,accent,gradient,cta,main_product,free_items,special_price,total_mrp,you_save,save_extra,valid_till,is_active,sort_order,social_mode,social_count,is_top_deal) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    [$slug,$productId,$title,$d['subtitle']??'',$theme,$accent,$gradient,$cta,$mainJson,$freeJson,$special,$totalMrp,$youSave,($d['save_extra'] ?? null) ?: null,$validTill,$d['is_active']??1,$sortOrder,$socialMode,$socialCount,$isTopDeal]
                 );
                 $msg = 'Offer added';
             }
@@ -161,6 +190,12 @@ foreach ($prodList as &$pl) { $pl['img'] = trim((string)$pl['img'], '"'); } unse
 $prodJson = json_encode($prodList);
 include __DIR__ . '/../includes/header.php';
 ?>
+
+<style>
+.field-err { color: var(--danger); font-size: .74rem; margin-top: 4px; display: none; }
+.field-err.show { display: block; }
+.form-control.input-invalid { border-color: var(--danger) !important; box-shadow: 0 0 0 2px rgba(231,76,60,.12); }
+</style>
 
 <div class="page-header fade-in">
     <div class="page-header-left">
@@ -227,7 +262,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <div style="padding:22px;max-height:74vh;overflow:auto;">
             <input type="hidden" id="offer_id">
-            <div class="form-group"><label class="form-label">Title *</label><input type="text" class="form-control" id="offer_title" placeholder="e.g. Youni X File Combo"></div>
+            <div class="form-group"><label class="form-label">Title *</label><input type="text" class="form-control" id="offer_title" placeholder="e.g. Youni X File Combo" oninput="clearErr('offer_title')"><div class="field-err" id="err_offer_title"></div></div>
             <div class="form-group"><label class="form-label">Subtitle</label><input type="text" class="form-control" id="offer_subtitle" placeholder="(MOQ 20 Pack)"></div>
 
             <hr style="border:none;border-top:1px solid var(--border-color);margin:14px 0;">
@@ -240,6 +275,7 @@ include __DIR__ . '/../includes/header.php';
                         <option value="<?= htmlspecialchars($p['slug']) ?>"><?= htmlspecialchars($p['name']) ?> (MRP ₹<?= number_format($p['price'],0) ?>)</option>
                     <?php endforeach; ?>
                 </select>
+                <div class="field-err" id="err_offer_mp_select"></div>
             </div>
             <div id="offer_mp_preview" style="display:none;align-items:center;gap:10px;background:var(--bg-elevated);border-radius:8px;padding:8px;margin-bottom:10px;">
                 <img id="offer_mp_img_el" src="" style="width:48px;height:48px;object-fit:cover;border-radius:6px;background:#fff;">
@@ -257,18 +293,18 @@ include __DIR__ . '/../includes/header.php';
 
             <hr style="border:none;border-top:1px solid var(--border-color);margin:14px 0;">
             <div class="form-row" style="display:flex;gap:10px;">
-                <div class="form-group" style="flex:1;"><label class="form-label">Special Price (₹) *</label><input type="number" class="form-control" id="offer_special" oninput="recalc()"></div>
+                <div class="form-group" style="flex:1;"><label class="form-label">Special Price (₹) *</label><input type="number" class="form-control" id="offer_special" oninput="clearErr('offer_special');recalc()"><div class="field-err" id="err_offer_special"></div></div>
                 <div class="form-group" style="flex:1;"><label class="form-label">Save Extra (note)</label><input type="text" class="form-control" id="offer_saveextra" placeholder="e.g. free shipping"></div>
             </div>
             <!-- Auto-calculated summary -->
             <div style="background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:.85rem;">
                 <div style="display:flex;justify-content:space-between;"><span class="text-muted">Total MRP (auto)</span><span class="font-bold">₹<span id="calc_totalmrp">0</span></span></div>
                 <div style="display:flex;justify-content:space-between;margin-top:4px;"><span class="text-muted">You Save (auto)</span><span class="font-bold" style="color:var(--success);">₹<span id="calc_yousave">0</span> (<span id="calc_pct">0</span>%)</span></div>
-                <div id="calc_warn" style="color:var(--danger);font-size:.76rem;margin-top:6px;display:none;"><i class="fa-solid fa-triangle-exclamation"></i> Special price is higher than total MRP.</div>
+                <div id="calc_warn" style="color:var(--danger);font-size:.76rem;margin-top:6px;display:none;"><i class="fa-solid fa-triangle-exclamation"></i> Special price must be less than the product's selling price.</div>
             </div>
 
             <div class="form-row" style="display:flex;gap:10px;">
-                <div class="form-group" style="flex:1;"><label class="form-label">Valid Till</label><input type="date" class="form-control" id="offer_validtill"></div>
+                <div class="form-group" style="flex:1;"><label class="form-label">Valid Till *</label><input type="date" class="form-control" id="offer_validtill" oninput="clearErr('offer_validtill')"><div class="field-err" id="err_offer_validtill"></div></div>
                 <div class="form-group" style="flex:1;"><label class="form-label">Sort Order</label><input type="number" class="form-control" id="offer_sortorder" value="0"></div>
             </div>
             <div class="form-row" style="display:flex;gap:10px;">
@@ -371,7 +407,12 @@ function recalc() {
     document.getElementById('calc_totalmrp').textContent = totalMrp.toLocaleString('en-IN');
     document.getElementById('calc_yousave').textContent  = youSave.toLocaleString('en-IN');
     document.getElementById('calc_pct').textContent      = pct;
-    document.getElementById('calc_warn').style.display = (special>totalMrp && totalMrp>0) ? 'block' : 'none';
+    // Warn when special price is not below the product's selling (discount) price.
+    const sellingPrice = (parseFloat(document.getElementById('offer_mp_price').value)||0) || mainMrp;
+    const warn = document.getElementById('calc_warn');
+    const bad = special>=sellingPrice && sellingPrice>0;
+    warn.style.display = bad ? 'block' : 'none';
+    if (bad) warn.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Special price must be less than the product price (₹' + sellingPrice.toLocaleString('en-IN') + ')';
 }
 
 function openOfferModal(o = null) {
@@ -382,7 +423,10 @@ function openOfferModal(o = null) {
     document.getElementById('offer_subtitle').value = o?.subtitle || '';
     document.getElementById('offer_special').value  = o?.special_price || '';
     document.getElementById('offer_saveextra').value= o?.save_extra || '';
-    document.getElementById('offer_validtill').value= o?.valid_till || '';
+    // Extract YYYY-MM-DD from any stored format ("2026-06-09 23:59:59", ISO, etc.).
+    // type=date only accepts a bare YYYY-MM-DD, so a datetime would silently render blank.
+    const vtMatch = o?.valid_till ? String(o.valid_till).match(/\d{4}-\d{2}-\d{2}/) : null;
+    document.getElementById('offer_validtill').value = vtMatch ? vtMatch[0] : '';
     document.getElementById('offer_sortorder').value= o?.sort_order ?? 0;
     document.getElementById('offer_theme').value    = o?.theme || 'orange';
     document.getElementById('offer_status').value   = o?.is_active ?? 1;
@@ -418,16 +462,32 @@ function openOfferModal(o = null) {
     fi.forEach(addFreeItemRow);
     recalc();
     document.getElementById('offerModalTitle').textContent = o ? 'Edit Offer' : 'Add Offer';
+    clearAllErrs();
     openModal('offerModal');
 }
 
+// Inline field errors (shown under the field + red border) — friendlier than a corner toast.
+function setErr(id, msg) {
+    const el = document.getElementById(id);
+    const box = document.getElementById('err_' + id);
+    if (el) el.classList.add('input-invalid');
+    if (box) { box.textContent = msg; box.classList.add('show'); }
+}
+function clearErr(id) {
+    const el = document.getElementById(id);
+    const box = document.getElementById('err_' + id);
+    if (el) el.classList.remove('input-invalid');
+    if (box) { box.textContent = ''; box.classList.remove('show'); }
+}
+function clearAllErrs() {
+    ['offer_title','offer_mp_select','offer_special','offer_validtill'].forEach(clearErr);
+}
+
 async function saveOffer() {
+    clearAllErrs();
     const title = document.getElementById('offer_title').value.trim();
     const special = parseFloat(document.getElementById('offer_special').value)||0;
     const mpId = document.getElementById('offer_mp_id').value;
-    if(!title){ showToast('Title is required','warning'); return; }
-    if(!mpId){ showToast('Select a main product','warning'); return; }
-    if(special<=0){ showToast('Special price must be greater than 0','warning'); return; }
     const main_product = {
         productId: mpId,
         name:  document.getElementById('offer_mp_name').value,
@@ -437,9 +497,19 @@ async function saveOffer() {
         variant: 'Any Size',
     };
     const free_items = collectFree();
-    const totalMrp = main_product.mrp + free_items.reduce((s,f)=>s+(f.mrp||0),0);
-    if(special>totalMrp){ showToast('Special price cannot exceed total MRP (₹'+totalMrp.toLocaleString('en-IN')+')','warning'); return; }
+    const sellingPrice = main_product.price > 0 ? main_product.price : main_product.mrp;
     const validTill = document.getElementById('offer_validtill').value;
+
+    // Collect all problems, highlight every bad field, focus the first one.
+    let firstBad = null;
+    const fail = (id, msg) => { setErr(id, msg); if (!firstBad) firstBad = id; };
+    if (!title)                    fail('offer_title', 'Title is required');
+    if (!mpId)                     fail('offer_mp_select', 'Select a main product');
+    if (special <= 0)              fail('offer_special', 'Special price must be greater than 0');
+    else if (special >= sellingPrice) fail('offer_special', 'Must be less than the product price (₹' + sellingPrice.toLocaleString('en-IN') + ')');
+    if (!validTill)                fail('offer_validtill', 'Valid Till date is required');
+    if (firstBad) { document.getElementById(firstBad)?.focus(); return; }
+
     const data = { action:'save', id:document.getElementById('offer_id').value, title,
         subtitle:document.getElementById('offer_subtitle').value,
         special_price:special,

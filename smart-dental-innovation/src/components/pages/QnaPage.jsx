@@ -11,12 +11,18 @@ export default function QnaPage() {
   const { view, navigate, showToast } = useUI();
   const { data: allProducts } = useProducts();
   const { data: combos } = useCombos();
-  const { productContent } = useSettings();
+  const { productContent = {} } = useSettings();
   const id = view?.params?.id;
-  const product = useMemo(
-    () => allProducts.find((p) => p.id === id) || findProductById(id) || combos.find((c) => c.id === id) || allProducts[0],
+  // Resolve to null when the product isn't in the loaded data yet (data is DB-only and
+  // may be empty before the API responds) — never index allProducts[0], which is
+  // undefined on an empty list and crashes the useFaqs/useQuestions(product.id) calls below.
+  const resolved = useMemo(
+    () => allProducts.find((p) => p.id === id) || findProductById(id) || combos.find((c) => c.id === id) || null,
     [id, allProducts, combos]
   );
+  // Safe placeholder (same id, blank fields) so the hooks below never crash while the
+  // real product is still loading.
+  const product = resolved || { id, name: "", image: "", description: "", price: 0, mrp: 0 };
 
   // Per-product FAQs (admin) + answered customer questions (DB). FAQs fall back to global.
   const { faqs: dbFaqs } = useFaqs(product.id);

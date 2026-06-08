@@ -168,14 +168,18 @@ foreach ($resolved as $l) $subtotal += $l['price'] * $l['qty'];
 // admin settings (bulk rule, shipping, tax). The client never dictates discount/
 // shipping/total — only which coupon code to try. See _pricing.php.
 $couponCode = isset($body['couponCode']) ? (string)$body['couponCode'] : null;
-$pricing  = computeOrderTotals($subtotal, $resolved, $couponCode);
+$address   = $body['address'] ?? null;
+// Delivery pincode drives zone-based shipping (accepts pincode/pin/zip/postalCode keys).
+$pincode = is_array($address)
+    ? (string)($address['pincode'] ?? $address['pin'] ?? $address['zip'] ?? $address['postalCode'] ?? '')
+    : '';
+$pricing  = computeOrderTotals($subtotal, $resolved, $couponCode, $pincode);
 $subtotal = $pricing['subtotal'];
 $discount = $pricing['discount'];
 $shipping = $pricing['shipping'];
 $tax      = $pricing['tax'];
 $total    = $pricing['total'];
 $payMethod = (string)($body['paymentMethod'] ?? 'cod');
-$address   = $body['address'] ?? null;
 
 $orderNumber = 'SDI-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(3)));
 

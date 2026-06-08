@@ -11,6 +11,7 @@ const STATIC = {
   company: siteStatic.company,
   stats: siteStatic.stats,
   socials: siteStatic.socials,
+  footerConfig: siteStatic.footerConfig,
   payments: siteStatic.payments,
   fbtItems: siteStatic.fbtItems,
   freeGifts: siteStatic.freeGifts,

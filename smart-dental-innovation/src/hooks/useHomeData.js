@@ -1,30 +1,19 @@
-// Fetches the combined home feed from the API, with static data as fallback.
-// Keeps the storefront working even if the API is down.
+// Fetches the combined home feed from the API. All content is DB-only; the empty
+// initial shape just keeps consumers from crashing before the API responds.
 import { useEffect, useState } from "react";
 import api from "../lib/api";
 
-import {
-  bestsellers as sBestsellers,
-  newArrivals as sNewArrivals,
-  implantology as sImplantology,
-  handpieces as sHandpieces,
-  matrixSystem as sMatrix,
-  endodontics as sEndodontics,
-} from "../data/products";
-import { categories as sCategories } from "../data/categories";
-import { testimonials as sTestimonials } from "../data/testimonials";
-
 const STATIC = {
   sections: {
-    bestsellers: sBestsellers,
-    newArrivals: sNewArrivals,
-    implantology: sImplantology,
-    handpieces: sHandpieces,
-    matrixSystem: sMatrix,
-    endodontics: sEndodontics,
+    bestsellers: [],
+    newArrivals: [],
+    implantology: [],
+    handpieces: [],
+    matrixSystem: [],
+    endodontics: [],
   },
-  categories: sCategories,
-  testimonials: sTestimonials,
+  categories: [],
+  testimonials: [],
 };
 
 export function useHomeData() {
