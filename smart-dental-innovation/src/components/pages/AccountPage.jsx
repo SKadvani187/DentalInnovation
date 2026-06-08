@@ -2,11 +2,13 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useUI } from "../../context/UIContext";
+import { useAppNavigate } from "../../hooks/useAppNavigate";
 import { useSettings } from "../../context/SettingsContext";
 
 export default function AccountPage() {
   const { user, updateProfile, logout } = useAuth();
-  const { navigate, openModal } = useUI();
+  const { openModal } = useUI();
+  const navigate = useAppNavigate();
   const { company = {} } = useSettings();
   const supportPhone = company.phone || "+919328762586";
   const [editing, setEditing] = useState(false);

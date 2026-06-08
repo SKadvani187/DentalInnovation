@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useUI } from "../../context/UIContext";
+import { useAppNavigate } from "../../hooks/useAppNavigate";
 import { useWishlist } from "../../context/WishlistContext";
 import { useCart } from "../../context/CartContext";
 import { useProducts, useCombos } from "../../hooks/useApiData";
@@ -9,7 +10,8 @@ const fmt = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 
 export default function WishlistPage() {
   const { user } = useAuth();
-  const { navigate, openModal } = useUI();
+  const { openModal } = useUI();
+  const navigate = useAppNavigate();
   const { ids, remove } = useWishlist();
   const { addToCart } = useCart();
   const { data: allProducts } = useProducts();
@@ -68,7 +70,7 @@ export default function WishlistPage() {
             <article key={p.id} className="border border-gray-200 rounded-xl bg-white overflow-hidden flex flex-col hover:shadow-md transition">
               <div className="relative">
                 <button
-                  onClick={() => navigate("product", { id: p.id })}
+                  onClick={() => navigate("product", { id: p.id, name: p.name })}
                   className="w-full aspect-square bg-gray-50 flex items-center justify-center p-4"
                 >
                   <img src={p.image} alt={p.name} className="max-w-full max-h-full object-contain" />
@@ -86,7 +88,7 @@ export default function WishlistPage() {
               <div className="p-4 flex flex-col flex-1">
                 <h3
                   className="text-sm font-bold text-brand-ink line-clamp-2 mb-2 cursor-pointer hover:text-[#3684bf]"
-                  onClick={() => navigate("product", { id: p.id })}
+                  onClick={() => navigate("product", { id: p.id, name: p.name })}
                 >
                   {p.name}
                 </h3>

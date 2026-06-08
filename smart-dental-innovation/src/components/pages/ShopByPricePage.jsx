@@ -1,6 +1,8 @@
 import { useMemo, useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useCart } from "../../context/CartContext";
 import { useUI } from "../../context/UIContext";
+import { useAppNavigate } from "../../hooks/useAppNavigate";
 import { useSettings } from "../../context/SettingsContext";
 import { useProducts, useCombos } from "../../hooks/useApiData";
 
@@ -22,8 +24,10 @@ function buildBuckets(presets) {
 
 export default function ShopByPricePage() {
   const { addToCart } = useCart();
-  const { openModal, navigate, view } = useUI();
-  const incomingMax = view?.params?.priceMax;
+  const { openModal } = useUI();
+  const navigate = useAppNavigate();
+  const [searchParams] = useSearchParams();
+  const incomingMax = searchParams.has("priceMax") ? Number(searchParams.get("priceMax")) : undefined;
   const { pricePresets = [], priceBounds = { min: 0, max: 500000 }, shopByPricePage: cfg = {} } = useSettings();
   const { data: allProducts } = useProducts();
   const { data: combos } = useCombos();
@@ -187,7 +191,7 @@ export default function ShopByPricePage() {
               <PriceCard
                 key={p.id}
                 product={p}
-                onOpen={() => navigate("product", { id: p.id })}
+                onOpen={() => navigate("product", { id: p.id, name: p.name })}
                 onAdd={() => { addToCart(p, 1); openModal("cart"); }}
               />
             ))}

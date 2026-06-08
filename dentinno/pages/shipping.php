@@ -39,12 +39,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         echo json_encode(['success'=>true]);
     } elseif ($action === 'save_rule') {
         $d = $data;
+        // Product-class rules ignore min/max and target a shipping class instead.
+        $pclass = ($d['rule_type'] ?? '') === 'product' ? ($d['product_class'] ?: null) : null;
         if (!empty($d['id'])) {
-            db()->execute("UPDATE shipping_rules SET method_id=?,zone_id=?,rule_type=?,min_value=?,max_value=?,cost=?,is_free=?,is_active=? WHERE id=?",
-                [$d['method_id'],$d['zone_id']?:null,$d['rule_type'],$d['min_value'],$d['max_value']?:null,$d['cost'],$d['is_free']??0,$d['is_active']??1,$d['id']]);
+            db()->execute("UPDATE shipping_rules SET method_id=?,zone_id=?,rule_type=?,min_value=?,max_value=?,product_class=?,cost=?,is_free=?,is_active=? WHERE id=?",
+                [$d['method_id'],$d['zone_id']?:null,$d['rule_type'],$d['min_value'],$d['max_value']?:null,$pclass,$d['cost'],$d['is_free']??0,$d['is_active']??1,$d['id']]);
         } else {
-            db()->insert("INSERT INTO shipping_rules (method_id,zone_id,rule_type,min_value,max_value,cost,is_free,is_active) VALUES (?,?,?,?,?,?,?,?)",
-                [$d['method_id'],$d['zone_id']?:null,$d['rule_type'],$d['min_value'],$d['max_value']?:null,$d['cost'],$d['is_free']??0,1]);
+            db()->insert("INSERT INTO shipping_rules (method_id,zone_id,rule_type,min_value,max_value,product_class,cost,is_free,is_active) VALUES (?,?,?,?,?,?,?,?,?)",
+                [$d['method_id'],$d['zone_id']?:null,$d['rule_type'],$d['min_value'],$d['max_value']?:null,$pclass,$d['cost'],$d['is_free']??0,1]);
         }
         echo json_encode(['success'=>true,'message'=>'Rule saved']);
     } elseif ($action === 'delete_rule') {
@@ -165,10 +167,16 @@ include __DIR__ . '/../includes/header.php';
             </td>
             <td>
               <?php
-              $unit = ['weight'=>'kg','price'=>'₹','quantity'=>'units','product'=>'item'][$r['rule_type']] ?? '';
-              $min = $r['rule_type']==='price' ? '₹'.number_format($r['min_value']) : $r['min_value'].' '.$unit;
-              $max = $r['max_value'] ? ($r['rule_type']==='price'?'₹'.number_format($r['max_value']):$r['max_value'].' '.$unit) : 'above';
-              echo "<span style='font-size:.82rem;'>{$min} – {$max}</span>";
+              if ($r['rule_type']==='product') {
+                  $classLabels = ['standard'=>'Standard','bulky'=>'Bulky / Heavy','fragile'=>'Fragile','express_only'=>'Express Only','free'=>'Free Shipping'];
+                  $lbl = $classLabels[$r['product_class']] ?? ($r['product_class'] ?: '—');
+                  echo "<span style='font-size:.82rem;'>Class: ".htmlspecialchars($lbl)."</span>";
+              } else {
+                  $unit = ['weight'=>'kg','price'=>'₹','quantity'=>'units'][$r['rule_type']] ?? '';
+                  $min = $r['rule_type']==='price' ? '₹'.number_format($r['min_value']) : $r['min_value'].' '.$unit;
+                  $max = $r['max_value'] ? ($r['rule_type']==='price'?'₹'.number_format($r['max_value']):$r['max_value'].' '.$unit) : 'above';
+                  echo "<span style='font-size:.82rem;'>{$min} – {$max}</span>";
+              }
               ?>
             </td>
             <td>
@@ -328,14 +336,24 @@ include __DIR__ . '/../includes/header.php';
         </div>
       </div>
       <div class="form-group"><label class="form-label">Rule Type *</label>
-        <select class="form-control" id="rule_type">
+        <select class="form-control" id="rule_type" onchange="toggleRuleFields()">
           <option value="weight">Weight-Based (kg)</option><option value="price">Price-Based (₹)</option>
-          <option value="quantity">Quantity-Based</option><option value="product">Product-Specific</option>
+          <option value="quantity">Quantity-Based</option><option value="product">Product-Specific (Shipping Class)</option>
         </select>
       </div>
-      <div class="form-row">
+      <!-- Numeric range: weight / price / quantity rules -->
+      <div class="form-row" id="rule_range_fields">
         <div class="form-group"><label class="form-label">Min Value *</label><input type="number" step="0.01" class="form-control" id="rule_min" placeholder="0"></div>
         <div class="form-group"><label class="form-label">Max Value <small class="text-muted">(blank = unlimited)</small></label><input type="number" step="0.01" class="form-control" id="rule_max" placeholder="unlimited"></div>
+      </div>
+      <!-- Class picker: product-specific rules. Applies when ANY cart item has this class. -->
+      <div class="form-group" id="rule_class_field" style="display:none;">
+        <label class="form-label">Shipping Class *</label>
+        <select class="form-control" id="rule_class">
+          <option value="standard">Standard</option><option value="bulky">Bulky / Heavy</option>
+          <option value="fragile">Fragile</option><option value="express_only">Express Only</option><option value="free">Free Shipping</option>
+        </select>
+        <small class="text-muted" style="font-size:.7rem;">This rate applies when the cart contains any product set to this class (in the product's Shipping tab).</small>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Shipping Cost (₹) *</label><input type="number" class="form-control" id="rule_cost" placeholder="0"></div>
@@ -438,11 +456,19 @@ function openRuleModal(r=null){
   document.getElementById('rule_type').value=r?.rule_type||'weight';
   document.getElementById('rule_min').value=r?.min_value||'';
   document.getElementById('rule_max').value=r?.max_value||'';
+  document.getElementById('rule_class').value=r?.product_class||'standard';
   document.getElementById('rule_cost').value=r?.cost||'';
   document.getElementById('rule_free').checked=!!(r?.is_free);
   document.getElementById('rule_cost').disabled=!!(r?.is_free);
   document.getElementById('ruleModalTitle').textContent=r?'Edit Shipping Rule':'Add Shipping Rule';
+  toggleRuleFields();
   openModal('ruleModal');
+}
+// Show the class picker for product-specific rules, numeric range for the rest.
+function toggleRuleFields(){
+  const isProduct=document.getElementById('rule_type').value==='product';
+  document.getElementById('rule_range_fields').style.display=isProduct?'none':'';
+  document.getElementById('rule_class_field').style.display=isProduct?'':'none';
 }
 async function saveRule(){
   const method_id=document.getElementById('rule_method').value;
@@ -450,6 +476,7 @@ async function saveRule(){
   const payload={action:'save_rule',id:document.getElementById('rule_id').value,method_id,
     zone_id:document.getElementById('rule_zone').value,rule_type:document.getElementById('rule_type').value,
     min_value:document.getElementById('rule_min').value||0,max_value:document.getElementById('rule_max').value,
+    product_class:document.getElementById('rule_class').value,
     cost:document.getElementById('rule_cost').value||0,is_free:document.getElementById('rule_free').checked?1:0};
   const res=await fetch('shipping.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(payload)});
   const r=await res.json();if(r.success){showToast(r.message,'success');closeModal('ruleModal');setTimeout(()=>location.reload(),700);}

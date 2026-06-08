@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { useUI } from '../../context/UIContext';
+import { useAppNavigate } from "../../hooks/useAppNavigate";
 import { useCart } from '../../context/CartContext';
 import { useProducts } from '../../hooks/useApiData';
 
@@ -121,7 +122,8 @@ const PRODUCTS = [
 
 export function ProsthodonticsCarousel() {
   const scrollRef = useRef(null);
-  const { navigate, openModal, showToast } = useUI();
+  const { openModal, showToast } = useUI();
+  const navigate = useAppNavigate();
   const { addToCart, items, updateQty, removeFromCart } = useCart();
   const { data: allProducts } = useProducts();
 
@@ -135,7 +137,7 @@ export function ProsthodonticsCarousel() {
       discount: p.discount > 0 ? `↓ ${p.discount}% Off` : "",
     }));
   const PRODUCT_LIST = apiList.length ? apiList : PRODUCTS;
-  const open = (p) => navigate("product", { id: p.productId });
+  const open = (p) => navigate("product", { id: p.productId, name: p.name });
   const onAdd = (e, p) => {
     e.stopPropagation();
     addToCart(

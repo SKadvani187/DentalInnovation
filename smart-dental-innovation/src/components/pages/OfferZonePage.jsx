@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useCart } from "../../context/CartContext";
 import { useUI } from "../../context/UIContext";
+import { useAppNavigate } from "../../hooks/useAppNavigate";
+import { useProductIndex } from "../../hooks/useProductIndex";
 import { useSettings } from "../../context/SettingsContext";
 import { useOffers } from "../../hooks/useApiData";
 
@@ -273,7 +275,9 @@ function EmptyState({ onReset }) {
 
 function OfferCard({ offer }) {
   const { addToCart, items, updateQty, removeFromCart } = useCart();
-  const { openModal, navigate } = useUI();
+  const { openModal } = useUI();
+  const navigate = useAppNavigate();
+  const { nameFor } = useProductIndex();
   const { offerZoneHero: hero = {} } = useSettings();
   const { days, hrs, mins, ended } = useCountdown(offer.validTill);
   const validDate = offer.validTill
@@ -335,7 +339,7 @@ function OfferCard({ offer }) {
   };
   const onInc = () => cartItem && updateQty(cartItem.key, cartItem.qty + 1);
   const onView = () => openModal("cart");
-  const goProduct = () => main.productId && navigate("product", { id: main.productId });
+  const goProduct = () => main.productId && navigate("product", { id: main.productId, name: main.name || nameFor(main.productId) });
 
   return (
     <article

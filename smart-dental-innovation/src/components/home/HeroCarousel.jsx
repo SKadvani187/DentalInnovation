@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
-import { useUI } from "../../context/UIContext";
+import { useAppNavigate } from "../../hooks/useAppNavigate";
+import { useProductIndex } from "../../hooks/useProductIndex";
 import { useSettings } from "../../context/SettingsContext";
 
 export default function HeroCarousel() {
-  const { navigate } = useUI();
+  const navigate = useAppNavigate();
+  const { nameFor } = useProductIndex();
   const { heroSlides } = useSettings();
   const slides = Array.isArray(heroSlides) ? heroSlides : [];
-  const go = (id) => navigate("product", { id });
+  const go = (id) => navigate("product", { id, name: nameFor(id) });
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
   const [selected, setSelected] = useState(0);
 

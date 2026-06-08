@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
+import { matchBySlug } from "../../lib/routes";
 import { useUI } from "../../context/UIContext";
+import { useAppNavigate } from "../../hooks/useAppNavigate";
 import { useCart } from "../../context/CartContext";
 import { useWishlist } from "../../context/WishlistContext";
 import { useEvents } from "../../hooks/useApiData";
@@ -7,13 +10,13 @@ import { useEvents } from "../../hooks/useApiData";
 const fmt = (n) => `₹${n.toLocaleString("en-IN")}`;
 
 export default function EventsPage() {
-  const { view, navigate } = useUI();
+  const navigate = useAppNavigate();
   const { data: events } = useEvents();
-  const id = view?.params?.id;
-  const event = events.find((e) => e.id === id) || events[0];
+  const { id } = useParams();
+  const event = matchBySlug(events, id) || events[0];
 
   if (!id) {
-    return <EventsList events={events} onPick={(e) => navigate("events", { id: e.id })} />;
+    return <EventsList events={events} onPick={(e) => navigate("events", { id: e.id, name: e.name })} />;
   }
   return <EventDetail event={event} />;
 }
@@ -53,7 +56,8 @@ function EventsList({ events, onPick }) {
 }
 
 function EventDetail({ event }) {
-  const { navigate, openModal } = useUI();
+  const { openModal } = useUI();
+  const navigate = useAppNavigate();
   const { addToCart } = useCart();
   const { toggle: toggleWish, has: hasWish } = useWishlist();
   const [qty, setQty] = useState(1);

@@ -321,6 +321,11 @@ include __DIR__ . '/../includes/header.php';
           </div>
           <div class="form-group"><label class="form-label">Sender ID</label><input type="text" class="form-control" id="otp_f2_sender" value="<?= htmlspecialchars($otpF2['senderId'] ?? '') ?>" placeholder="e.g. TXTIND"></div>
         </div>
+        <div class="form-group" style="margin-top:10px;">
+          <label class="form-label">Message Template <small class="text-muted">(q route only)</small></label>
+          <textarea class="form-control" id="otp_f2_msg" rows="2" placeholder="Your OTP is {otp}. Valid for {mins} min. - Smart Dental Innovations"><?= htmlspecialchars($otpF2['message'] ?? '') ?></textarea>
+          <small class="text-muted" style="font-size:.73rem;">Used only on the <code>q</code> (Quick) route. Placeholders: <code>{otp}</code> = code, <code>{mins}</code> = validity in minutes. Leave blank for the default. The <code>otp</code> (DLT) route ignores this — its wording comes from your DLT-approved template.</small>
+        </div>
       </div>
 
       <!-- 2Factor -->
@@ -357,7 +362,7 @@ include __DIR__ . '/../includes/header.php';
     function saveOtpConfig(){
       const cfg = {
         provider: document.getElementById('otp_provider').value,
-        fast2sms:  { apiKey:_v('otp_f2_key'), route:document.getElementById('otp_f2_route').value, senderId:_v('otp_f2_sender') },
+        fast2sms:  { apiKey:_v('otp_f2_key'), route:document.getElementById('otp_f2_route').value, senderId:_v('otp_f2_sender'), message:_v('otp_f2_msg') },
         twofactor: { apiKey:_v('otp_2f_key'), senderId:_v('otp_2f_sender'), templateName:_v('otp_2f_tpl') },
         msg91:     { authKey:_v('otp_m9_key'), senderId:_v('otp_m9_sender'), templateId:_v('otp_m9_tpl') },
       };

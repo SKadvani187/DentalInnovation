@@ -1,0 +1,18 @@
+# SPA fallback for the storefront (react-router clean URLs).
+# Any request that isn't a real file/dir is served index.html so deep links and
+# page refreshes (e.g. /product/5, /category/implants) load the app instead of 404ing.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Serve existing files and directories as-is.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Never rewrite the PHP backend / API (it has its own .htaccess).
+  RewriteRule ^dentinno/ - [L]
+
+  # Everything else -> SPA entry point.
+  RewriteRule ^ index.html [L]
+</IfModule>

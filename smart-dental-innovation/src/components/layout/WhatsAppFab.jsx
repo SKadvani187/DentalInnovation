@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
-import { useUI } from "../../context/UIContext";
+import { useLocation } from "react-router-dom";
 import { useSettings } from "../../context/SettingsContext";
+import { nameFromPath } from "../../lib/routes";
 
 const DEFAULT_MSG = "Hi, I'm interested in your dental products. Can you help me?";
 const HIDDEN_VIEWS = new Set(["product"]);
 
 export default function WhatsAppFab() {
-  const { view } = useUI();
+  const { pathname } = useLocation();
   const { company = {}, branding = {} } = useSettings();
   // Admin-configured WhatsApp number (Settings → General → Logos & WhatsApp) takes
   // priority; falls back to company sales/main phone, then a last-resort default.
@@ -19,7 +20,7 @@ export default function WhatsAppFab() {
     return () => { clearTimeout(t); clearTimeout(h); };
   }, []);
 
-  if (HIDDEN_VIEWS.has(view?.name)) return null;
+  if (HIDDEN_VIEWS.has(nameFromPath(pathname))) return null;
 
   const open = () => {
     const url = `https://wa.me/${PHONE}?text=${encodeURIComponent(DEFAULT_MSG)}`;

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useCart } from "../../context/CartContext";
 import { useUI } from "../../context/UIContext";
+import { useAppNavigate } from "../../hooks/useAppNavigate";
 import { useSettings } from "../../context/SettingsContext";
 import { useProducts, useCombos, useCategories } from "../../hooks/useApiData";
 import { discountPct } from "../../lib/pricing";
@@ -9,7 +10,8 @@ const fmt = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 
 export default function GreatValuePage() {
   const { addToCart } = useCart();
-  const { openModal, navigate } = useUI();
+  const { openModal } = useUI();
+  const navigate = useAppNavigate();
   const { gvpThreshold = 10, gvpPage: cfg = {} } = useSettings();
   const { data: allProducts } = useProducts();
   const { data: combos } = useCombos();
@@ -128,7 +130,7 @@ export default function GreatValuePage() {
               <DealCard
                 key={p.id}
                 product={p}
-                onOpen={() => navigate("product", { id: p.id })}
+                onOpen={() => navigate("product", { id: p.id, name: p.name })}
                 onAdd={() => { addToCart(p, 1); openModal("cart"); }}
               />
             ))}

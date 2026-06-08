@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useCart } from "../../context/CartContext";
 import { useUI } from "../../context/UIContext";
+import { useAppNavigate } from "../../hooks/useAppNavigate";
 import { useSettings } from "../../context/SettingsContext";
 import { useCombos } from "../../hooks/useApiData";
 import { discountPct } from "../../lib/pricing";
@@ -9,12 +10,13 @@ const fmt = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 
 export default function CombosPage() {
   const { items, addToCart, updateQty, removeFromCart } = useCart();
-  const { openModal, navigate } = useUI();
+  const { openModal } = useUI();
+  const navigate = useAppNavigate();
   const { company = {}, combosPage: cfg = {}, lowStockThreshold = 10, sortOptions: SORT_OPTIONS = [] } = useSettings();
   const { data: combos } = useCombos();
   const [sort, setSort] = useState("all");
 
-  const openProduct = (p) => navigate("product", { id: p.id });
+  const openProduct = (p) => navigate("product", { id: p.id, name: p.name });
 
   const list = useMemo(() => {
     const items = [...(combos || [])];

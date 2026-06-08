@@ -5,7 +5,6 @@ const UIContext = createContext(null);
 export function UIProvider({ children }) {
   const [modal, setModal] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [view, setView] = useState({ name: "home", params: null });
   const [toasts, setToasts] = useState([]); // [{ id, type, message }]
   const [searchSeed, setSearchSeed] = useState("");
   const [searchImageFile, setSearchImageFile] = useState(null);
@@ -27,11 +26,6 @@ export function UIProvider({ children }) {
     setModal("product");
   }, []);
 
-  const navigate = useCallback((name, params = null) => {
-    setView({ name, params });
-    window.scrollTo({ top: 0, behavior: "instant" });
-  }, []);
-
   const dismissToast = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
@@ -45,8 +39,8 @@ export function UIProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ modal, openModal, closeModal, openSearch, openSearchWithImage, searchSeed, setSearchSeed, searchImageFile, setSearchImageFile, selectedProduct, setSelectedProduct, openProduct, view, navigate, toasts, showToast, dismissToast }),
-    [modal, openModal, closeModal, openSearch, openSearchWithImage, searchSeed, searchImageFile, selectedProduct, openProduct, view, navigate, toasts, showToast, dismissToast]
+    () => ({ modal, openModal, closeModal, openSearch, openSearchWithImage, searchSeed, setSearchSeed, searchImageFile, setSearchImageFile, selectedProduct, setSelectedProduct, openProduct, toasts, showToast, dismissToast }),
+    [modal, openModal, closeModal, openSearch, openSearchWithImage, searchSeed, searchImageFile, selectedProduct, openProduct, toasts, showToast, dismissToast]
   );
 
   return <UIContext.Provider value={value}>{children}</UIContext.Provider>;

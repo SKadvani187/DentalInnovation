@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { categoryFilters as STATIC_FILTERS } from "../../data/categories";
 import { useCart } from "../../context/CartContext";
 import { useUI } from "../../context/UIContext";
+import { useAppNavigate } from "../../hooks/useAppNavigate";
 import { useSettings } from "../../context/SettingsContext";
 import { useProducts, useCombos, useCategories } from "../../hooks/useApiData";
 
@@ -13,13 +15,16 @@ const COLLAPSE_COUNT = 10;
 const fmt = (n) => `₹${n.toLocaleString("en-IN")}`;
 
 export default function CategoryPage() {
-  const { view, navigate } = useUI();
+  const navigate = useAppNavigate();
+  const { category: categoryParam } = useParams();
+  const [searchParams] = useSearchParams();
+  const priceMaxParam = searchParams.has("priceMax") ? Number(searchParams.get("priceMax")) : null;
   // Price bounds are admin-managed (DB via settings API). Sort options read in <SortSelect>.
   const { priceBounds = FALLBACK_BOUNDS } = useSettings();
   const PRICE_MIN = priceBounds.min ?? FALLBACK_BOUNDS.min;
   const PRICE_MAX = priceBounds.max ?? FALLBACK_BOUNDS.max;
-  const initialCategory = view?.params?.category || null;
-  const initialPriceMax = view?.params?.priceMax || PRICE_MAX;
+  const initialCategory = categoryParam || null;
+  const initialPriceMax = priceMaxParam || PRICE_MAX;
   const [selectedCat, setSelectedCat] = useState(initialCategory);
   const [sort, setSort] = useState("all");
   const [expanded, setExpanded] = useState(false);
@@ -36,15 +41,15 @@ export default function CategoryPage() {
     [catData]
   );
 
+  // Keep local filter state in sync with the URL (path category + ?priceMax) so deep
+  // links and back/forward navigation reflect the right filters.
   useEffect(() => {
-    if (view?.params?.priceMax) {
-      setPriceMax(view.params.priceMax);
+    if (priceMaxParam) {
+      setPriceMax(priceMaxParam);
       setPriceMin(PRICE_MIN);
     }
-    if (view?.params?.category !== undefined) {
-      setSelectedCat(view.params.category || null);
-    }
-  }, [view?.params?.priceMax, view?.params?.category]);
+    setSelectedCat(categoryParam || null);
+  }, [priceMaxParam, categoryParam]);
 
   const priceFiltered = priceMin > PRICE_MIN || priceMax < PRICE_MAX;
   const products = useMemo(() => {
@@ -62,7 +67,7 @@ export default function CategoryPage() {
   }, [selectedCat, sort, priceMin, priceMax, allProducts, combos]);
 
   const visibleCats = expanded ? CATEGORY_FILTERS : CATEGORY_FILTERS.slice(0, COLLAPSE_COUNT);
-  const catLabel = selectedCat ? (CATEGORY_FILTERS.find((c) => c.id === selectedCat)?.label || view?.params?.title || "Products") : "All Products";
+  const catLabel = selectedCat ? (CATEGORY_FILTERS.find((c) => c.id === selectedCat)?.label || searchParams.get("title") || "Products") : "All Products";
   const resetAll = () => { setSelectedCat(null); setPriceMin(PRICE_MIN); setPriceMax(PRICE_MAX); setSort("all"); };
 
   const SidebarFilters = (
@@ -271,8 +276,10 @@ function PriceRange({ min, max, valueMin, valueMax, onChange }) {
 
 function ProductCard({ product }) {
   const { addToCart } = useCart();
-  const { openModal, navigate, view } = useUI();
-  const openProduct = () => navigate("product", { id: product.id, fromCategory: view?.params?.category });
+  const { openModal } = useUI();
+  const navigate = useAppNavigate();
+  const { category: categoryParam } = useParams();
+  const openProduct = () => navigate("product", { id: product.id, name: product.name, fromCategory: categoryParam });
   const variants = Array.isArray(product.variants)
     ? product.variants.filter((v) => typeof v === "object")
     : [];

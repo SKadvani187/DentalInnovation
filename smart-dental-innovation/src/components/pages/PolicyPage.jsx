@@ -1,11 +1,13 @@
-import { useUI } from "../../context/UIContext";
+import { useParams } from "react-router-dom";
+import { useAppNavigate } from "../../hooks/useAppNavigate";
 import { useSettings } from "../../context/SettingsContext";
 
 export default function PolicyPage() {
-  const { view, navigate } = useUI();
+  const navigate = useAppNavigate();
+  const { type: typeParam } = useParams();
   const { policies = {}, company = {} } = useSettings();
   const email = company.email || "info@smartdentalinnovations.com";
-  const type = view?.params?.type || "terms";
+  const type = typeParam || "terms";
   const data = policies[type] || policies.terms || { title: "Policy", sections: [] };
   const tabs = [
     { id: "return", label: "Return Policy" },

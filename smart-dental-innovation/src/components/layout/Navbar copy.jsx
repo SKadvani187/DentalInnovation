@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useLocation } from "react-router-dom";
 import logo from "../../assets/logo.png";
 import { useUI } from "../../context/UIContext";
+import { useAppNavigate } from "../../hooks/useAppNavigate";
+import { nameFromPath } from "../../lib/routes";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import { useSettings } from "../../context/SettingsContext";
@@ -31,8 +34,10 @@ export default function NavigationHeader() {
     return () => clearInterval(timer);
   }, [logos.length]);
   const currentLogo = logos[logoIdx] ?? logos[0];   // undefined while loading → spacer (not the old logo)
-  const { openModal, navigate, openSearch, openSearchWithImage, view } = useUI();
-  const currentView = view?.name;
+  const { openModal, openSearch, openSearchWithImage } = useUI();
+  const navigate = useAppNavigate();
+  const { pathname } = useLocation();
+  const currentView = nameFromPath(pathname);
   const { user, logout } = useAuth();
   const { itemCount } = useCart();
   const fileRef = useRef(null);

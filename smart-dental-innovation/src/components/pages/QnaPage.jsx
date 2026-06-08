@@ -1,23 +1,27 @@
 import { useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
+import { matchBySlug } from "../../lib/routes";
 import { findProductById } from "../../data/products";
 import { useProducts, useCombos, useFaqs, useQuestions } from "../../hooks/useApiData";
 import { useUI } from "../../context/UIContext";
+import { useAppNavigate } from "../../hooks/useAppNavigate";
 import { useSettings } from "../../context/SettingsContext";
 import api from "../../lib/api";
 
 const fmt = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 
 export default function QnaPage() {
-  const { view, navigate, showToast } = useUI();
+  const { showToast } = useUI();
+  const navigate = useAppNavigate();
   const { data: allProducts } = useProducts();
   const { data: combos } = useCombos();
   const { productContent = {} } = useSettings();
-  const id = view?.params?.id;
+  const { id } = useParams();
   // Resolve to null when the product isn't in the loaded data yet (data is DB-only and
   // may be empty before the API responds) — never index allProducts[0], which is
   // undefined on an empty list and crashes the useFaqs/useQuestions(product.id) calls below.
   const resolved = useMemo(
-    () => allProducts.find((p) => p.id === id) || findProductById(id) || combos.find((c) => c.id === id) || null,
+    () => matchBySlug(allProducts, id) || findProductById(id) || matchBySlug(combos, id) || null,
     [id, allProducts, combos]
   );
   // Safe placeholder (same id, blank fields) so the hooks below never crash while the
@@ -57,7 +61,7 @@ export default function QnaPage() {
   return (
     <div className="max-w-[1400px] mx-auto px-4 py-6">
       <button
-        onClick={() => navigate("product", { id: product.id })}
+        onClick={() => navigate("product", { id: product.id, name: product.name })}
         className="flex items-center gap-2 text-sm text-brand-ink hover:text-[#3684bf] mb-4"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>

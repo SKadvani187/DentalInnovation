@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useUI } from "../../context/UIContext";
+import { useAppNavigate } from "../../hooks/useAppNavigate";
 import { useSettings } from "../../context/SettingsContext";
 
 const ABOUT_BLOCKS = {
@@ -83,7 +83,7 @@ function SectionLabel({ children }) {
 
 function HeroSection() {
   const { hero = {} } = useAbout();
-  const { navigate } = useUI();
+  const navigate = useAppNavigate();
   const stats = hero.stats || [];
   return (
     <section className="relative overflow-hidden bg-[#0b1d3a] text-white">
@@ -480,7 +480,7 @@ function Certifications() {
 }
 
 function WhatWeOffer() {
-  const { navigate } = useUI();
+  const navigate = useAppNavigate();
   const { categories = [] } = useSettings();
   const tiles = (categories.length ? categories : []).slice(0, 12).map((c) => ({ label: c.title, category: c.id }));
   return (
@@ -507,7 +507,7 @@ function WhatWeOffer() {
 
 function ReadyCTA() {
   const { cta = {} } = useAbout();
-  const { navigate } = useUI();
+  const navigate = useAppNavigate();
   return (
     <section className="bg-[#eef5fb] py-16 lg:py-24">
       <div className="max-w-[900px] mx-auto px-4 text-center">

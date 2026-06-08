@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { findProductById } from "../../data/products";
+import { matchBySlug } from "../../lib/routes";
 import { useUI } from "../../context/UIContext";
+import { useAppNavigate } from "../../hooks/useAppNavigate";
 import { useCart } from "../../context/CartContext";
 import { useWishlist } from "../../context/WishlistContext";
 import { useProducts, useCombos, useEvents, useCategories, useReviews, useFaqs } from "../../hooks/useApiData";
@@ -12,7 +15,10 @@ import { discountPct } from "../../lib/pricing";
 const fmt = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 
 export default function ProductDetailPage() {
-  const { view, navigate, openModal, setSelectedProduct } = useUI();
+  const { openModal, setSelectedProduct } = useUI();
+  const navigate = useAppNavigate();
+  const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const { addToCart, items, updateQty, removeFromCart } = useCart();
   const { has, toggle } = useWishlist();
 
@@ -22,9 +28,8 @@ export default function ProductDetailPage() {
   const { data: categories } = useCategories();
   const { company = {}, tierOffers = [], productDefaults = {}, productContent = {} } = useSettings();
 
-  const id = view?.params?.id;
   const resolvedProduct = useMemo(() => {
-    const ev = events.find((e) => e.id === id);
+    const ev = matchBySlug(events, id);
     if (ev) {
       const discount = discountPct(ev.mrp, ev.price);
       const gallery = ev.images?.length ? ev.images : [ev.image];
@@ -50,9 +55,9 @@ export default function ProductDetailPage() {
     // Resolve to null when the product isn't in the loaded data yet — never fall back
     // to a different product (that caused the wrong-image flash on first open).
     return (
-      apiProducts.find((p) => p.id === id) ||
+      matchBySlug(apiProducts, id) ||
       findProductById(id) ||
-      combos.find((c) => c.id === id) ||
+      matchBySlug(combos, id) ||
       null
     );
   }, [id, apiProducts, combos, events]);
@@ -89,7 +94,7 @@ export default function ProductDetailPage() {
   const [crumbsOpen, setCrumbsOpen] = useState(false);
   const wished = has(product.id);
 
-  const fromCategory = view?.params?.fromCategory;
+  const fromCategory = searchParams.get("from");
   const cats = Array.isArray(categories) ? categories : [];
   // Falls back to the product's own category id/name when the categories list is empty
   // (e.g. before the API responds), so the breadcrumb never reads from undefined.
@@ -435,7 +440,7 @@ export default function ProductDetailPage() {
 
           <ProductAccordions product={product} fallback={productContent.accordions} />
 
-          <FaqsSection faqs={faqList} productId={product.id} />
+          <FaqsSection faqs={faqList} productId={product.id} productName={product.name} />
         </div>
 
         {/* RIGHT — Available Offers */}
@@ -781,7 +786,8 @@ function ProductGallery({ product, wished, onWish }) {
 
 function AvailableVariants({ product }) {
   const { addToCart } = useCart();
-  const { openModal, navigate } = useUI();
+  const { openModal } = useUI();
+  const navigate = useAppNavigate();
   const { productDefaults = {} } = useSettings();
   const [tab, setTab] = useState("All");
   const { data: allProducts } = useProducts();
@@ -827,7 +833,7 @@ function AvailableVariants({ product }) {
               <p className="text-xs text-brand-muted">{productDefaults.variantDeliveryNote || "📦 Get it by 3–5 days"}</p>
               <div className="flex gap-2">
                 <button
-                  onClick={() => navigate("product", { id: v.id })}
+                  onClick={() => navigate("product", { id: v.id, name: v.name })}
                   className="px-4 py-1 border border-[#ff6b1a] text-[#ff6b1a] text-xs font-semibold rounded-lg hover:bg-orange-50 transition"
                 >
                   View
@@ -949,8 +955,8 @@ function ProductAccordions({ product, fallback = [] }) {
   );
 }
 
-function FaqsSection({ faqs, productId }) {
-  const { navigate } = useUI();
+function FaqsSection({ faqs, productId, productName }) {
+  const navigate = useAppNavigate();
   const [showAll, setShowAll] = useState(false);
   if (!faqs.length) return null;
   const visible = showAll ? faqs : faqs.slice(0, 2);
@@ -960,7 +966,7 @@ function FaqsSection({ faqs, productId }) {
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-bold text-brand-ink">FAQs</h3>
         <button
-          onClick={() => navigate("qna", { id: productId })}
+          onClick={() => navigate("qna", { id: productId, name: productName })}
           className="text-xs font-bold border border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-white px-3 py-1.5 rounded transition"
         >
           Get Instant Answer
@@ -1202,7 +1208,7 @@ function PaymentOptionsModal({ items, initialId, onClose }) {
 
 function SmartBenefitsCard() {
   const { productBenefits = [] } = useSettings();
-  const { navigate } = useUI();
+  const navigate = useAppNavigate();
   const icons = {
     shield: <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" />,
     x: <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />,
@@ -1487,7 +1493,8 @@ function WriteReviewForm({ productId, showToast, onDone }) {
 }
 
 function RelatedProducts({ product }) {
-  const { navigate, openModal } = useUI();
+  const { openModal } = useUI();
+  const navigate = useAppNavigate();
   const { addToCart } = useCart();
   const { data: allProducts } = useProducts();
   const scroller = useRef(null);
@@ -1523,7 +1530,7 @@ function RelatedProducts({ product }) {
           {list.map((p) => (
             <article key={p.id} className="shrink-0 w-[260px] border border-gray-200 rounded-xl bg-white overflow-hidden flex flex-col">
               <div className="relative aspect-square bg-gray-50">
-                <button onClick={() => navigate("product", { id: p.id })} className="w-full h-full flex items-center justify-center p-4">
+                <button onClick={() => navigate("product", { id: p.id, name: p.name })} className="w-full h-full flex items-center justify-center p-4">
                   <img src={p.image} alt={p.name} className="max-w-full max-h-full object-contain" />
                 </button>
                 {!p.inStock && (
@@ -1536,7 +1543,7 @@ function RelatedProducts({ product }) {
               </div>
               <div className="p-4 flex flex-col flex-1">
                 <h3
-                  onClick={() => navigate("product", { id: p.id })}
+                  onClick={() => navigate("product", { id: p.id, name: p.name })}
                   className="text-sm font-bold text-brand-ink line-clamp-2 mb-3 cursor-pointer hover:text-[#3684bf]"
                 >
                   {p.name}

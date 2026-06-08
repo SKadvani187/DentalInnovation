@@ -1,9 +1,10 @@
 import ProductCard from "./ProductCard";
-import { useUI } from "../../context/UIContext";
+import { useAppNavigate } from "../../hooks/useAppNavigate";
+import { useProductIndex } from "../../hooks/useProductIndex";
 import { useSettings } from "../../context/SettingsContext";
 
 export default function ProductSection({ title, eyebrow, products, accent = "navy" }) {
-  const { navigate } = useUI();
+  const navigate = useAppNavigate();
   // Section title → category filter map is admin-managed (DB via settings API).
   const { sectionToCategory: TITLE_TO_CATEGORY = {} } = useSettings();
 
@@ -45,7 +46,8 @@ export default function ProductSection({ title, eyebrow, products, accent = "nav
 }
 
 export function RFCauterySection(props = {}){
-  const { navigate } = useUI();
+  const navigate = useAppNavigate();
+  const { nameFor } = useProductIndex();
   const { rfSection } = useSettings();
   const rf = rfSection || {};
   const productId = props.productId ?? rf.productId ?? "p-001";
@@ -54,7 +56,7 @@ export function RFCauterySection(props = {}){
   const descShort = rf.descShort || "High-performance surgical unit for precise, bloodless soft-tissue management.";
   const description = rf.description || descShort;
   const features = rf.features?.length ? rf.features : [];
-  const onView = () => navigate("product", { id: productId });
+  const onView = () => navigate("product", { id: productId, name: nameFor(productId) });
   return (
     <div className="px-2 sm:px-0">
       {/* Mobile fallback */}
@@ -232,9 +234,10 @@ const CategoryCard = ({ item, onOpen }) => (
     </div>
   );
 export function PremiumCategories({products}){
-  const { navigate } = useUI();
+  const navigate = useAppNavigate();
+  const { nameFor } = useProductIndex();
   const onOpen = (item) => {
-    if (item?.id) navigate("product", { id: item.id });
+    if (item?.id) navigate("product", { id: item.id, name: item.name || nameFor(item.id) });
   };
   return (
     <div className="px-2 sm:px-0">
@@ -268,8 +271,9 @@ export function HomeBanner({
   bannerTopRightId = "p-010",
   bannerBottomRightId = "e-007",
 } = {}){
-  const { navigate } = useUI();
-  const go = (id) => navigate("product", { id });
+  const navigate = useAppNavigate();
+  const { nameFor } = useProductIndex();
+  const go = (id) => navigate("product", { id, name: nameFor(id) });
   const mobileBanners = [
     { src: "https://merchant-cdn.storedum.com/new_website_banner_mobile_2_(1).png", id: bannerLeftId },
     { src: "https://merchant-cdn.storedum.com/new_banner_2.webp", id: bannerTopRightId },

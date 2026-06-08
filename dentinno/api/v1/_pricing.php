@@ -40,7 +40,7 @@ function resolveShippingZone(?string $pincode): ?int {
 
 // Cost of one shipping method for the given order facts. Returns ['cost'=>float,'free'=>bool]
 // or null if the method has no applicable rule (so it's excluded from the options).
-function methodShippingCost(array $method, float $price, float $weight, int $qty, ?int $zoneId): ?array {
+function methodShippingCost(array $method, float $price, float $weight, int $qty, ?int $zoneId, array $classes = []): ?array {
     $type = $method['type'] ?? 'flat';
     if ($type === 'free') return ['cost' => 0.0, 'free' => true];
     if ($type === 'flat') return ['cost' => (float)($method['base_cost'] ?? 0), 'free' => false];
@@ -53,6 +53,16 @@ function methodShippingCost(array $method, float $price, float $weight, int $qty
         $zoneId ? [(int)$method['id'], $zoneId] : [(int)$method['id']]
     );
     foreach ($rules as $rule) {
+        // Product-class rules match on the cart's shipping classes, not a numeric range:
+        // the rule applies when ANY line in the cart has its target class.
+        if (($rule['rule_type'] ?? '') === 'product') {
+            $cls = $rule['product_class'] ?? null;
+            if ($cls !== null && in_array($cls, $classes, true)) {
+                $free = (bool)$rule['is_free'];
+                return ['cost' => $free ? 0.0 : (float)$rule['cost'], 'free' => $free];
+            }
+            continue;
+        }
         $val = match ($rule['rule_type']) {
             'weight'   => $weight,
             'price'    => $price,
@@ -83,9 +93,10 @@ function computeShipping(array $lines, float $subtotal, float $weight, int $qty,
         return ($subtotal >= $freeThreshold) ? 0.0 : $flatRate;
     }
 
+    $classes = linesClasses($lines);
     $best = null;
     foreach ($methods as $m) {
-        $r = methodShippingCost($m, $subtotal, $weight, $qty, $zoneId);
+        $r = methodShippingCost($m, $subtotal, $weight, $qty, $zoneId, $classes);
         if ($r === null) continue;
         if ($best === null
             || ($r['free'] && !$best['free'])
@@ -95,6 +106,20 @@ function computeShipping(array $lines, float $subtotal, float $weight, int $qty,
     }
     // No method applied at all -> free (don't block the order on a config gap).
     return $best ? round((float)$best['cost'], 2) : 0.0;
+}
+
+// Distinct shipping classes present across the order lines (from products.shipping_class).
+// Used by product-class shipping rules, which apply when ANY line has the target class.
+function linesClasses(array $lines): array {
+    $seen = [];
+    foreach ($lines as $l) {
+        $pid = $l['product_id'] ?? null;
+        if (!$pid) continue;
+        $row = db()->fetchOne("SELECT shipping_class FROM products WHERE id=?", [(int)$pid]);
+        $cls = $row['shipping_class'] ?? null;
+        if ($cls && !in_array($cls, $seen, true)) $seen[] = $cls;
+    }
+    return $seen;
 }
 
 // Total billable weight (kg) for the resolved order lines. Gift lines count too (they

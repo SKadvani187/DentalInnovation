@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useUI } from "../../context/UIContext";
+import { useAppNavigate } from "../../hooks/useAppNavigate";
 import api from "../../lib/api";
 
 const fmt = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
@@ -32,7 +33,8 @@ const DATE_VISIBLE = 3;
 
 export default function OrdersPage() {
   const { user, token } = useAuth();
-  const { navigate, openModal } = useUI();
+  const { openModal } = useUI();
+  const navigate = useAppNavigate();
   const [tab, setTab] = useState("orders");
   const [orderType, setOrderType] = useState("all");
   const [dateFilter, setDateFilter] = useState("30d");

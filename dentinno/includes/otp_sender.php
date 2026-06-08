@@ -11,7 +11,7 @@ require_once __DIR__ . '/config.php';
 function getOtpConfig(): array {
     $defaults = [
         'provider'  => 'fast2sms',
-        'fast2sms'  => ['apiKey' => FAST2SMS_API_KEY, 'route' => FAST2SMS_ROUTE, 'senderId' => FAST2SMS_SENDER_ID],
+        'fast2sms'  => ['apiKey' => FAST2SMS_API_KEY, 'route' => FAST2SMS_ROUTE, 'senderId' => FAST2SMS_SENDER_ID, 'message' => ''],
         'twofactor' => ['apiKey' => '', 'senderId' => '', 'templateName' => ''],
         'msg91'     => ['authKey' => '', 'senderId' => '', 'templateId' => ''],
     ];
@@ -93,9 +93,16 @@ function sendSms_fast2sms(string $mobile, string $otp, array $c): array {
     $num = normalizeMobileIN($mobile);
     $route = $c['route'] ?: 'otp';
     if ($route === 'q') {
+        // Quick (non-DLT) route: message text is admin-editable (Admin → Settings → OTP →
+        // Fast2SMS → Message Template). Placeholders {otp} and {mins} are filled in here.
+        // Blank template falls back to the default wording. (The 'otp'/DLT route below
+        // can't use this — its text lives in the provider's DLT-approved template.)
+        $tpl = trim((string)($c['message'] ?? ''));
+        if ($tpl === '') $tpl = 'Your OTP is {otp}. Valid for {mins} min. - Smart Dental Innovations';
+        $message = strtr($tpl, ['{otp}' => $otp, '{mins}' => (string)(OTP_TTL / 60)]);
         $payload = [
             'route'   => 'q',
-            'message' => "Your OTP is $otp. Valid for " . (OTP_TTL / 60) . " min. - Smart Dental Innovations",
+            'message' => $message,
             'numbers' => $num,
             'flash'   => 0,
         ];

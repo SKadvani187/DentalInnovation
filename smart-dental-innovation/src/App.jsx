@@ -1,9 +1,11 @@
 import { CartProvider } from "./context/CartContext";
 import { WishlistProvider } from "./context/WishlistContext";
 import { AuthProvider } from "./context/AuthContext";
-import { UIProvider, useUI } from "./context/UIContext";
+import { UIProvider } from "./context/UIContext";
 import { SettingsProvider } from "./context/SettingsContext";
 import { useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import ScrollToTop from "./components/ScrollToTop";
 
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
@@ -49,22 +51,24 @@ import ProsthodonticsCarousel from "./components/home/ProsthodonticsCarousel";
 
 export default function App() {
   return (
-    <SettingsProvider>
-      <AuthProvider>
-        <CartProvider>
-          <WishlistProvider>
-            <UIProvider>
-              <Shell />
-            </UIProvider>
-          </WishlistProvider>
-        </CartProvider>
-      </AuthProvider>
-    </SettingsProvider>
+    <BrowserRouter>
+      <ScrollToTop />
+      <SettingsProvider>
+        <AuthProvider>
+          <CartProvider>
+            <WishlistProvider>
+              <UIProvider>
+                <Shell />
+              </UIProvider>
+            </WishlistProvider>
+          </CartProvider>
+        </AuthProvider>
+      </SettingsProvider>
+    </BrowserRouter>
   );
 }
 
 function Shell() {
-  const { view } = useUI();
   const { sections, categories, testimonials } = useHomeData();
   const { premiumCategories = [], homeSections = [] } = useSettings();
 
@@ -111,39 +115,25 @@ function Shell() {
     <>
       <NavigationHeader />
       <main>
-        {view.name === "category" ? (
-          <CategoryPage />
-        ) : view.name === "gvp" ? (
-          <GreatValuePage />
-        ) : view.name === "shopByPrice" ? (
-          <ShopByPricePage />
-        ) : view.name === "combos" ? (
-          <CombosPage />
-        ) : view.name === "events" ? (
-          <EventsPage />
-        ) : view.name === "about" ? (
-          <AboutPage />
-        ) : view.name === "contact" ? (
-          <ContactPage />
-        ) : view.name === "product" ? (
-          <ProductDetailPage />
-        ) : view.name === "qna" ? (
-          <QnaPage />
-        ) : view.name === "account" ? (
-          <AccountPage />
-        ) : view.name === "orders" ? (
-          <OrdersPage />
-        ) : view.name === "wishlist" ? (
-          <WishlistPage />
-        ) : view.name === "address" ? (
-          <AddressPage />
-        ) : view.name === "offers" ? (
-          <OfferZonePage />
-        ) : view.name === "policy" ? (
-          <PolicyPage />
-        ) : (
-          <>{blocks.map(renderBlock)}</>
-        )}
+        <Routes>
+          <Route path="/" element={<>{blocks.map(renderBlock)}</>} />
+          <Route path="/category/:category?" element={<CategoryPage />} />
+          <Route path="/shop-by-price" element={<ShopByPricePage />} />
+          <Route path="/great-value" element={<GreatValuePage />} />
+          <Route path="/combos" element={<CombosPage />} />
+          <Route path="/events/:id?" element={<EventsPage />} />
+          <Route path="/product/:id" element={<ProductDetailPage />} />
+          <Route path="/qna/:id?" element={<QnaPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/account" element={<AccountPage />} />
+          <Route path="/orders" element={<OrdersPage />} />
+          <Route path="/wishlist" element={<WishlistPage />} />
+          <Route path="/address" element={<AddressPage />} />
+          <Route path="/offers" element={<OfferZonePage />} />
+          <Route path="/policy/:type?" element={<PolicyPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </main>
       <Footer />
 

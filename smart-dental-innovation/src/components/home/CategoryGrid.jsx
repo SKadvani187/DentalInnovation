@@ -1,10 +1,10 @@
 import { useRef } from "react";
 import { categoryTiles as staticTiles } from "../../data/categories";
-import { useUI } from "../../context/UIContext";
+import { useAppNavigate } from "../../hooks/useAppNavigate";
 
 export default function CategoryGrid({ items }) {
   const scroller = useRef(null);
-  const { navigate } = useUI();
+  const navigate = useAppNavigate();
 
   // Use API-provided categories when given; show only those with images (home grid).
   const categories = items ? items.filter((c) => c.img) : staticTiles;

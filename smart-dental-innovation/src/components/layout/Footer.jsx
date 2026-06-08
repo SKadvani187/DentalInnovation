@@ -1,6 +1,7 @@
 import React from 'react';
 import TopBar from './TopBar';
 import { useUI } from '../../context/UIContext';
+import { useAppNavigate } from "../../hooks/useAppNavigate";
 import { useSettings } from '../../context/SettingsContext';
 
 // Payment-method icon by id (admin only stores id + label; icons live in the UI).
@@ -13,7 +14,8 @@ const PAY_ICONS = {
 };
 
 export function Footer() {
-  const { navigate, openModal } = useUI();
+  const { openModal } = useUI();
+  const navigate = useAppNavigate();
   const { company = {}, stats = [], footerConfig = {} } = useSettings();
   const sections = Array.isArray(footerConfig.sections) ? footerConfig.sections : [];
   const payBox = footerConfig.paymentBox || {};

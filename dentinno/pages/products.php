@@ -23,15 +23,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $images_json = !empty($d['images']) ? json_encode($d['images']) : null;
         $hover_image = !empty($d['hover_image']) ? $d['hover_image'] : null;
         if (!empty($d['id'])) {
-            db()->execute("UPDATE products SET name=?,category_id=?,price=?,discount_price=?,discount_percent=?,stock=?,short_description=?,full_description=?,features=?,packing_info=?,key_specifications=?,directions_for_use=?,additional_information=?,warranty_info=?,images=?,hover_image=?,weight_kg=?,is_active=?,is_featured=?,is_new=? WHERE id=?",
-                [$d['name'],$d['category_id']?:null,$d['price'],$disc_price,$disc_pct,$d['stock'],$d['short_description'],$d['full_description'],$features,$d['packing_info'],$key_specs,$d['directions_for_use'],$d['additional_information'],$d['warranty_info'],$images_json,$hover_image,$d['weight_kg']?:null,$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0,$d['id']]);
+            db()->execute("UPDATE products SET name=?,category_id=?,price=?,discount_price=?,discount_percent=?,stock=?,short_description=?,full_description=?,features=?,packing_info=?,key_specifications=?,directions_for_use=?,additional_information=?,warranty_info=?,images=?,hover_image=?,weight_kg=?,shipping_class=?,is_active=?,is_featured=?,is_new=? WHERE id=?",
+                [$d['name'],$d['category_id']?:null,$d['price'],$disc_price,$disc_pct,$d['stock'],$d['short_description'],$d['full_description'],$features,$d['packing_info'],$key_specs,$d['directions_for_use'],$d['additional_information'],$d['warranty_info'],$images_json,$hover_image,$d['weight_kg']?:null,$d['shipping_class']?:'standard',$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0,$d['id']]);
             $pid = $d['id'];
             echo json_encode(['success' => true, 'message' => 'Product updated', 'id' => $pid]);
         } else {
             $slug = generateSlug($d['name']) . '-' . time();
             $sku  = 'SKU-' . strtoupper(substr(md5($d['name']), 0, 6));
-            $pid = db()->insert("INSERT INTO products (name,slug,sku,category_id,price,discount_price,discount_percent,stock,short_description,full_description,features,packing_info,key_specifications,directions_for_use,additional_information,warranty_info,images,hover_image,weight_kg,is_active,is_featured,is_new) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                [$d['name'],$slug,$sku,$d['category_id']?:null,$d['price'],$disc_price,$disc_pct,$d['stock'],$d['short_description'],$d['full_description'],$features,$d['packing_info'],$key_specs,$d['directions_for_use'],$d['additional_information'],$d['warranty_info'],$images_json,$hover_image,$d['weight_kg']?:null,$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0]);
+            $pid = db()->insert("INSERT INTO products (name,slug,sku,category_id,price,discount_price,discount_percent,stock,short_description,full_description,features,packing_info,key_specifications,directions_for_use,additional_information,warranty_info,images,hover_image,weight_kg,shipping_class,is_active,is_featured,is_new) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                [$d['name'],$slug,$sku,$d['category_id']?:null,$d['price'],$disc_price,$disc_pct,$d['stock'],$d['short_description'],$d['full_description'],$features,$d['packing_info'],$key_specs,$d['directions_for_use'],$d['additional_information'],$d['warranty_info'],$images_json,$hover_image,$d['weight_kg']?:null,$d['shipping_class']?:'standard',$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0]);
             echo json_encode(['success' => true, 'message' => 'Product added', 'id' => $pid]);
         }
         if (isset($d['faqs']) && $pid) {
@@ -457,6 +457,7 @@ function openProductModal(p=null){
   document.getElementById('prod_featured').value=p?.is_featured??0;
   document.getElementById('prod_new').value=p?.is_new??0;
   document.getElementById('prod_weight').value=p?.weight_kg||'';
+  document.getElementById('prod_ship_class').value=p?.shipping_class||'standard';
   // Highlights (per-product). Stored in `features` column as [{title,text}].
   // Back-compat: old rows are plain strings -> convert to {title:'', text}.
   document.getElementById('highlights_container').innerHTML='';
@@ -531,6 +532,7 @@ async function saveProduct(){
     warranty_info:document.getElementById('prod_warranty').value,
     discount_price:document.getElementById('prod_discount').value,
     weight_kg:document.getElementById('prod_weight').value,
+    shipping_class:document.getElementById('prod_ship_class').value,
     is_active:document.getElementById('prod_status').value,
     is_featured:document.getElementById('prod_featured').value,
     is_new:document.getElementById('prod_new').value,

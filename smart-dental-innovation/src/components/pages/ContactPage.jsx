@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useUI } from "../../context/UIContext";
+import { useAppNavigate } from "../../hooks/useAppNavigate";
 import { useSettings } from "../../context/SettingsContext";
 import api from "../../lib/api";
 
@@ -97,7 +98,8 @@ function useOpenStatus() {
 }
 
 export default function ContactPage() {
-  const { navigate, showToast } = useUI();
+  const { showToast } = useUI();
+  const navigate = useAppNavigate();
   const { FAQS } = useContactConfig();
   const { contactSections = [] } = useSettings();
   // Admin show/hide: section is visible unless explicitly disabled.

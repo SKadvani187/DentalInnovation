@@ -2,11 +2,13 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useUI } from "../../context/UIContext";
+import { useAppNavigate } from "../../hooks/useAppNavigate";
 import { useSettings } from "../../context/SettingsContext";
 
 export default function AddressPage() {
   const { user, addAddress, removeAddress } = useAuth();
-  const { navigate, openModal } = useUI();
+  const { openModal } = useUI();
+  const navigate = useAppNavigate();
   const { company = {} } = useSettings();
   const supportPhone = company.phone || "+919328762586";
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -107,7 +109,7 @@ export default function AddressPage() {
 
 function AccountSidebar({ active }) {
   const { user, logout } = useAuth();
-  const { navigate } = useUI();
+  const navigate = useAppNavigate();
   const { company = {} } = useSettings();
   const supportPhone = company.phone || "+919328762586";
   const [signoutOpen, setSignoutOpen] = useState(false);

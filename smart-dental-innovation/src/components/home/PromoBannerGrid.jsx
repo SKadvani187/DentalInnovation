@@ -1,15 +1,17 @@
 import React from 'react';
-import { useUI } from '../../context/UIContext';
+import { useAppNavigate } from "../../hooks/useAppNavigate";
+import { useProductIndex } from "../../hooks/useProductIndex";
 import { useSettings } from '../../context/SettingsContext';
 
 export default function PromoBannerGrid(props = {}) {
-  const { navigate } = useUI();
+  const navigate = useAppNavigate();
+  const { nameFor } = useProductIndex();
   const { banners } = useSettings();
   const promo = banners?.promo || {};
   const leftId = props.leftId ?? promo.leftId ?? "i-001";
   const topRightId = props.topRightId ?? promo.topRightId ?? "i-002";
   const bottomRightId = props.bottomRightId ?? promo.bottomRightId ?? "i-003";
-  const go = (id) => navigate("product", { id });
+  const go = (id) => navigate("product", { id, name: nameFor(id) });
 
   return (
     <div className="w-full px-4 sm:px-8 md:px-12 py-4">
