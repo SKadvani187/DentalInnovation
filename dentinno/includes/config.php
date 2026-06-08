@@ -3,14 +3,14 @@
 // ⚠️ Change these values to your server settings
 
 define('DB_HOST', 'localhost');
-define('DB_USER', 'root');          // Apna MySQL username
-define('DB_PASS', '');              // Apna MySQL password
+define('DB_USER', 'dentinno');          // Apna MySQL username
+define('DB_PASS', 'DentPro@X2026');              // Apna MySQL password
 define('DB_NAME', 'dentinno_crm');
 define('DB_CHARSET', 'utf8mb4');
 
 // App Settings
 define('APP_NAME', 'DentInno CRM');
-define('APP_URL', 'http://localhost:8088');
+define('APP_URL', 'https://reetzdentinnovations.com/dentinno');
 define('APP_VERSION', '1.0.0');
 define('TIMEZONE', 'Asia/Kolkata');
 
@@ -24,9 +24,9 @@ define('OTP_CHANNEL', 'sms');
 define('OTP_TTL', 300);            // OTP valid for 5 minutes (seconds)
 define('OTP_MAX_ATTEMPTS', 5);    // send+verify attempts before block
 define('OTP_BLOCK_MINUTES', 60);  // block duration after limit (1 hour)
-define('OTP_RESEND_COOLDOWN', 30);// min seconds between resends
-define('OTP_DEV_RETURN', true);   // DEV: return OTP in API response (set false in prod)
-define('OTP_SSL_INSECURE', true); // DEV-only: skip SSL verify (local AV/proxy MITM). SET false IN PRODUCTION.
+define('OTP_RESEND_COOLDOWN', 30);// min seconds between resend
+define('OTP_DEV_RETURN', false);   // DEV: return OTP in API response (set false in prod)
+define('OTP_SSL_INSECURE', false); // DEV-only: skip SSL verify (local AV/proxy MITM). SET false IN PRODUCTION.
 
 // ---- OTP SMS provider ----
 // The LIVE provider (Fast2SMS / 2Factor / MSG91) is chosen in Admin -> Settings -> OTP
