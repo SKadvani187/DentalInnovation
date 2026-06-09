@@ -4,14 +4,16 @@ import { useAuth } from "../../context/AuthContext";
 import { useUI } from "../../context/UIContext";
 import { useAppNavigate } from "../../hooks/useAppNavigate";
 import { useSettings } from "../../context/SettingsContext";
+import { detectCurrentPincode, lookupPincode } from "../../lib/pincode";
 
 export default function AddressPage() {
-  const { user, addAddress, removeAddress } = useAuth();
+  const { user, addAddress, updateAddress, removeAddress, setDefaultAddress } = useAuth();
   const { openModal } = useUI();
   const navigate = useAppNavigate();
   const { company = {} } = useSettings();
   const supportPhone = company.phone || "+919328762586";
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState(null); // address being edited (null = add)
 
   if (!user) {
     return (
@@ -44,7 +46,7 @@ export default function AddressPage() {
               <h2 className="text-xl font-bold text-brand-ink">Saved Address</h2>
             </div>
             <button
-              onClick={() => setDrawerOpen(true)}
+              onClick={() => { setEditTarget(null); setDrawerOpen(true); }}
               className="flex items-center gap-2 border border-[#3684bf] text-[#3684bf] font-bold px-5 py-2 rounded-md hover:bg-blue-50"
             >
               ADD <span className="text-lg leading-none">+</span>
@@ -60,34 +62,32 @@ export default function AddressPage() {
           ) : (
             <ul className="space-y-3">
               {addresses.map((a) => (
-                <li key={a.id} className="border border-gray-200 rounded-xl p-4">
-                  <div className="flex items-start justify-between gap-3">
+                <li key={a.id} className={`border rounded-xl p-4 ${a.isDefault ? "border-[#3684bf] bg-[#3684bf]/5" : "border-gray-200"}`}>
+                  <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-bold uppercase bg-blue-50 text-[#3684bf] px-2 py-0.5 rounded">{a.type || "Home"}</span>
-                        {a.isDefault && (
-                          <span className="text-xs font-bold uppercase bg-green-50 text-green-700 px-2 py-0.5 rounded">Default</span>
-                        )}
-                      </div>
-                      <p className="font-semibold text-brand-ink">{a.name}</p>
-                      <p className="text-sm text-brand-muted">+91 {a.mobile}</p>
-                      <p className="text-sm text-brand-ink mt-1">
-                        {[a.line1, a.line2, a.landmark, a.building].filter(Boolean).join(", ")}
+                      <span className="inline-block text-xs font-bold uppercase bg-gray-100 text-brand-muted px-2 py-0.5 rounded mb-1">{a.type || "Home"}</span>
+                      <p className="font-bold text-brand-ink">{a.name}</p>
+                      <p className="text-sm text-brand-muted mt-1">
+                        {[a.line1 || a.building, a.line2 || a.area, a.landmark, a.city, a.district, a.state].filter(Boolean).join(", ")}{a.pincode ? ` (${a.pincode})` : ""}
                       </p>
-                      <p className="text-sm text-brand-ink">
-                        {[a.city, a.district, a.state, a.pincode].filter(Boolean).join(", ")}
-                      </p>
+                      <p className="text-sm text-brand-ink mt-1">📞 {a.mobile}</p>
                     </div>
-                    <button
-                      onClick={() => removeAddress(a.id)}
-                      aria-label="Remove"
-                      className="text-red-500 hover:bg-red-50 rounded-full p-2 shrink-0"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M6 6l12 12M18 6L6 18" />
-                      </svg>
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button onClick={() => { setEditTarget(a); setDrawerOpen(true); }} aria-label="Edit" className="text-brand-muted hover:bg-gray-100 rounded-full p-2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z" /></svg>
+                      </button>
+                      <button onClick={() => removeAddress(a.id)} aria-label="Remove" className="text-red-500 hover:bg-red-50 rounded-full p-2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                      </button>
+                    </div>
                   </div>
+                  {a.isDefault ? (
+                    <div className="w-full bg-[#3684bf] text-white font-semibold text-sm text-center py-2 rounded-lg">Default</div>
+                  ) : (
+                    <button onClick={() => setDefaultAddress(a.id)} className="w-full border border-gray-300 text-brand-ink font-semibold text-sm py-2 rounded-lg hover:border-[#3684bf] hover:text-[#3684bf]">
+                      Set as Default
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -97,10 +97,15 @@ export default function AddressPage() {
 
       {drawerOpen && (
         <AddAddressDrawer
+          editTarget={editTarget}
           defaultName={user.name}
           defaultMobile={user.mobile}
           onClose={() => setDrawerOpen(false)}
-          onSave={(addr) => { addAddress(addr); setDrawerOpen(false); }}
+          onSave={(addr) => {
+            if (editTarget) updateAddress(editTarget.id, addr);
+            else addAddress(addr);
+            setDrawerOpen(false);
+          }}
         />
       )}
     </div>
@@ -187,23 +192,50 @@ function SignOutConfirm({ onCancel, onConfirm }) {
   );
 }
 
-function AddAddressDrawer({ defaultName, defaultMobile, onClose, onSave }) {
-  const [isDefault, setIsDefault] = useState(true);
-  const [type, setType] = useState("Home");
-  const [name, setName] = useState(defaultName || "");
-  const [mobile, setMobile] = useState(defaultMobile || "");
-  const [line1, setLine1] = useState("");
-  const [line2, setLine2] = useState("");
-  const [landmark, setLandmark] = useState("");
-  const [building, setBuilding] = useState("");
-  const [pincode, setPincode] = useState("");
-  const [city, setCity] = useState("");
-  const [district, setDistrict] = useState("");
-  const [state, setState] = useState("");
+function AddAddressDrawer({ editTarget, defaultName, defaultMobile, onClose, onSave }) {
+  const e0 = editTarget || {};
+  const [isDefault, setIsDefault] = useState(e0.isDefault ?? true);
+  const [type, setType] = useState(e0.type || "Home");
+  const [name, setName] = useState(e0.name || defaultName || "");
+  const [mobile, setMobile] = useState(e0.mobile || defaultMobile || "");
+  const [line1, setLine1] = useState(e0.line1 || "");
+  const [line2, setLine2] = useState(e0.line2 || "");
+  const [landmark, setLandmark] = useState(e0.landmark || "");
+  const [building, setBuilding] = useState(e0.building || "");
+  const [pincode, setPincode] = useState(e0.pincode || "");
+  const [city, setCity] = useState(e0.city || "");
+  const [district, setDistrict] = useState(e0.district || "");
+  const [state, setState] = useState(e0.state || "");
   const [error, setError] = useState("");
+  const [locating, setLocating] = useState(false);
 
-  const onSubmit = (e) => {
-    e.preventDefault();
+  // Autofill city/state when a 6-digit pincode is typed (best-effort, non-blocking).
+  const onPincode = async (v) => {
+    const p = v.replace(/\D/g, "").slice(0, 6);
+    setPincode(p);
+    if (p.length === 6) {
+      const geo = await lookupPincode(p);
+      if (geo) { if (geo.city) setCity(geo.city); if (geo.state) setState(geo.state); if (geo.district) setDistrict(geo.district); }
+    }
+  };
+
+  const useLocation = async () => {
+    setLocating(true);
+    setError("");
+    try {
+      const { pincode: p, city: c, state: s } = await detectCurrentPincode();
+      setPincode(p); if (c) setCity(c); if (s) setState(s);
+      const geo = await lookupPincode(p);
+      if (geo?.district) setDistrict(geo.district);
+    } catch (err) {
+      setError(err.message || "Couldn't detect your location.");
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  const onSubmit = (ev) => {
+    ev.preventDefault();
     if (!name.trim() || !mobile.trim() || !line1.trim() || !pincode.trim() || !city.trim() || !district.trim() || !state.trim()) {
       setError("Please fill all required fields.");
       return;
@@ -215,10 +247,10 @@ function AddAddressDrawer({ defaultName, defaultMobile, onClose, onSave }) {
     <div className="fixed inset-0 z-[1200] bg-black/50" onClick={onClose}>
       <aside
         className="fixed top-0 right-0 h-full w-full sm:max-w-md bg-white shadow-2xl flex flex-col"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(ev) => ev.stopPropagation()}
       >
         <header className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-bold text-brand-ink">Add new address</h2>
+          <h2 className="text-lg font-bold text-brand-ink">{editTarget ? "Edit address" : "Add new address"}</h2>
           <button onClick={onClose} aria-label="Close" className="text-red-500 p-1 hover:bg-red-50 rounded-full">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M6 6l12 12M18 6L6 18" />
@@ -246,19 +278,21 @@ function AddAddressDrawer({ defaultName, defaultMobile, onClose, onSave }) {
           <h3 className="font-bold text-brand-ink pt-2">Address</h3>
           <button
             type="button"
-            className="w-full flex items-center justify-center gap-2 border border-[#3684bf] text-[#3684bf] font-semibold py-2.5 rounded-full hover:bg-blue-50"
+            onClick={useLocation}
+            disabled={locating}
+            className="w-full flex items-center justify-center gap-2 border border-[#3684bf] text-[#3684bf] font-semibold py-2.5 rounded-full hover:bg-blue-50 disabled:opacity-60"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
             </svg>
-            Use current location
+            {locating ? "Detecting…" : "Use current location"}
           </button>
 
           <Input label="Address line 1 *" value={line1} onChange={setLine1} />
           <Input label="Address line 2" value={line2} onChange={setLine2} />
           <Input label="Landmark" value={landmark} onChange={setLandmark} />
           <Input label="Building" value={building} onChange={setBuilding} />
-          <Input label="Pincode *" value={pincode} onChange={(v) => setPincode(v.replace(/\D/g, "").slice(0, 6))} />
+          <Input label="Pincode *" value={pincode} onChange={onPincode} />
           <Input label="City *" value={city} onChange={setCity} />
           <Input label="District *" value={district} onChange={setDistrict} />
           <Input label="State *" value={state} onChange={setState} />
@@ -269,7 +303,7 @@ function AddAddressDrawer({ defaultName, defaultMobile, onClose, onSave }) {
             type="submit"
             className="w-full flex items-center justify-center gap-2 bg-[#3684bf] hover:bg-[#1f5f96] text-white font-bold py-3 rounded-full"
           >
-            <span className="text-lg leading-none">+</span> Add Address
+            {editTarget ? "Save Changes" : <><span className="text-lg leading-none">+</span> Add Address</>}
           </button>
         </form>
       </aside>

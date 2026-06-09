@@ -27,11 +27,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         echo json_encode(['success'=>true]);
     } elseif ($action === 'save_zone') {
         $d = $data;
-        $states_json = json_encode(array_filter(array_map('trim', explode(',', $d['states']))));
+        $states_json = json_encode(array_filter(array_map('trim', explode(',', $d['states'] ?? ''))));
+        // Pincode prefixes drive zone resolution at checkout (resolveShippingZone reads this).
+        $pincodes_json = json_encode(array_values(array_filter(array_map(
+            fn($p) => preg_replace('/\D/', '', trim($p)),
+            explode(',', $d['pincodes'] ?? '')
+        ))));
         if (!empty($d['id'])) {
-            db()->execute("UPDATE shipping_zones SET name=?,states=?,is_active=? WHERE id=?",[$d['name'],$states_json,$d['is_active'],$d['id']]);
+            db()->execute("UPDATE shipping_zones SET name=?,states=?,pincodes=?,is_active=? WHERE id=?",[$d['name'],$states_json,$pincodes_json,$d['is_active'],$d['id']]);
         } else {
-            db()->insert("INSERT INTO shipping_zones (name,states,is_active) VALUES (?,?,?)",[$d['name'],$states_json,1]);
+            db()->insert("INSERT INTO shipping_zones (name,states,pincodes,is_active) VALUES (?,?,?,?)",[$d['name'],$states_json,$pincodes_json,1]);
         }
         echo json_encode(['success'=>true,'message'=>'Zone saved']);
     } elseif ($action === 'delete_zone') {
@@ -71,6 +76,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     } elseif ($action === 'delete_pincode') {
         db()->execute("DELETE FROM delivery_pincodes WHERE id=?",[$data['id']]);
         echo json_encode(['success'=>true,'message'=>'Pincode deleted']);
+    } elseif ($action === 'calc') {
+        // Shipping Cost Calculator — runs the SAME engine the storefront cart/checkout use,
+        // so the preview can never disagree with what the customer is actually charged.
+        require_once __DIR__ . '/../api/v1/_pricing.php';
+        $price  = (float)($data['price']  ?? 0);
+        $weight = (float)($data['weight'] ?? 0);
+        $qty    = max(1, (int)($data['qty'] ?? 1));
+        $zoneId = !empty($data['zone_id']) ? (int)$data['zone_id'] : null;
+        $line   = [['product_id'=>null, 'qty'=>$qty, 'price'=>$price, 'line_type'=>'product']];
+        $actual = computeShipping($line, $price, $weight, $qty, $zoneId);
+
+        // Per-method breakdown (informational).
+        $methods = [];
+        foreach (db()->fetchAll("SELECT * FROM shipping_methods WHERE is_active=1 ORDER BY sort_order") as $m) {
+            $r = methodShippingCost($m, $price, $weight, $qty, $zoneId, []);
+            $methods[] = ['name'=>$m['name'], 'type'=>$m['type'], 'applicable'=>$r!==null,
+                          'cost'=>$r['cost'] ?? null, 'free'=>$r['free'] ?? false];
+        }
+        echo json_encode(['success'=>true, 'actual'=>$actual, 'methods'=>$methods]);
     }
     exit;
 }
@@ -376,7 +400,12 @@ include __DIR__ . '/../includes/header.php';
     <div class="modal-body">
       <input type="hidden" id="zone_id">
       <div class="form-group"><label class="form-label">Zone Name *</label><input type="text" class="form-control" id="zone_name" placeholder="e.g. North India"></div>
-      <div class="form-group"><label class="form-label">States <small class="text-muted">(comma-separated)</small></label><textarea class="form-control" id="zone_states" rows="3" placeholder="Maharashtra, Gujarat, Rajasthan, Delhi"></textarea></div>
+      <div class="form-group">
+        <label class="form-label">Pincode Prefixes <small class="text-muted">(comma-separated — drives shipping)</small></label>
+        <textarea class="form-control" id="zone_pincodes" rows="2" placeholder="e.g. 39, 40, 11  (matches any pincode starting with these)"></textarea>
+        <small class="text-muted" style="font-size:.72rem;">A delivery pincode falls into this zone if it starts with one of these prefixes (longest prefix wins). Required for zone-based shipping rules to apply.</small>
+      </div>
+      <div class="form-group"><label class="form-label">States <small class="text-muted">(comma-separated, optional/info)</small></label><textarea class="form-control" id="zone_states" rows="2" placeholder="Maharashtra, Gujarat, Rajasthan, Delhi"></textarea></div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('zoneModal')">Cancel</button>
@@ -493,12 +522,13 @@ function openZoneModal(z=null){
   document.getElementById('zone_id').value=z?.id||'';
   document.getElementById('zone_name').value=z?.name||'';
   try{const states=z?.states?JSON.parse(z.states):[];document.getElementById('zone_states').value=states.join(', ');}catch(e){document.getElementById('zone_states').value='';}
+  try{const pins=z?.pincodes?JSON.parse(z.pincodes):[];document.getElementById('zone_pincodes').value=pins.join(', ');}catch(e){document.getElementById('zone_pincodes').value='';}
   openModal('zoneModal');
 }
 async function saveZone(){
   const name=document.getElementById('zone_name').value.trim();
   if(!name){showToast('Zone name required','warning');return;}
-  const payload={action:'save_zone',id:document.getElementById('zone_id').value,name,states:document.getElementById('zone_states').value};
+  const payload={action:'save_zone',id:document.getElementById('zone_id').value,name,states:document.getElementById('zone_states').value,pincodes:document.getElementById('zone_pincodes').value};
   const res=await fetch('shipping.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(payload)});
   const r=await res.json();if(r.success){showToast(r.message,'success');closeModal('zoneModal');setTimeout(()=>location.reload(),700);}
 }
@@ -539,32 +569,32 @@ function deletePin(id){
   });
 }
 
-// Calculator
-const rulesData = <?= json_encode($rules) ?>;
+// Calculator — runs the real server engine (same as cart/checkout) so the preview matches.
+let calcTimer;
 function calcShipping(){
   const price=parseFloat(document.getElementById('calc_price').value)||0;
   const weight=parseFloat(document.getElementById('calc_weight').value)||0;
   const zone=document.getElementById('calc_zone').value;
-  if(!price&&!weight){document.getElementById('calcOutput').innerHTML='<i class="fa-solid fa-calculator" style="font-size:2rem;opacity:.3;"></i><br><span style="color:var(--text-muted)">Enter order details</span>';return;}
-  const methods={};
-  rulesData.forEach(r=>{
-    if(!r.is_active)return;
-    if(zone&&r.zone_id&&r.zone_id!=zone)return;
-    let match=false;
-    if(r.rule_type==='weight'&&weight>0){const min=parseFloat(r.min_value);const max=r.max_value?parseFloat(r.max_value):Infinity;if(weight>=min&&weight<=max)match=true;}
-    if(r.rule_type==='price'&&price>0){const min=parseFloat(r.min_value);const max=r.max_value?parseFloat(r.max_value):Infinity;if(price>=min&&price<=max)match=true;}
-    if(match){
-      const key=r.method_name;
-      if(!methods[key]||parseFloat(r.cost)<parseFloat(methods[key].cost)){methods[key]={cost:r.is_free?0:r.cost,is_free:r.is_free,type:r.rule_type};}
-    }
-  });
-  const entries=Object.entries(methods);
-  if(!entries.length){document.getElementById('calcOutput').innerHTML='<span style="color:var(--text-muted)">No matching rules for these details</span>';return;}
-  document.getElementById('calcOutput').innerHTML=entries.map(([name,info])=>`
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--bg-elevated);border-radius:8px;margin-bottom:8px;">
-      <div><div style="font-weight:600;font-size:.9rem;">${name}</div><div style="font-size:.75rem;color:var(--text-muted);">${info.type}-based</div></div>
-      <div style="font-weight:700;color:${info.is_free?'var(--success)':'var(--gold-primary)'};">${info.is_free?'<i class="fa-solid fa-gift"></i> FREE':'₹'+Number(info.cost).toLocaleString('en-IN')}</div>
-    </div>`).join('');
+  const out=document.getElementById('calcOutput');
+  if(!price&&!weight){out.innerHTML='<i class="fa-solid fa-calculator" style="font-size:2rem;opacity:.3;"></i><br><span style="color:var(--text-muted)">Enter order details</span>';return;}
+  clearTimeout(calcTimer);
+  calcTimer=setTimeout(async()=>{
+    const res=await fetch('shipping.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'calc',price,weight,qty:1,zone_id:zone||0})});
+    const d=await res.json();
+    if(!d.success){out.innerHTML='<span style="color:var(--text-muted)">Could not calculate</span>';return;}
+    const actual=d.actual;
+    let html=`<div style="display:flex;justify-content:space-between;align-items:center;padding:14px;margin-bottom:14px;background:rgba(46,204,113,.08);border:1px solid var(--success);border-radius:8px;">
+      <div><div style="font-weight:700;">Customer pays</div><div style="font-size:.72rem;color:var(--text-muted);">Auto-picked by the live engine</div></div>
+      <div style="font-size:1.25rem;font-weight:800;color:${actual<=0?'var(--success)':'var(--gold-primary)'};">${actual<=0?'FREE':'₹'+Number(actual).toLocaleString('en-IN')}</div>
+    </div>`;
+    const apl=(d.methods||[]).filter(m=>m.applicable);
+    if(apl.length){html+='<div style="font-size:.72rem;color:var(--text-muted);margin-bottom:8px;">All applicable methods:</div>'+apl.map(m=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bg-elevated);border-radius:8px;margin-bottom:6px;">
+        <div><div style="font-weight:600;font-size:.88rem;">${m.name}</div><div style="font-size:.72rem;color:var(--text-muted);">${m.type}</div></div>
+        <div style="font-weight:700;color:${m.free?'var(--success)':'var(--gold-primary)'};">${m.free?'FREE':'₹'+Number(m.cost).toLocaleString('en-IN')}</div>
+      </div>`).join('');}
+    out.innerHTML=html;
+  },350);
 }
 </script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

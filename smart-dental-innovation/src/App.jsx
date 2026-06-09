@@ -19,7 +19,7 @@ import Testimonials from "./components/home/Testimonials";
 import ProductDetailModal from "./components/modals/ProductDetailModal";
 import CartDrawer from "./components/modals/CartDrawer";
 import WishlistDrawer from "./components/modals/WishlistDrawer";
-import CheckoutModal from "./components/modals/CheckoutModal";
+import CheckoutDrawer from "./components/modals/CheckoutDrawer";
 import AuthModal from "./components/modals/AuthModal";
 import SearchModal from "./components/modals/SearchModal";
 import BulkQuoteModal from "./components/modals/BulkQuoteModal";
@@ -34,6 +34,7 @@ import ProductDetailPage from "./components/pages/ProductDetailPage";
 import QnaPage from "./components/pages/QnaPage";
 import AccountPage from "./components/pages/AccountPage";
 import OrdersPage from "./components/pages/OrdersPage";
+import OrderDetailPage from "./components/pages/OrderDetailPage";
 import WishlistPage from "./components/pages/WishlistPage";
 import AddressPage from "./components/pages/AddressPage";
 import OfferZonePage from "./components/pages/OfferZonePage";
@@ -128,6 +129,7 @@ function Shell() {
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/account" element={<AccountPage />} />
           <Route path="/orders" element={<OrdersPage />} />
+          <Route path="/order/:id" element={<OrderDetailPage />} />
           <Route path="/wishlist" element={<WishlistPage />} />
           <Route path="/address" element={<AddressPage />} />
           <Route path="/offers" element={<OfferZonePage />} />
@@ -140,7 +142,7 @@ function Shell() {
       <ProductDetailModal />
       <CartDrawer />
       <WishlistDrawer />
-      <CheckoutModal />
+      <CheckoutDrawer />
       <AuthModal />
       <SearchModal />
       <BulkQuoteModal />

@@ -78,6 +78,13 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
                 <span class="nav-badge"><?= $stats['pending_orders'] ?></span>
                 <?php endif; ?>
             </a>
+            <a href="<?= APP_URL ?>/pages/refunds.php" class="nav-item <?= $current_page === 'refunds' ? 'active' : '' ?>">
+                <i class="fa-solid fa-rotate-left"></i>
+                <span>Refunds</span>
+                <?php $rfc = db()->fetchOne("SELECT COUNT(*) c FROM refund_requests WHERE status='pending'")['c'] ?? 0; if($rfc > 0): ?>
+                <span class="nav-badge"><?= $rfc ?></span>
+                <?php endif; ?>
+            </a>
             <a href="<?= APP_URL ?>/pages/customers.php" class="nav-item <?= $current_page === 'customers' ? 'active' : '' ?>">
                 <i class="fa-solid fa-user-group"></i>
                 <span>Customers</span>

@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $extraStr = $extra ? ', ' . implode(', ', $extra) : '';
         db()->execute("UPDATE orders SET status = ? $extraStr WHERE id = ?", [$data['status'], $data['id']]);
         // Best-effort WhatsApp status update (only for customer-relevant transitions).
-        if (in_array($data['status'], ['confirmed', 'shipped', 'delivered', 'cancelled'], true)) {
+        if (in_array($data['status'], ['confirmed', 'shipped', 'out_for_delivery', 'delivered', 'returning', 'returned', 'cancelled', 'rejected'], true)) {
             notifyOrderStatusWA((int)$data['id'], $data['status']);
         }
         echo json_encode(['success' => true, 'message' => 'Order status updated']);
@@ -147,8 +147,8 @@ include __DIR__ . '/../includes/header.php';
                 <div class="card-body" style="padding:16px;">
                     <h4 style="font-size:0.82rem;margin-bottom:12px;color:var(--text-secondary);">UPDATE ORDER STATUS</h4>
                     <select class="form-control" id="detailStatus" style="margin-bottom:10px;">
-                        <?php foreach(['pending','processing','confirmed','shipped','delivered','cancelled'] as $s): ?>
-                        <option value="<?= $s ?>" <?= $order_detail['status']===$s?'selected':'' ?>><?= ucfirst($s) ?></option>
+                        <?php foreach(['pending','processing','confirmed','shipped','out_for_delivery','delivered','returning','returned','cancelled','rejected','refunded'] as $s): ?>
+                        <option value="<?= $s ?>" <?= $order_detail['status']===$s?'selected':'' ?>><?= ucwords(str_replace('_',' ',$s)) ?></option>
                         <?php endforeach; ?>
                     </select>
                     <input type="text" class="form-control" id="detailTracking" placeholder="Tracking number" value="<?= $order_detail['tracking_number'] ?>" style="margin-bottom:10px;">
@@ -190,8 +190,8 @@ include __DIR__ . '/../includes/header.php';
     </div>
     <select class="form-control" id="statusFilter" style="max-width:150px;">
         <option value="">All Status</option>
-        <?php foreach(['pending','processing','confirmed','shipped','delivered','cancelled','refunded'] as $s): ?>
-        <option value="<?= $s ?>" <?= $status===$s?'selected':'' ?>><?= ucfirst($s) ?></option>
+        <?php foreach(['pending','processing','confirmed','shipped','out_for_delivery','delivered','returning','returned','cancelled','rejected','refunded'] as $s): ?>
+        <option value="<?= $s ?>" <?= $status===$s?'selected':'' ?>><?= ucwords(str_replace('_',' ',$s)) ?></option>
         <?php endforeach; ?>
     </select>
     <select class="form-control" id="payFilter" style="max-width:150px;">
@@ -233,10 +233,10 @@ include __DIR__ . '/../includes/header.php';
                     </td>
                     <td class="font-bold"><?= formatCurrency($o['total']) ?></td>
                     <td>
-                        <select class="form-control" style="padding:4px 8px;font-size:0.78rem;max-width:120px;"
+                        <select class="form-control" style="padding:4px 8px;font-size:0.78rem;max-width:140px;"
                             onchange="quickUpdateStatus(<?= $o['id'] ?>, this.value)">
-                            <?php foreach(['pending','processing','confirmed','shipped','delivered','cancelled'] as $s): ?>
-                            <option value="<?= $s ?>" <?= $o['status']===$s?'selected':'' ?>><?= ucfirst($s) ?></option>
+                            <?php foreach(['pending','processing','confirmed','shipped','out_for_delivery','delivered','returning','returned','cancelled','rejected','refunded'] as $s): ?>
+                            <option value="<?= $s ?>" <?= $o['status']===$s?'selected':'' ?>><?= ucwords(str_replace('_',' ',$s)) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </td>

@@ -20,6 +20,7 @@ export const ROUTES = [
   { name: "contact", path: "/contact" },
   { name: "account", path: "/account" },
   { name: "orders", path: "/orders" },
+  { name: "orderDetails", path: "/order/:id" },
   { name: "wishlist", path: "/wishlist" },
   { name: "address", path: "/address" },
   { name: "offers", path: "/offers" },
@@ -41,6 +42,7 @@ const BASE_PATH = {
   contact: "/contact",
   account: "/account",
   orders: "/orders",
+  orderDetails: "/order",
   wishlist: "/wishlist",
   address: "/address",
   offers: "/offers",
@@ -132,6 +134,9 @@ export function to(name, params = null) {
 
     case "policy":
       return p.type ? `${base}/${seg(p.type)}` : base;
+
+    case "orderDetails":
+      return p.id != null ? `${base}/${seg(p.id)}` : "/orders";
 
     default:
       return base;

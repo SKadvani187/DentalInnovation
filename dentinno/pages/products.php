@@ -23,15 +23,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $images_json = !empty($d['images']) ? json_encode($d['images']) : null;
         $hover_image = !empty($d['hover_image']) ? $d['hover_image'] : null;
         if (!empty($d['id'])) {
-            db()->execute("UPDATE products SET name=?,category_id=?,price=?,discount_price=?,discount_percent=?,stock=?,short_description=?,full_description=?,features=?,packing_info=?,key_specifications=?,directions_for_use=?,additional_information=?,warranty_info=?,images=?,hover_image=?,weight_kg=?,shipping_class=?,is_active=?,is_featured=?,is_new=? WHERE id=?",
-                [$d['name'],$d['category_id']?:null,$d['price'],$disc_price,$disc_pct,$d['stock'],$d['short_description'],$d['full_description'],$features,$d['packing_info'],$key_specs,$d['directions_for_use'],$d['additional_information'],$d['warranty_info'],$images_json,$hover_image,$d['weight_kg']?:null,$d['shipping_class']?:'standard',$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0,$d['id']]);
+            db()->execute("UPDATE products SET name=?,category_id=?,price=?,discount_price=?,discount_percent=?,stock=?,short_description=?,full_description=?,features=?,packing_info=?,key_specifications=?,directions_for_use=?,additional_information=?,warranty_info=?,images=?,hover_image=?,weight_kg=?,shipping_method_id=?,shipping_class=?,is_active=?,is_featured=?,is_new=? WHERE id=?",
+                [$d['name'],$d['category_id']?:null,$d['price'],$disc_price,$disc_pct,$d['stock'],$d['short_description'],$d['full_description'],$features,$d['packing_info'],$key_specs,$d['directions_for_use'],$d['additional_information'],$d['warranty_info'],$images_json,$hover_image,$d['weight_kg']?:null,(!empty($d['shipping_method_id'])?(int)$d['shipping_method_id']:null),$d['shipping_class']?:'standard',$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0,$d['id']]);
             $pid = $d['id'];
             echo json_encode(['success' => true, 'message' => 'Product updated', 'id' => $pid]);
         } else {
             $slug = generateSlug($d['name']) . '-' . time();
             $sku  = 'SKU-' . strtoupper(substr(md5($d['name']), 0, 6));
-            $pid = db()->insert("INSERT INTO products (name,slug,sku,category_id,price,discount_price,discount_percent,stock,short_description,full_description,features,packing_info,key_specifications,directions_for_use,additional_information,warranty_info,images,hover_image,weight_kg,shipping_class,is_active,is_featured,is_new) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                [$d['name'],$slug,$sku,$d['category_id']?:null,$d['price'],$disc_price,$disc_pct,$d['stock'],$d['short_description'],$d['full_description'],$features,$d['packing_info'],$key_specs,$d['directions_for_use'],$d['additional_information'],$d['warranty_info'],$images_json,$hover_image,$d['weight_kg']?:null,$d['shipping_class']?:'standard',$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0]);
+            $pid = db()->insert("INSERT INTO products (name,slug,sku,category_id,price,discount_price,discount_percent,stock,short_description,full_description,features,packing_info,key_specifications,directions_for_use,additional_information,warranty_info,images,hover_image,weight_kg,shipping_method_id,shipping_class,is_active,is_featured,is_new) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                [$d['name'],$slug,$sku,$d['category_id']?:null,$d['price'],$disc_price,$disc_pct,$d['stock'],$d['short_description'],$d['full_description'],$features,$d['packing_info'],$key_specs,$d['directions_for_use'],$d['additional_information'],$d['warranty_info'],$images_json,$hover_image,$d['weight_kg']?:null,(!empty($d['shipping_method_id'])?(int)$d['shipping_method_id']:null),$d['shipping_class']?:'standard',$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0]);
             echo json_encode(['success' => true, 'message' => 'Product added', 'id' => $pid]);
         }
         if (isset($d['faqs']) && $pid) {
@@ -109,6 +109,8 @@ $total = db()->fetchOne("SELECT COUNT(*) as cnt FROM products p WHERE $whereStr"
 $pages = ceil($total/$per_page);
 $products = db()->fetchAll("SELECT p.*,c.name as category FROM products p LEFT JOIN categories c ON p.category_id=c.id WHERE $whereStr ORDER BY p.created_at DESC LIMIT $per_page OFFSET $offset", $params);
 $categories = db()->fetchAll("SELECT * FROM categories WHERE is_active=1 ORDER BY name");
+// Active shipping methods power the product "Shipping Method" dropdown (Shipping Management).
+$shipMethods = db()->fetchAll("SELECT id, name, type FROM shipping_methods WHERE is_active=1 ORDER BY sort_order, name");
 include __DIR__ . '/../includes/header.php';
 ?>
 <style>
@@ -309,25 +311,37 @@ include __DIR__ . '/../includes/header.php';
         <!-- SHIPPING -->
         <div id="tab-ship_tab" class="tab-pane">
           <div class="form-row">
-            <div class="form-group"><label class="form-label">Product Weight (kg)</label><input type="number" step="0.001" class="form-control" id="prod_weight" placeholder="e.g. 2.500"></div>
-            <div class="form-group"><label class="form-label">Shipping Class</label>
+            <div class="form-group">
+              <label class="form-label">Shipping Method</label>
+              <select class="form-control" id="prod_ship_method" onchange="toggleWeightField()">
+                <option value="" data-type="">— Default (use global shipping rules) —</option>
+                <?php foreach ($shipMethods as $m): ?>
+                <option value="<?= (int)$m['id'] ?>" data-type="<?= htmlspecialchars($m['type']) ?>"><?= htmlspecialchars($m['name']) ?> (<?= htmlspecialchars($m['type']) ?>)</option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Product Weight (kg)</label>
+              <input type="number" step="0.001" class="form-control" id="prod_weight" placeholder="e.g. 2.500">
+              <small class="text-muted" id="prod_weight_hint" style="font-size:.72rem;">Used only by the <strong>Weight-Based</strong> method.</small>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Shipping Class</label>
               <select class="form-control" id="prod_ship_class">
                 <option value="standard">Standard</option><option value="bulky">Bulky / Heavy</option>
                 <option value="fragile">Fragile</option><option value="express_only">Express Only</option><option value="free">Free Shipping</option>
               </select>
+              <small class="text-muted" style="font-size:.72rem;">Used by <strong>product-class</strong> rules (Shipping Management → Rules → type "product").</small>
             </div>
           </div>
-          <div class="form-row-3">
-            <div class="form-group"><label class="form-label">Length (cm)</label><input type="number" class="form-control" id="prod_length" placeholder="0"></div>
-            <div class="form-group"><label class="form-label">Width (cm)</label><input type="number" class="form-control" id="prod_width" placeholder="0"></div>
-            <div class="form-group"><label class="form-label">Height (cm)</label><input type="number" class="form-control" id="prod_height" placeholder="0"></div>
-          </div>
-          <div class="form-row">
-            <div class="form-group"><label class="form-label">Override Shipping Cost (₹)</label><input type="number" class="form-control" id="prod_ship_cost" placeholder="Leave blank to use global rules"></div>
-            <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:4px;">
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="prod_free_ship" style="width:16px;height:16px;accent-color:var(--gold-primary);"><span class="form-label" style="margin:0;">Free Shipping for this product</span></label>
-            </div>
-          </div>
+          <p class="text-muted" style="font-size:.78rem;margin-top:8px;">
+            Methods &amp; classes come from <strong>Shipping Management</strong>. Leave method on
+            <em>Default</em> to use the storefront global rules (current model:
+            <strong>Free above ₹1,000, otherwise ₹99</strong>). Pick a method to force its
+            cost; the class only matters if you add product-class rules.
+          </p>
         </div>
 
       </div>
@@ -443,6 +457,20 @@ function renderHover(){
   box.innerHTML=url?`<div class="img-thumb" style="width:90px;height:90px;"><img src="${url}" loading="lazy" style="background:#fff;"><button class="del-img" onclick="document.getElementById('prod_hover_image').value='';renderHover()"><i class="fa-solid fa-xmark"></i></button></div>`:'';
 }
 
+// Weight is only meaningful for the Weight-Based method. Enable the field only when the
+// selected shipping method is of type "weight"; otherwise grey it out (and clear it).
+function toggleWeightField(){
+  const sel = document.getElementById('prod_ship_method');
+  const type = sel.options[sel.selectedIndex]?.dataset.type || '';
+  const isWeight = type === 'weight';
+  const wt = document.getElementById('prod_weight');
+  const hint = document.getElementById('prod_weight_hint');
+  wt.disabled = !isWeight;
+  wt.style.opacity = isWeight ? '1' : '0.5';
+  if (!isWeight) wt.value = '';
+  if (hint) hint.style.color = isWeight ? 'var(--gold-primary)' : '';
+}
+
 // Open modal
 function openProductModal(p=null){
   document.getElementById('prod_id').value=p?.id||'';
@@ -457,7 +485,9 @@ function openProductModal(p=null){
   document.getElementById('prod_featured').value=p?.is_featured??0;
   document.getElementById('prod_new').value=p?.is_new??0;
   document.getElementById('prod_weight').value=p?.weight_kg||'';
+  document.getElementById('prod_ship_method').value=p?.shipping_method_id||'';
   document.getElementById('prod_ship_class').value=p?.shipping_class||'standard';
+  toggleWeightField();
   // Highlights (per-product). Stored in `features` column as [{title,text}].
   // Back-compat: old rows are plain strings -> convert to {title:'', text}.
   document.getElementById('highlights_container').innerHTML='';
@@ -532,6 +562,7 @@ async function saveProduct(){
     warranty_info:document.getElementById('prod_warranty').value,
     discount_price:document.getElementById('prod_discount').value,
     weight_kg:document.getElementById('prod_weight').value,
+    shipping_method_id:document.getElementById('prod_ship_method').value,
     shipping_class:document.getElementById('prod_ship_class').value,
     is_active:document.getElementById('prod_status').value,
     is_featured:document.getElementById('prod_featured').value,

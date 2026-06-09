@@ -95,6 +95,11 @@ export const api = {
   // orders
   placeOrder: (payload) => post("orders.php", payload).then((j) => j.order),
   myOrders: () => get("orders.php").then((j) => j.orders),
+  getOrder: (id) => get("orders.php", { id }).then((j) => j.order),
+  // refunds / returns
+  requestRefund: (payload) => post("refunds.php", payload), // { orderId, reason } -> { refundId, status }
+  myRefunds: () => get("refunds.php").then((j) => j.refunds),
+  getRefundForOrder: (orderId) => get("refunds.php", { orderId }).then((j) => j.refund), // null if none
   // razorpay online payment (keyId/amount come back from the server — never trusted from client)
   createRazorpayOrder: (orderId) => post("payment_razorpay.php?action=create", { orderId }),
   verifyRazorpayPayment: (payload) => post("payment_razorpay.php?action=verify", payload),

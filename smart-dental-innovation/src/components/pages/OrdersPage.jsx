@@ -6,6 +6,8 @@ import api from "../../lib/api";
 
 const fmt = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 
+// Every filter maps to a real order.status value (backend enum extended to match), so
+// each option filters live and admin can set the matching status.
 const ORDER_TYPES = [
   { id: "all", label: "All Orders" },
   { id: "dispatched", label: "Dispatched" },
@@ -41,16 +43,21 @@ export default function OrdersPage() {
   const [orderExpanded, setOrderExpanded] = useState(false);
   const [dateExpanded, setDateExpanded] = useState(false);
   const [orders, setOrders] = useState([]);
+  const [refunds, setRefunds] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!token) return;
     let alive = true;
     setLoading(true);
-    api.myOrders()
-      .then((list) => { if (alive) setOrders(list || []); })
-      .catch((err) => console.warn("[orders] fetch failed:", err.message))
-      .finally(() => alive && setLoading(false));
+    Promise.all([
+      api.myOrders().catch(() => []),
+      api.myRefunds().catch(() => []),
+    ]).then(([ol, rl]) => {
+      if (!alive) return;
+      setOrders(ol || []);
+      setRefunds(rl || []);
+    }).finally(() => alive && setLoading(false));
     return () => { alive = false; };
   }, [token]);
 
@@ -70,7 +77,28 @@ export default function OrdersPage() {
 
   const visibleOrderTypes = orderExpanded ? ORDER_TYPES : ORDER_TYPES.slice(0, ORDER_TYPE_VISIBLE);
   const visibleDates = dateExpanded ? DATE_FILTERS : DATE_FILTERS.slice(0, DATE_VISIBLE);
-  const filteredOrders = orderType === "all" ? orders : orders.filter((o) => o.status === orderType);
+  // Filter-id (sidebar) -> real order.status values (enum now carries all of these).
+  const FILTER_TO_STATUS = {
+    dispatched: ["shipped"],
+    out: ["out_for_delivery"],
+    cancelled: ["cancelled"],
+    delivered: ["delivered"],
+    pending: ["pending", "processing"],
+    confirmed: ["confirmed"],
+    returned: ["returned", "refunded"],
+    returning: ["returning"],
+    rejected: ["rejected"],
+  };
+  // Date window: how many days back each option covers (financial-year ones approximated
+  // to rolling windows — good enough for a storefront order history).
+  const DATE_DAYS = { "30d": 30, "3m": 90, "6m": 180, "1y": 365, lfy: 730, tfy: 365 };
+  const cutoff = Date.now() - (DATE_DAYS[dateFilter] || 30) * 86400000;
+
+  const filteredOrders = orders.filter((o) => {
+    const statusOk = orderType === "all" || (FILTER_TO_STATUS[orderType] || [orderType]).includes(o.status);
+    const dateOk = !o.createdAt || new Date(o.createdAt).getTime() >= cutoff;
+    return statusOk && dateOk;
+  });
 
   return (
     <div className="max-w-[1200px] mx-auto px-4 py-6">
@@ -97,15 +125,17 @@ export default function OrdersPage() {
                 </li>
               ))}
             </ul>
-            <button
-              onClick={() => setOrderExpanded((v) => !v)}
-              className="w-full py-2 border-t border-b border-gray-200 text-[#3684bf] font-semibold text-sm flex items-center justify-center gap-1 hover:bg-gray-50"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className={`transition ${orderExpanded ? "rotate-180" : ""}`}>
-                <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
-              </svg>
-              {orderExpanded ? "SHOW LESS" : "SHOW MORE"}
-            </button>
+            {ORDER_TYPES.length > ORDER_TYPE_VISIBLE && (
+              <button
+                onClick={() => setOrderExpanded((v) => !v)}
+                className="w-full py-2 border-t border-b border-gray-200 text-[#3684bf] font-semibold text-sm flex items-center justify-center gap-1 hover:bg-gray-50"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className={`transition ${orderExpanded ? "rotate-180" : ""}`}>
+                  <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
+                </svg>
+                {orderExpanded ? "SHOW LESS" : "SHOW MORE"}
+              </button>
+            )}
 
             <h3 className="font-bold text-brand-ink mt-6 mb-3">Date & Time</h3>
             <ul className="space-y-2 mb-3">
@@ -137,19 +167,26 @@ export default function OrdersPage() {
             <Tab active={tab === "refunds"} onClick={() => setTab("refunds")}>MY REFUNDS</Tab>
           </div>
 
-          {tab === "orders" && filteredOrders.length > 0 ? (
+          {loading ? (
+            <div className="py-12 text-center text-brand-muted">Loading…</div>
+          ) : tab === "orders" ? (
+            filteredOrders.length > 0 ? (
+              <div className="space-y-4">
+                {filteredOrders.map((o) => (
+                  <OrderCard key={o.orderId} order={o} onOpen={() => navigate("orderDetails", { id: o.orderId })} />
+                ))}
+              </div>
+            ) : (
+              <EmptyState tab="orders" onStart={() => navigate("category")} />
+            )
+          ) : refunds.length > 0 ? (
             <div className="space-y-4">
-              {filteredOrders.map((o) => (
-                <OrderCard key={o.orderId} order={o} />
+              {refunds.map((r) => (
+                <RefundCard key={r.id} refund={r} onOpen={() => r.orderId && navigate("orderDetails", { id: r.orderId })} />
               ))}
             </div>
-          ) : loading ? (
-            <div className="py-12 text-center text-brand-muted">Loading orders…</div>
           ) : (
-            <EmptyState
-              tab={tab}
-              onStart={() => navigate(tab === "orders" ? "category" : "contact")}
-            />
+            <EmptyState tab="refunds" onStart={() => navigate("contact")} />
           )}
         </section>
       </div>
@@ -183,39 +220,93 @@ function Tab({ active, onClick, children }) {
   );
 }
 
-function OrderCard({ order }) {
-  const date = order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
-  const statusColor = {
-    delivered: "bg-green-100 text-green-700",
-    shipped: "bg-blue-100 text-blue-700",
-    pending: "bg-amber-100 text-amber-700",
-    processing: "bg-purple-100 text-purple-700",
-    confirmed: "bg-indigo-100 text-indigo-700",
-    cancelled: "bg-red-100 text-red-700",
-  }[order.status] || "bg-gray-100 text-gray-700";
+// Color + label per order status (user-friendly pill). Online orders left unpaid surface
+// as "Payment Pending" so the customer knows to retry.
+const STATUS_META = {
+  pending:          { label: "Pending",          cls: "bg-amber-50 text-amber-700 border-amber-200",     dot: "bg-amber-500" },
+  processing:       { label: "Processing",        cls: "bg-purple-50 text-purple-700 border-purple-200",  dot: "bg-purple-500" },
+  confirmed:        { label: "Confirmed",         cls: "bg-blue-50 text-blue-700 border-blue-200",        dot: "bg-blue-500" },
+  shipped:          { label: "Dispatched",        cls: "bg-indigo-50 text-indigo-700 border-indigo-200",  dot: "bg-indigo-500" },
+  out_for_delivery: { label: "Out for Delivery",  cls: "bg-cyan-50 text-cyan-700 border-cyan-200",        dot: "bg-cyan-500" },
+  delivered:        { label: "Delivered",         cls: "bg-green-50 text-green-700 border-green-200",     dot: "bg-green-500" },
+  returning:        { label: "Returning",         cls: "bg-orange-50 text-orange-700 border-orange-200",  dot: "bg-orange-500" },
+  returned:         { label: "Returned",          cls: "bg-pink-50 text-pink-700 border-pink-200",        dot: "bg-pink-500" },
+  cancelled:        { label: "Cancelled",         cls: "bg-red-50 text-red-700 border-red-200",           dot: "bg-red-500" },
+  rejected:         { label: "Rejected",          cls: "bg-rose-50 text-rose-700 border-rose-200",        dot: "bg-rose-500" },
+  refunded:         { label: "Refunded",          cls: "bg-gray-100 text-gray-700 border-gray-300",       dot: "bg-gray-500" },
+};
+function statusMeta(order) {
+  if (order.paymentMethod !== "cod" && order.paymentStatus !== "paid") {
+    return { label: "Payment Pending", cls: "bg-orange-50 text-orange-700 border-orange-200", dot: "bg-orange-500" };
+  }
+  return STATUS_META[order.status] || { label: order.status || "—", cls: "bg-gray-100 text-gray-700 border-gray-300", dot: "bg-gray-400" };
+}
+
+function StatusPill({ order }) {
+  const m = statusMeta(order);
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${m.cls}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${m.dot}`} />
+      {m.label}
+    </span>
+  );
+}
+
+function OrderCard({ order, onOpen }) {
+  const first = order.items?.[0];
+  const [extra, setExtra] = useState(null); // { image, mrp } for the first item
+
+  useEffect(() => {
+    if (!first) return;
+    let alive = true;
+    api.product(first.id)
+      .then((p) => { if (alive) setExtra({ image: p.image, mrp: p.mrp }); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [first?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="border border-gray-200 rounded-xl p-4">
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <p className="font-bold text-brand-ink">{order.orderId}</p>
-          <p className="text-xs text-brand-muted">{date}</p>
+    <button onClick={onOpen} className="w-full text-left border border-gray-200 rounded-xl p-4 flex items-center gap-4 hover:border-[#3684bf]/50 hover:shadow-sm transition">
+      <div className="w-20 h-20 bg-gray-50 rounded-lg border border-gray-100 flex items-center justify-center overflow-hidden shrink-0">
+        {extra?.image ? <img src={extra.image} alt={first?.name} className="max-w-full max-h-full object-contain" /> : <span className="text-xs text-gray-300">No image</span>}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-bold text-brand-ink line-clamp-1">
+          {first?.name}{first?.variant ? ` (${first.variant})` : ""}
+          {order.items.length > 1 && <span className="text-brand-muted font-normal"> +{order.items.length - 1} more</span>}
+        </p>
+        <div className="flex items-baseline gap-2 mt-1">
+          <span className="text-[#3684bf] font-bold">{fmt(first?.price)}</span>
+          {extra?.mrp && extra.mrp > (first?.price || 0) && <span className="text-xs text-brand-muted line-through">{fmt(extra.mrp)}</span>}
         </div>
-        <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase ${statusColor}`}>{order.status}</span>
+        <div className="mt-2"><StatusPill order={order} /></div>
       </div>
-      <div className="space-y-1.5 mb-3">
-        {order.items.map((it, i) => (
-          <div key={i} className="flex items-center justify-between text-sm">
-            <span className="text-brand-ink">{it.name}{it.variant ? ` (${it.variant})` : ""} × {it.qty}</span>
-            <span className="text-brand-muted">{fmt(it.total)}</span>
-          </div>
-        ))}
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3684bf" strokeWidth="2.2" className="shrink-0"><path d="M9 6l6 6-6 6" /></svg>
+    </button>
+  );
+}
+
+function RefundCard({ refund, onOpen }) {
+  const badge = {
+    pending: "bg-amber-100 text-amber-700",
+    approved: "bg-blue-100 text-blue-700",
+    completed: "bg-green-100 text-green-700",
+    rejected: "bg-red-100 text-red-700",
+  }[refund.status] || "bg-gray-100 text-gray-700";
+  const date = refund.requestedAt ? new Date(refund.requestedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
+  return (
+    <button onClick={onOpen} className="w-full text-left border border-gray-200 rounded-xl p-4 flex items-center justify-between gap-4 hover:border-[#3684bf]/50 hover:shadow-sm transition">
+      <div className="min-w-0">
+        <p className="font-bold text-brand-ink">Order {refund.orderId}</p>
+        <p className="text-xs text-brand-muted mt-0.5">{date}</p>
+        {refund.reason && <p className="text-sm text-brand-muted mt-1 line-clamp-1">Reason: {refund.reason}</p>}
+        {refund.adminNote && <p className="text-xs text-brand-muted mt-0.5">Note: {refund.adminNote}</p>}
       </div>
-      <div className="flex items-center justify-between border-t border-gray-100 pt-3 text-sm">
-        <span className="text-brand-muted">{order.paymentMethod?.toUpperCase()} · {order.paymentStatus}</span>
-        <span className="font-bold text-brand-ink">{fmt(order.total)}</span>
+      <div className="text-right shrink-0">
+        <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase ${badge}`}>{refund.status}</span>
+        {refund.amount > 0 && <p className="text-sm font-bold text-brand-ink mt-1">{fmt(refund.amount)}</p>}
       </div>
-    </div>
+    </button>
   );
 }
 

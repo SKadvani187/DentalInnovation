@@ -181,6 +181,24 @@ $tax      = $pricing['tax'];
 $total    = $pricing['total'];
 $payMethod = (string)($body['paymentMethod'] ?? 'cod');
 
+// COD guard: only allow Cash-on-Delivery where the delivery pincode is serviceable AND
+// has cod_available=1 (admin → Shipping → Pincode ETA). Longest-prefix match, same as
+// delivery.php. If no pincode rows exist at all, COD is left open (don't block on empty config).
+if ($payMethod === 'cod') {
+    $pin = preg_replace('/\D/', '', $pincode);
+    $pinRows = $db->fetchAll("SELECT pincode_prefix, cod_available FROM delivery_pincodes WHERE is_active=1 ORDER BY CHAR_LENGTH(pincode_prefix) DESC");
+    if (count($pinRows) > 0) {
+        if (strlen($pin) !== 6) jsonErr('A valid 6-digit delivery pincode is required for Cash on Delivery.', 422);
+        $match = null;
+        foreach ($pinRows as $r) {
+            $pfx = (string)$r['pincode_prefix'];
+            if ($pfx !== '' && strpos($pin, $pfx) === 0) { $match = $r; break; }
+        }
+        if (!$match)               jsonErr('We do not deliver to this pincode yet.', 422);
+        if (!$match['cod_available']) jsonErr('Cash on Delivery is not available for this pincode. Please choose online payment.', 422);
+    }
+}
+
 $orderNumber = 'SDI-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(3)));
 
 $pdo = $db->getConnection();

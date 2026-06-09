@@ -168,13 +168,16 @@ export default function CartDrawer() {
                     <span className="font-semibold text-green-600">-₹{couponDiscount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 )}
-                <div className="flex items-center justify-between pt-1 border-t border-gray-200">
-                  <span className="text-brand-ink">Delivery Charges</span>
-                  {deliveryCharges > 0 ? (
-                    <span className="font-semibold text-brand-ink">₹{deliveryCharges.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  ) : (
-                    <span className="font-semibold text-green-600">FREE</span>
-                  )}
+                {/* Delivery charge (pincode is collected later in checkout). */}
+                <div className="pt-1 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-brand-ink">Delivery Charges</span>
+                    {deliveryCharges > 0 ? (
+                      <span className="font-semibold text-brand-ink">₹{deliveryCharges.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    ) : (
+                      <span className="font-semibold text-green-600">FREE</span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-start justify-between">
                   <div>

@@ -115,13 +115,23 @@ export function AuthProvider({ children }) {
     return { ok: true };
   }, [accounts, setAccounts, setUser, syncToApi]);
 
+  // Best-effort backend persistence of the address book. Addresses live in
+  // customers.addresses (JSON) via auth.php?action=profile, so they survive re-login /
+  // a cleared browser. Fire-and-forget: local state is already updated; if the API is
+  // down we stay in offline mode (the next login re-sync reconciles).
+  const persistProfile = useCallback((updates) => {
+    if (!token) return;
+    api.updateProfile(updates).catch((err) => console.warn("[auth] profile persist failed:", err.message));
+  }, [token]);
+
   const updateProfile = useCallback((updates) => {
     if (!user) return { ok: false };
     const next = { ...user, ...updates };
     setUser(next);
     setAccounts(accounts.map((a) => (a.mobile === user.mobile ? { ...a, ...next } : a)));
+    persistProfile(updates);
     return { ok: true };
-  }, [user, accounts, setAccounts, setUser]);
+  }, [user, accounts, setAccounts, setUser, persistProfile]);
 
   const addAddress = useCallback((addr) => {
     if (!user) return { ok: false };
@@ -134,8 +144,32 @@ export function AuthProvider({ children }) {
     const updated = { ...user, addresses: next };
     setUser(updated);
     setAccounts(accounts.map((a) => (a.mobile === user.mobile ? updated : a)));
+    persistProfile({ addresses: next });
     return { ok: true, id };
-  }, [user, accounts, setAccounts, setUser]);
+  }, [user, accounts, setAccounts, setUser, persistProfile]);
+
+  // Replace an existing address (edit) by id, optionally promoting it to default.
+  const updateAddress = useCallback((id, patch) => {
+    if (!user) return { ok: false };
+    let next = (user.addresses || []).map((a) => (a.id === id ? { ...a, ...patch } : a));
+    if (patch.isDefault) next = next.map((a) => ({ ...a, isDefault: a.id === id }));
+    const updated = { ...user, addresses: next };
+    setUser(updated);
+    setAccounts(accounts.map((a) => (a.mobile === user.mobile ? updated : a)));
+    persistProfile({ addresses: next });
+    return { ok: true };
+  }, [user, accounts, setAccounts, setUser, persistProfile]);
+
+  // Promote one address to default (clears the flag on the rest).
+  const setDefaultAddress = useCallback((id) => {
+    if (!user) return { ok: false };
+    const next = (user.addresses || []).map((a) => ({ ...a, isDefault: a.id === id }));
+    const updated = { ...user, addresses: next };
+    setUser(updated);
+    setAccounts(accounts.map((a) => (a.mobile === user.mobile ? updated : a)));
+    persistProfile({ addresses: next });
+    return { ok: true };
+  }, [user, accounts, setAccounts, setUser, persistProfile]);
 
   const removeAddress = useCallback((id) => {
     if (!user) return { ok: false };
@@ -143,8 +177,9 @@ export function AuthProvider({ children }) {
     const updated = { ...user, addresses: next };
     setUser(updated);
     setAccounts(accounts.map((a) => (a.mobile === user.mobile ? updated : a)));
+    persistProfile({ addresses: next });
     return { ok: true };
-  }, [user, accounts, setAccounts, setUser]);
+  }, [user, accounts, setAccounts, setUser, persistProfile]);
 
   const logout = useCallback(() => {
     setUser(null);
@@ -159,8 +194,8 @@ export function AuthProvider({ children }) {
   }, [setToken]);
 
   const value = useMemo(
-    () => ({ user, token, requestOtp, verifyOtp, completeProfile, updateProfile, addAddress, removeAddress, logout, clearToken }),
-    [user, token, requestOtp, verifyOtp, completeProfile, updateProfile, addAddress, removeAddress, logout, clearToken]
+    () => ({ user, token, requestOtp, verifyOtp, completeProfile, updateProfile, addAddress, updateAddress, setDefaultAddress, removeAddress, logout, clearToken }),
+    [user, token, requestOtp, verifyOtp, completeProfile, updateProfile, addAddress, updateAddress, setDefaultAddress, removeAddress, logout, clearToken]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -94,6 +94,21 @@ function computeShipping(array $lines, float $subtotal, float $weight, int $qty,
     }
 
     $classes = linesClasses($lines);
+
+    // Per-product method override (admin-assigned in the product's Shipping tab). If every
+    // non-gift line points at the SAME active method, that method wins outright. Mixed or
+    // unassigned carts fall through to the global cheapest pick below.
+    $forcedId = linesAssignedMethod($lines);
+    if ($forcedId !== null) {
+        foreach ($methods as $m) {
+            if ((int)$m['id'] === $forcedId) {
+                $r = methodShippingCost($m, $subtotal, $weight, $qty, $zoneId, $classes);
+                if ($r !== null) return round((float)$r['cost'], 2);
+                break;  // assigned method has no applicable rule -> fall back to cheapest
+            }
+        }
+    }
+
     $best = null;
     foreach ($methods as $m) {
         $r = methodShippingCost($m, $subtotal, $weight, $qty, $zoneId, $classes);
@@ -106,6 +121,22 @@ function computeShipping(array $lines, float $subtotal, float $weight, int $qty,
     }
     // No method applied at all -> free (don't block the order on a config gap).
     return $best ? round((float)$best['cost'], 2) : 0.0;
+}
+
+// The single shipping method assigned to ALL non-gift product lines, or null when the
+// cart has no assignment / a mix of methods (then global rules decide).
+function linesAssignedMethod(array $lines): ?int {
+    $ids = [];
+    foreach ($lines as $l) {
+        if (($l['line_type'] ?? 'product') === 'gift') continue;
+        $pid = $l['product_id'] ?? null;
+        if (!$pid) return null;  // combos / non-products have no assignment -> global rules
+        $row = db()->fetchOne("SELECT shipping_method_id FROM products WHERE id=?", [(int)$pid]);
+        $mid = $row['shipping_method_id'] ?? null;
+        if (!$mid) return null;  // an unassigned line -> global rules
+        $ids[(int)$mid] = true;
+    }
+    return count($ids) === 1 ? (int)array_key_first($ids) : null;
 }
 
 // Distinct shipping classes present across the order lines (from products.shipping_class).

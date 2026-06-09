@@ -63,7 +63,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     // Sort: free first, then cheapest
     usort($results, fn($a,$b) => $b['is_free'] <=> $a['is_free'] ?: $a['cost'] <=> $b['cost']);
 
-    echo json_encode(['success'=>true,'results'=>$results,'inputs'=>['price'=>$price,'weight'=>$weight,'qty'=>$qty]]);
+    // Authoritative "what the customer is actually charged" — runs the SAME engine the
+    // cart/checkout use (auto-cheapest, zone-aware), so the calculator can't disagree.
+    require_once __DIR__ . '/../api/v1/_pricing.php';
+    $fakeLine = [['product_id'=>null, 'qty'=>$qty, 'price'=>$price, 'line_type'=>'product']];
+    $actual = computeShipping($fakeLine, $price, $weight, $qty, $zone ?: null);
+
+    echo json_encode([
+        'success'  => true,
+        'results'  => $results,
+        'actual'   => $actual,                 // the real charged amount (engine)
+        'inputs'   => ['price'=>$price,'weight'=>$weight,'qty'=>$qty],
+    ]);
     exit;
 }
 
@@ -175,16 +186,22 @@ async function calculate(){
   const res=await fetch('shipping_calculator.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(payload)});
   const data=await res.json();
   if(!data.success)return;
-  renderResults(data.results, data.inputs);
+  renderResults(data.results, data.inputs, data.actual);
 }
 
-function renderResults(results, inputs){
+function renderResults(results, inputs, actual){
   const div=document.getElementById('calcResults');
   if(!results.length){
     div.innerHTML='<div style="text-align:center;padding:30px;color:var(--text-muted);">No shipping methods match these order details</div>';
     return;
   }
-  div.innerHTML=results.map((r,i)=>`
+  // Authoritative amount the customer is actually charged (same engine as checkout).
+  const actualHtml = (actual!==undefined && actual!==null) ? `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;margin-bottom:14px;background:rgba(46,204,113,.08);border:1px solid var(--success);border-radius:var(--radius);">
+      <div><div style="font-weight:700;">Actual charge at checkout</div><div style="font-size:.72rem;color:var(--text-muted);">Auto-picked by the live shipping engine</div></div>
+      <div style="font-size:1.25rem;font-weight:800;color:${actual<=0?'var(--success)':'var(--gold-primary)'};">${actual<=0?'FREE':('₹'+Number(actual).toLocaleString('en-IN'))}</div>
+    </div>` : '';
+  div.innerHTML = actualHtml + results.map((r,i)=>`
     <div class="result-item ${r.is_free?'free-ship':i===0&&!r.is_free?'cheapest':''}">
       <div style="display:flex;align-items:center;gap:12px;">
         <div class="type-icon" style="background:${typeColors[r.type]||'#666'}20;">
