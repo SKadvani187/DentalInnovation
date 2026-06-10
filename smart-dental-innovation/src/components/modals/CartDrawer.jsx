@@ -32,6 +32,9 @@ export default function CartDrawer() {
   const [couponTab, setCouponTab] = useState("all");
   const [couponMsg, setCouponMsg] = useState("");
 
+  // Distinct purchasable lines (free gifts excluded) — drives the "+N MORE" header label.
+  const productLineCount = items.filter((i) => i.type !== "gift").length;
+
   const askRemove = (item) => setConfirmRemove(item);
   const closeConfirm = () => setConfirmRemove(null);
   const removeNow = () => {
@@ -259,8 +262,8 @@ export default function CartDrawer() {
           <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
             <span className="text-sm font-bold uppercase tracking-wider text-brand-ink">
               {items[0]?.name?.split(" ").slice(0, 2).join(" ").toUpperCase() || "CART"}
-              {items.length > 1 && (
-                <span className="text-brand-muted font-normal"> +{items.length - 1} MORE</span>
+              {productLineCount > 1 && (
+                <span className="text-brand-muted font-normal"> +{productLineCount - 1} MORE</span>
               )}
             </span>
             <span className="text-xs text-brand-muted">({itemCount} item{itemCount !== 1 ? "s" : ""})</span>

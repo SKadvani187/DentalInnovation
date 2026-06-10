@@ -219,7 +219,9 @@ export function CartProvider({ children }) {
     return { ...base, deliveryCharges, finalTotal };
   }, [items, tierOffers, bulkRule, shippingConfig, taxConfig, appliedCoupon, shippingQuote]);
 
-  const itemCount = useMemo(() => items.reduce((c, i) => c + i.qty, 0), [items]);
+  // Count only purchasable lines — free gifts (auto + offer-bound) are bonuses, not items
+  // the customer added, so they must not inflate the cart badge / "N items" label.
+  const itemCount = useMemo(() => items.reduce((c, i) => i.type === "gift" ? c : c + i.qty, 0), [items]);
   const subtotal = pricing.subtotal;
 
   const value = useMemo(
