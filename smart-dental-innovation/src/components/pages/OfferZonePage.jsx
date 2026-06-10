@@ -292,7 +292,7 @@ function OfferCard({ offer, rank, anyFlagged }) {
   const boughtToday = offer.boughtToday || 0;   // real count from orders today (API)
 
   const onAdd = () => {
-    if (!main.productId) return;
+    if (!main.productId || ended) return;   // expired offers can't be grabbed
     addToCart(
       {
         id: main.productId,
@@ -477,6 +477,18 @@ function OfferCard({ offer, rank, anyFlagged }) {
             View Cart
           </button>
         </div>
+      ) : ended ? (
+        <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          className="mx-4 mb-3 font-bold py-3 rounded-xl flex items-center justify-center gap-2 bg-gray-200 text-gray-500 cursor-not-allowed"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 18a8 8 0 110-16 8 8 0 010 16zm1-13h-2v6l5.25 3.15 1-1.73-4.25-2.52V7z" />
+          </svg>
+          {hero.expiredCta || "Offer Expired"}
+        </button>
       ) : (
         <button
           onClick={onAdd}

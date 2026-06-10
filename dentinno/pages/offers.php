@@ -9,19 +9,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['offer_image'])) {
     $upload_dir = __DIR__ . '/../assets/images/products/';
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
     $file = $_FILES['offer_image'];
+    // Check PHP's upload status first (a file over upload_max_filesize arrives with error=1,
+    // empty tmp_name and size=0, otherwise failing later as a misleading "Upload failed").
+    if ($file['error'] !== UPLOAD_ERR_OK) {
+        $msgs = [
+            UPLOAD_ERR_INI_SIZE   => 'File exceeds the server upload limit (upload_max_filesize). Increase it in php.ini / .htaccess.',
+            UPLOAD_ERR_FORM_SIZE  => 'File is too large.',
+            UPLOAD_ERR_PARTIAL    => 'File was only partially uploaded — please try again.',
+            UPLOAD_ERR_NO_FILE    => 'No file was received.',
+            UPLOAD_ERR_NO_TMP_DIR => 'Server is missing its temporary upload folder.',
+            UPLOAD_ERR_CANT_WRITE => 'Server could not write the upload to disk.',
+            UPLOAD_ERR_EXTENSION  => 'A PHP extension blocked the upload.',
+        ];
+        echo json_encode(['success'=>false,'message'=> $msgs[$file['error']] ?? ('Upload error (code '.$file['error'].')')]); exit;
+    }
     $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     if (!in_array($ext, ['jpg','jpeg','png','webp','gif'])) { echo json_encode(['success'=>false,'message'=>'Invalid file type']); exit; }
-    if ($file['size'] > 5*1024*1024) { echo json_encode(['success'=>false,'message'=>'File too large']); exit; }
+    if ($file['size'] > 5*1024*1024) { echo json_encode(['success'=>false,'message'=>'File too large (max 5MB)']); exit; }
     $fname = 'offer_' . time() . '_' . rand(1000,9999) . '.' . $ext;
     if (move_uploaded_file($file['tmp_name'], $upload_dir . $fname)) {
         echo json_encode(['success'=>true,'url'=> APP_URL.'/assets/images/products/'.$fname]);
-    } else { echo json_encode(['success'=>false,'message'=>'Upload failed']); }
+    } else { echo json_encode(['success'=>false,'message'=>'Could not save the file. Check write permissions on assets/images/products/.']); }
     exit;
 }
 
 // AJAX JSON actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
+    // Never let a PHP warning/exception leak HTML into the JSON response (that breaks res.json()
+    // on the client with "Unexpected token '<'"). Any DB error is returned as a JSON message.
+    try {
     $d = json_decode(file_get_contents('php://input'), true);
     $action = $d['action'] ?? '';
 
@@ -74,6 +91,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     } elseif ($action === 'delete') {
         db()->execute("DELETE FROM offers WHERE id=?", [$d['id']]);
         echo json_encode(['success'=>true,'message'=>'Offer deleted']);
+    }
+    } catch (Throwable $e) {
+        echo json_encode(['success'=>false,'message'=>'Server error: ' . $e->getMessage()]);
     }
     exit;
 }

@@ -7,8 +7,10 @@ const HIDDEN_VIEWS = new Set(["product"]);
 
 export default function WhatsAppFab() {
   const { view } = useUI();
-  const { company = {} } = useSettings();
-  const PHONE = (company.phoneSales || company.phone || "919328762586").replace(/\D/g, "");
+  const { company = {}, branding = {} } = useSettings();
+  // Admin-configured WhatsApp number (Settings → General → Logos & WhatsApp) takes
+  // priority; falls back to company sales/main phone, then a last-resort default.
+  const PHONE = (branding.whatsappNumber || company.phoneSales || company.phone || "919328762586").replace(/\D/g, "");
   const [showTip, setShowTip] = useState(false);
 
   useEffect(() => {

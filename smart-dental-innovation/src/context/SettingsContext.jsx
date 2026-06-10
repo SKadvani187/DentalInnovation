@@ -49,8 +49,21 @@ const STATIC = {
 
 const SettingsContext = createContext(STATIC);
 
+// Cache the last API settings so repeat loads have admin values (logo, etc.)
+// instantly — no flash of the static/bundled fallback before the API responds.
+const CACHE_KEY = "sdi:settings";
+function readCache() {
+  try { const r = localStorage.getItem(CACHE_KEY); return r ? JSON.parse(r) : null; }
+  catch { return null; }
+}
+
 export function SettingsProvider({ children }) {
-  const [settings, setSettings] = useState(STATIC);
+  // Hydrate from cache when available; __loaded tells consumers the real values
+  // are present (cached or fetched) so they can avoid showing a fallback too early.
+  const [settings, setSettings] = useState(() => {
+    const cached = readCache();
+    return cached ? { ...STATIC, ...cached, __loaded: true } : { ...STATIC, __loaded: false };
+  });
 
   useEffect(() => {
     let alive = true;
@@ -58,9 +71,14 @@ export function SettingsProvider({ children }) {
       .then((s) => {
         if (!alive || !s) return;
         // Merge: API values override static; keep static for any missing key.
-        setSettings((prev) => ({ ...prev, ...Object.fromEntries(Object.entries(s).filter(([, v]) => v != null)) }));
+        const merged = Object.fromEntries(Object.entries(s).filter(([, v]) => v != null));
+        setSettings((prev) => ({ ...prev, ...merged, __loaded: true }));
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify(merged)); } catch { /* quota/private mode — ignore */ }
       })
-      .catch((err) => console.warn("[settings] API fallback to static:", err.message));
+      .catch((err) => {
+        console.warn("[settings] API fallback to static:", err.message);
+        if (alive) setSettings((prev) => ({ ...prev, __loaded: true }));   // stop waiting → allow fallback
+      });
     return () => { alive = false; };
   }, []);
 

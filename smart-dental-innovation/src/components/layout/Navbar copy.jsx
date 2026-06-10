@@ -1,12 +1,36 @@
 import React, { useState, useRef, useEffect } from 'react';
+import logo from "../../assets/logo.png";
 import { useUI } from "../../context/UIContext";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import { useSettings } from "../../context/SettingsContext";
 
 export default function NavigationHeader() {
-  const { pricePresets = [], navMenu = [] } = useSettings();
+  const { pricePresets = [], navMenu = [], branding = {}, __loaded: settingsLoaded } = useSettings();
   const navItems = (navMenu.length ? navMenu : []).filter((m) => m.enabled !== false);
+  // Header logos are admin-managed (Settings → General → Logos). Like the main site,
+  // when TWO logos are uploaded the header shows one at a time and cross-fades between
+  // them on a timer; with a SINGLE uploaded logo it just shows that one (no cycling).
+  // To avoid flashing the bundled asset before settings load, use the uploaded logos
+  // when set; otherwise only fall back to the bundled logo once settings have actually
+  // loaded (cached or fetched). While still loading with no uploaded logo, render
+  // nothing (reserve space) instead of the old asset logo.
+  const uploadedLogos = [branding.logo1, branding.logo2].filter(Boolean);
+  const logos = uploadedLogos.length ? uploadedLogos : (settingsLoaded ? [logo] : []);
+  const [logoIdx, setLogoIdx] = useState(0);
+  const [logoShown, setLogoShown] = useState(true);
+  useEffect(() => {
+    if (logos.length < 2) return;            // single logo (or still loading): nothing to cycle
+    const timer = setInterval(() => {
+      setLogoShown(false);                                       // fade current out
+      setTimeout(() => {
+        setLogoIdx((i) => (i + 1) % logos.length);              // swap while hidden
+        setLogoShown(true);                                     // fade next in
+      }, 350);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [logos.length]);
+  const currentLogo = logos[logoIdx] ?? logos[0];   // undefined while loading → spacer (not the old logo)
   const { openModal, navigate, openSearch, openSearchWithImage, view } = useUI();
   const currentView = view?.name;
   const { user, logout } = useAuth();
@@ -119,15 +143,16 @@ export default function NavigationHeader() {
           onClick={() => navigate("home")}
           className="flex items-center gap-2 h-[40px] cursor-pointer select-none shrink-0"
         >
-          <img
-            src="./src/assets/logo.png"
-            alt="Logo Icon"
-            className="h-[30px] sm:h-[38px] w-auto object-contain opacity-100 transition-opacity duration-500 ease-in-out"
-          />
-          <span className="hidden sm:inline text-xl font-extrabold tracking-tight text-gray-900 whitespace-nowrap">
-            Dent
-            <span className="text-[#1976d2]">Inno</span>
-          </span>
+          {currentLogo ? (
+            <img
+              src={currentLogo}
+              alt="Logo"
+              className={`h-[30px] sm:h-[38px] w-auto object-contain transition-opacity duration-300 ease-in-out ${logoShown ? "opacity-100" : "opacity-0"}`}
+            />
+          ) : (
+            // Settings not loaded yet and no uploaded logo cached — reserve space, show nothing.
+            <span className="h-[30px] sm:h-[38px] w-[40px]" aria-hidden="true" />
+          )}
         </div>
 
         {/* Desktop centered search */}

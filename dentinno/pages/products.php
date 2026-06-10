@@ -63,13 +63,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['product_image'])) {
     $upload_dir = __DIR__ . '/../assets/images/products/';
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
     $file = $_FILES['product_image'];
+    // Check PHP's own upload status FIRST. A file bigger than upload_max_filesize arrives
+    // with error=1, empty tmp_name and size=0 (so the size check below would wrongly pass),
+    // then move_uploaded_file() fails with a misleading generic "Upload failed".
+    if ($file['error'] !== UPLOAD_ERR_OK) {
+        $msgs = [
+            UPLOAD_ERR_INI_SIZE   => 'File exceeds the server upload limit (upload_max_filesize). Increase it in php.ini / .htaccess.',
+            UPLOAD_ERR_FORM_SIZE  => 'File is too large.',
+            UPLOAD_ERR_PARTIAL    => 'File was only partially uploaded — please try again.',
+            UPLOAD_ERR_NO_FILE    => 'No file was received.',
+            UPLOAD_ERR_NO_TMP_DIR => 'Server is missing its temporary upload folder.',
+            UPLOAD_ERR_CANT_WRITE => 'Server could not write the upload to disk.',
+            UPLOAD_ERR_EXTENSION  => 'A PHP extension blocked the upload.',
+        ];
+        echo json_encode(['success'=>false,'message'=> $msgs[$file['error']] ?? ('Upload error (code '.$file['error'].')')]); exit;
+    }
     $ext  = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     if (!in_array($ext, ['jpg','jpeg','png','webp','gif'])) { echo json_encode(['success'=>false,'message'=>'Invalid file type']); exit; }
-    if ($file['size'] > 5*1024*1024) { echo json_encode(['success'=>false,'message'=>'File too large']); exit; }
+    if ($file['size'] > 5*1024*1024) { echo json_encode(['success'=>false,'message'=>'File too large (max 5MB)']); exit; }
     $fname = 'prod_' . time() . '_' . rand(1000,9999) . '.' . $ext;
     if (move_uploaded_file($file['tmp_name'], $upload_dir . $fname)) {
         echo json_encode(['success'=>true,'url'=> APP_URL.'/assets/images/products/'.$fname]);
-    } else { echo json_encode(['success'=>false,'message'=>'Upload failed']); }
+    } else {
+        // Report the concrete reason so the failure is diagnosable instead of generic.
+        $why = !is_uploaded_file($file['tmp_name'])
+                ? 'PHP did not register the upload (tmp file missing — check file_uploads / upload_tmp_dir in php.ini)'
+                : (!is_writable($upload_dir) ? 'upload folder is not writable: ' . realpath($upload_dir)
+                : 'move_uploaded_file failed (target: ' . $upload_dir . $fname . ')');
+        echo json_encode(['success'=>false,'message'=>'Could not save the file — ' . $why]);
+    }
     exit;
 }
 

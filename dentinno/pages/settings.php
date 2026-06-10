@@ -636,6 +636,7 @@ HTML;
     <label class="form-label" style="font-weight:700;margin-top:10px;">Stat Chips</label>
     <div id="chip_rows"></div>
     <button class="btn btn-ghost btn-sm" onclick="addChipRow()"><i class="fa-solid fa-plus"></i> Add Chip</button>
+    <div style="margin-top:16px;border-top:1px solid var(--border-color);padding-top:14px;"><button class="btn btn-gold" onclick="saveContactConfig()"><i class="fa-solid fa-floppy-disk"></i> Save Contact Page</button></div>
   </div>
 </div>
 
@@ -650,6 +651,7 @@ HTML;
       <div class="form-group"><label class="form-label">Email label</label><input type="text" class="form-control" id="lbl_email" value="<?= htmlspecialchars($L['email'] ?? '') ?>"></div>
       <div class="form-group"><label class="form-label">Visit label</label><input type="text" class="form-control" id="lbl_visit" value="<?= htmlspecialchars($L['visit'] ?? '') ?>"></div>
     </div>
+    <div style="margin-top:16px;border-top:1px solid var(--border-color);padding-top:14px;"><button class="btn btn-gold" onclick="saveContactConfig()"><i class="fa-solid fa-floppy-disk"></i> Save Contact Page</button></div>
   </div>
 </div>
 
@@ -675,6 +677,7 @@ HTML;
     <label class="form-label" style="font-weight:700;margin-top:10px;">Departments (What can we help with?)</label>
     <div id="dept_rows"></div>
     <button class="btn btn-ghost btn-sm" onclick="addDeptRow()"><i class="fa-solid fa-plus"></i> Add Department</button>
+    <div style="margin-top:16px;border-top:1px solid var(--border-color);padding-top:14px;"><button class="btn btn-gold" onclick="saveContactConfig()"><i class="fa-solid fa-floppy-disk"></i> Save Contact Page</button></div>
   </div>
 </div>
 
@@ -690,6 +693,7 @@ HTML;
       <div class="form-group"><label class="form-label">General Info label</label><input type="text" class="form-control" id="lbl_reachGeneral" value="<?= htmlspecialchars($L['reachGeneral'] ?? '') ?>"></div>
       <div class="form-group"><label class="form-label">"Follow us" heading</label><input type="text" class="form-control" id="lbl_followHeading" value="<?= htmlspecialchars($L['followHeading'] ?? '') ?>"></div>
     </div>
+    <div style="margin-top:16px;border-top:1px solid var(--border-color);padding-top:14px;"><button class="btn btn-gold" onclick="saveContactConfig()"><i class="fa-solid fa-floppy-disk"></i> Save Contact Page</button></div>
   </div>
 </div>
 
@@ -718,6 +722,7 @@ HTML;
       <?php endforeach; ?>
     </div>
     <div class="form-group" style="margin-top:6px;"><label class="form-label">Timezone Label</label><input type="text" class="form-control" id="cc_timezone" value="<?= htmlspecialchars($site['contactConfig']['timezone'] ?? '') ?>"></div>
+    <div style="margin-top:16px;border-top:1px solid var(--border-color);padding-top:14px;"><button class="btn btn-gold" onclick="saveContactConfig()"><i class="fa-solid fa-floppy-disk"></i> Save Contact Page</button></div>
   </div>
 </div>
 
@@ -733,6 +738,7 @@ HTML;
     <label class="form-label" style="font-weight:700;">Highlights</label>
     <div id="office_rows"></div>
     <button class="btn btn-ghost btn-sm" onclick="addOfficeRow()"><i class="fa-solid fa-plus"></i> Add Highlight</button>
+    <div style="margin-top:16px;border-top:1px solid var(--border-color);padding-top:14px;"><button class="btn btn-gold" onclick="saveContactConfig()"><i class="fa-solid fa-floppy-disk"></i> Save Contact Page</button></div>
   </div>
 </div>
 
@@ -789,6 +795,7 @@ HTML;
   </div>
   <label class="form-label" style="font-weight:700;margin-top:8px;">Hero Stats</label><div id="ab_herostats"></div>
   <button class="btn btn-ghost btn-sm" onclick="abAdd('heroStats',{value:'',label:''})"><i class="fa-solid fa-plus"></i> Add Stat</button>
+  <div style="margin-top:16px;border-top:1px solid var(--border-color);padding-top:14px;"><button class="btn btn-gold" onclick="saveAbout()"><i class="fa-solid fa-floppy-disk"></i> Save About Page</button></div>
 </div></div>
 
 <!-- A2 Our Story -->
@@ -803,11 +810,13 @@ HTML;
   <button class="btn btn-ghost btn-sm" onclick="abAdd('storyParas','')"><i class="fa-solid fa-plus"></i> Add Paragraph</button>
   <label class="form-label" style="font-weight:700;margin-top:8px;">Promises</label><div id="ab_promises"></div>
   <button class="btn btn-ghost btn-sm" onclick="abAdd('promises',{title:'',text:''})"><i class="fa-solid fa-plus"></i> Add Promise</button>
+  <div style="margin-top:16px;border-top:1px solid var(--border-color);padding-top:14px;"><button class="btn btn-gold" onclick="saveAbout()"><i class="fa-solid fa-floppy-disk"></i> Save About Page</button></div>
 </div></div>
 
 <!-- A3 Stats Strip -->
 <div class="card fade-in" data-subcard="about" data-seckey="stats" style="margin-top:14px;"><div class="card-header"><span class="card-title"><i class="fa-solid fa-chart-simple text-gold" style="margin-right:8px;"></i>Stats Strip</span></div><div class="card-body">
   <div id="ab_stats"></div><button class="btn btn-ghost btn-sm" onclick="abAdd('stats',{value:'',label:''})"><i class="fa-solid fa-plus"></i> Add Stat</button>
+  <div style="margin-top:16px;border-top:1px solid var(--border-color);padding-top:14px;"><button class="btn btn-gold" onclick="saveAbout()"><i class="fa-solid fa-floppy-disk"></i> Save About Page</button></div>
 </div></div>
 
 <!-- A4 Milestones -->
@@ -818,6 +827,7 @@ HTML;
     <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Subtitle</label><input type="text" class="form-control" id="ab_ms_subtitle" value="<?= htmlspecialchars($A['milestones']['subtitle'] ?? '') ?>"></div>
   </div>
   <div id="ab_milestones"></div><button class="btn btn-ghost btn-sm" onclick="abAdd('milestones',{year:'',title:'',text:''})"><i class="fa-solid fa-plus"></i> Add Milestone</button>
+  <div style="margin-top:16px;border-top:1px solid var(--border-color);padding-top:14px;"><button class="btn btn-gold" onclick="saveAbout()"><i class="fa-solid fa-floppy-disk"></i> Save About Page</button></div>
 </div></div>
 
 <!-- A5 Core Values -->
@@ -828,6 +838,7 @@ HTML;
     <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Subtitle</label><input type="text" class="form-control" id="ab_cv_subtitle" value="<?= htmlspecialchars($A['coreValues']['subtitle'] ?? '') ?>"></div>
   </div>
   <div id="ab_values"></div><button class="btn btn-ghost btn-sm" onclick="abAdd('values',{n:'',icon:'⭐',title:'',text:''})"><i class="fa-solid fa-plus"></i> Add Value</button>
+  <div style="margin-top:16px;border-top:1px solid var(--border-color);padding-top:14px;"><button class="btn btn-gold" onclick="saveAbout()"><i class="fa-solid fa-floppy-disk"></i> Save About Page</button></div>
 </div></div>
 
 <!-- A6 Leadership -->
@@ -839,6 +850,7 @@ HTML;
   </div>
   <div id="ab_team"></div><button class="btn btn-ghost btn-sm" onclick="abAdd('team',{name:'',role:'',bio:'',img:''})"><i class="fa-solid fa-plus"></i> Add Member</button>
   <input type="file" id="abFileInput" accept="image/*" style="display:none">
+  <div style="margin-top:16px;border-top:1px solid var(--border-color);padding-top:14px;"><button class="btn btn-gold" onclick="saveAbout()"><i class="fa-solid fa-floppy-disk"></i> Save About Page</button></div>
 </div></div>
 
 <!-- A7 Why Trust -->
@@ -854,6 +866,7 @@ HTML;
   <button class="btn btn-ghost btn-sm" onclick="abAdd('trustRows',{icon:'check',title:'',text:''})"><i class="fa-solid fa-plus"></i> Add Row</button>
   <label class="form-label" style="font-weight:700;margin-top:8px;">Satisfaction Bars</label><div id="ab_satbars"></div>
   <button class="btn btn-ghost btn-sm" onclick="abAdd('satBars',{label:'',value:90})"><i class="fa-solid fa-plus"></i> Add Bar</button>
+  <div style="margin-top:16px;border-top:1px solid var(--border-color);padding-top:14px;"><button class="btn btn-gold" onclick="saveAbout()"><i class="fa-solid fa-floppy-disk"></i> Save About Page</button></div>
 </div></div>
 
 <!-- A8 Mission/Vision -->
@@ -865,6 +878,7 @@ HTML;
     <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Mission</label><textarea class="form-control" id="ab_mv_mission" rows="3"><?= htmlspecialchars($A['missionVision']['mission'] ?? '') ?></textarea></div>
     <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Vision</label><textarea class="form-control" id="ab_mv_vision" rows="3"><?= htmlspecialchars($A['missionVision']['vision'] ?? '') ?></textarea></div>
   </div>
+  <div style="margin-top:16px;border-top:1px solid var(--border-color);padding-top:14px;"><button class="btn btn-gold" onclick="saveAbout()"><i class="fa-solid fa-floppy-disk"></i> Save About Page</button></div>
 </div></div>
 
 <!-- A9 Testimonials -->
@@ -874,6 +888,7 @@ HTML;
     <div class="form-group"><label class="form-label">Heading</label><input type="text" class="form-control" id="ab_ts_heading" value="<?= htmlspecialchars($A['testimonials']['heading'] ?? '') ?>"></div>
   </div>
   <div id="ab_testimonials"></div><button class="btn btn-ghost btn-sm" onclick="abAdd('testimonials',{name:'',clinic:'',stars:5,text:''})"><i class="fa-solid fa-plus"></i> Add Review</button>
+  <div style="margin-top:16px;border-top:1px solid var(--border-color);padding-top:14px;"><button class="btn btn-gold" onclick="saveAbout()"><i class="fa-solid fa-floppy-disk"></i> Save About Page</button></div>
 </div></div>
 
 <!-- A10 Certifications -->
@@ -883,6 +898,7 @@ HTML;
     <div class="form-group"><label class="form-label">Heading</label><input type="text" class="form-control" id="ab_ce_heading" value="<?= htmlspecialchars($A['certifications']['heading'] ?? '') ?>"></div>
   </div>
   <div id="ab_certs"></div><button class="btn btn-ghost btn-sm" onclick="abAdd('certs',{icon:'📋',label:'',desc:''})"><i class="fa-solid fa-plus"></i> Add Cert</button>
+  <div style="margin-top:16px;border-top:1px solid var(--border-color);padding-top:14px;"><button class="btn btn-gold" onclick="saveAbout()"><i class="fa-solid fa-floppy-disk"></i> Save About Page</button></div>
 </div></div>
 
 <!-- A11 CTA -->
@@ -974,9 +990,29 @@ HTML;
 <div class="card fade-in" style="margin-top:14px;padding:6px;">
   <div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px;align-items:center;">
     <span class="text-muted" style="font-size:.78rem;margin-right:4px;"><i class="fa-solid fa-layer-group text-gold"></i> Section:</span>
+    <button type="button" class="btn btn-ghost btn-sm subtab-general" data-sec="branding" onclick="showSubSec('general','branding')">🖼️ Logos & WhatsApp</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-general" data-sec="navmenu" onclick="showSubSec('general','navmenu')">🧭 Navbar Menu</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-general" data-sec="socials" onclick="showSubSec('general','socials')">🔗 Social Links</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-general" data-sec="policy" onclick="showSubSec('general','policy')">📄 Policy Pages</button>
+  </div>
+</div>
+
+<!-- Branding: header logos (no text) + storefront WhatsApp number -->
+<?php $brand = $site['branding'] ?? []; ?>
+<div class="card fade-in" data-subcard="general" data-seckey="branding" style="margin-top:14px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-image text-gold" style="margin-right:8px;"></i>Header Logos &amp; WhatsApp</span><small class="text-muted">Two header logos (shown side-by-side, no text) + storefront WhatsApp number</small></div>
+  <div class="card-body">
+    <div class="grid-2" style="gap:16px;">
+      <div class="form-group"><label class="form-label">Logo 1 (left)</label><?= imgUploadBox('brand_logo1', $brand['logo1'] ?? '', "uploadLogo('brand_logo1')") ?></div>
+      <div class="form-group"><label class="form-label">Logo 2 (right) <small class="text-muted">(optional)</small></label><?= imgUploadBox('brand_logo2', $brand['logo2'] ?? '', "uploadLogo('brand_logo2')") ?></div>
+    </div>
+    <div class="form-group" style="margin-top:12px;max-width:380px;">
+      <label class="form-label">WhatsApp Number <small class="text-muted">(country code + number, digits only)</small></label>
+      <input type="text" class="form-control" id="brand_whatsapp" value="<?= htmlspecialchars($brand['whatsappNumber'] ?? '') ?>" placeholder="e.g. 919328762586">
+      <small class="text-muted" style="font-size:.72rem;">Used by the floating WhatsApp chat button on the storefront.</small>
+    </div>
+    <input type="file" id="logoFileInput" accept="image/*" style="display:none">
+    <button class="btn btn-gold" style="margin-top:10px;" onclick="saveBranding()"><i class="fa-solid fa-floppy-disk"></i> Save Branding</button>
   </div>
 </div>
 
@@ -1516,6 +1552,16 @@ function uploadPromo(slot, variant){
 }
 function uploadRf(id){
   genericUpload((url)=> setImg(id, url))('rfFileInput');
+}
+function uploadLogo(id){
+  genericUpload((url)=> setImg(id, url))('logoFileInput');
+}
+function saveBranding(){
+  saveSetting('branding', {
+    logo1: document.getElementById('brand_logo1').value,
+    logo2: document.getElementById('brand_logo2').value,
+    whatsappNumber: (document.getElementById('brand_whatsapp').value || '').replace(/\D/g,''),
+  }, 'Branding');
 }
 
 // ---- Contact Page config ----
