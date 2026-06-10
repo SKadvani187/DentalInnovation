@@ -213,7 +213,7 @@ include __DIR__ . '/../includes/header.php';
                 <input type="hidden" id="combo_image">
             </div>
 
-            <div class="form-row" style="display:flex;gap:10px;">
+            <div class="form-row" style="display:flex;gap:10px;align-items:flex-end;">
                 <div class="form-group" style="flex:1;"><label class="form-label">Stock Qty <small class="text-muted">(0 = out, low → urgency ribbon)</small></label><input type="number" min="0" class="form-control" id="combo_stock" value="50"></div>
                 <div class="form-group" style="flex:1;"><label class="form-label">Status</label>
                     <select class="form-control" id="combo_status"><option value="1">Active</option><option value="0">Inactive</option></select>
