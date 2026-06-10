@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
 
     if ($action === 'save') {
         $mainProduct = $d['main_product'] ?? null;   // {productId,name,variant,image,price,mrp}
-        $freeItems   = is_array($d['free_items'] ?? null) ? $d['free_items'] : []; // [{productId,name,mrp,image}]
+        $freeItems   = is_array($d['free_items'] ?? null) ? $d['free_items'] : []; // [{productId,name,mrp,image,qty?}]
 
         // ---- Server-side validation (authoritative; do not trust client math) ----
         $title   = trim($d['title'] ?? '');
@@ -53,43 +53,90 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         if (!$mainProduct || empty($mainProduct['productId'])) { echo json_encode(['success'=>false,'message'=>'Select a main product']); exit; }
         if ($special <= 0)                         { echo json_encode(['success'=>false,'message'=>'Special price must be greater than 0']); exit; }
 
-        // ---- Authoritative calculations (never trust client youSave/totalMrp) ----
-        // totalMrp = main product MRP + sum(free item MRPs)
-        $totalMrp = (float)($mainProduct['mrp'] ?? 0);
-        foreach ($freeItems as $fi) $totalMrp += (float)($fi['mrp'] ?? 0);
+        // Resolve the main product slug -> products.id (must be an active catalog product).
+        // products.price is the MRP; discount_price is the normal selling price.
+        $mainRow = db()->fetchOne("SELECT id, price FROM products WHERE slug=? AND is_active=1", [$mainProduct['productId']]);
+        if (!$mainRow) { echo json_encode(['success'=>false,'message'=>'Main product not found or inactive']); exit; }
+        $productId = (int)$mainRow['id'];
+
+        // ---- Authoritative calculations (recompute MRPs from live products, never trust client) ----
+        // Build the relational gift list, resolving each gift slug -> product + live MRP.
+        $giftRows = [];
+        $totalMrp = (float)$mainRow['price'];
+        foreach ($freeItems as $fi) {
+            $gpid = null;
+            $gmrp = (float)($fi['mrp'] ?? 0);
+            if (!empty($fi['productId'])) {
+                $gp = db()->fetchOne("SELECT id, price FROM products WHERE slug=?", [$fi['productId']]);
+                if ($gp) { $gpid = (int)$gp['id']; $gmrp = (float)$gp['price']; }
+            }
+            $gqty = max(1, (int)($fi['qty'] ?? 1));
+            $giftRows[] = [
+                'product_id' => $gpid,
+                'name'       => $fi['name'] ?? '',
+                'variant'    => ($fi['variant'] ?? null) ?: null,
+                'image'      => ($fi['image'] ?? null) ?: null,
+                'mrp'        => $gmrp,
+                'qty'        => $gqty,
+            ];
+            $totalMrp += $gmrp * $gqty;
+        }
         if ($special > $totalMrp) { echo json_encode(['success'=>false,'message'=>'Special price (₹'.$special.') cannot exceed total MRP (₹'.$totalMrp.')']); exit; }
         $youSave = max(0, $totalMrp - $special);
 
-        // valid_till: past dates allowed only when EDITING an existing offer (so admins can fix/extend
-        // old offers); new offers must be today or future.
-        $validTill = $d['valid_till'] ?: null;
-        if ($validTill && empty($d['id']) && $validTill < date('Y-m-d')) {
+        // valid_till: past dates allowed only when EDITING (so admins can fix/extend old offers);
+        // new offers must be today or future. Stored as end-of-day DATETIME so "valid through
+        // that day" matches the storefront countdown.
+        $validDate = $d['valid_till'] ?: null;
+        if ($validDate && empty($d['id']) && $validDate < date('Y-m-d')) {
             echo json_encode(['success'=>false,'message'=>'Valid Till must be today or a future date']); exit;
         }
+        $validTill = $validDate ? ($validDate . ' 23:59:59') : null;
 
         $sortOrder  = (int)($d['sort_order'] ?? 0);
         $socialMode = ($d['social_mode'] ?? 'live') === 'manual' ? 'manual' : 'live';
         $socialCount= max(0, (int)($d['social_count'] ?? 0));
         $isTopDeal  = !empty($d['is_top_deal']) ? 1 : 0;
-        $mainJson = json_encode($mainProduct);
+        $mainJson = json_encode($mainProduct);   // kept for back-compat; relational is source of truth
         $freeJson = json_encode($freeItems);
 
-        if (!empty($d['id'])) {
-            db()->execute(
-                "UPDATE offers SET title=?,subtitle=?,theme=?,main_product=?,free_items=?,special_price=?,total_mrp=?,you_save=?,save_extra=?,valid_till=?,is_active=?,sort_order=?,social_mode=?,social_count=?,is_top_deal=? WHERE id=?",
-                [$title,$d['subtitle']??'',$d['theme']??'orange',$mainJson,$freeJson,$special,$totalMrp,$youSave,($d['save_extra'] ?? null) ?: null,$validTill,$d['is_active']??1,$sortOrder,$socialMode,$socialCount,$isTopDeal,$d['id']]
-            );
-            echo json_encode(['success'=>true,'message'=>'Offer updated','you_save'=>$youSave,'total_mrp'=>$totalMrp]);
-        } else {
-            $slug = 'offer-' . substr((string)time(), -6);
-            db()->insert(
-                "INSERT INTO offers (slug,title,subtitle,theme,main_product,free_items,special_price,total_mrp,you_save,save_extra,valid_till,is_active,sort_order,social_mode,social_count,is_top_deal) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                [$slug,$title,$d['subtitle']??'',$d['theme']??'orange',$mainJson,$freeJson,$special,$totalMrp,$youSave,($d['save_extra'] ?? null) ?: null,$validTill,$d['is_active']??1,$sortOrder,$socialMode,$socialCount,$isTopDeal]
-            );
-            echo json_encode(['success'=>true,'message'=>'Offer added','you_save'=>$youSave,'total_mrp'=>$totalMrp]);
+        // Write the offer + its gift rows atomically.
+        $pdo = db()->getConnection();
+        $pdo->beginTransaction();
+        try {
+            if (!empty($d['id'])) {
+                $offerId = (int)$d['id'];
+                db()->execute(
+                    "UPDATE offers SET product_id=?,title=?,subtitle=?,theme=?,main_product=?,free_items=?,special_price=?,total_mrp=?,you_save=?,save_extra=?,valid_till=?,is_active=?,sort_order=?,social_mode=?,social_count=?,is_top_deal=? WHERE id=?",
+                    [$productId,$title,$d['subtitle']??'',$d['theme']??'orange',$mainJson,$freeJson,$special,$totalMrp,$youSave,($d['save_extra'] ?? null) ?: null,$validTill,$d['is_active']??1,$sortOrder,$socialMode,$socialCount,$isTopDeal,$offerId]
+                );
+                $msg = 'Offer updated';
+            } else {
+                $slug = 'offer-' . substr((string)time(), -6);
+                $offerId = (int) db()->insert(
+                    "INSERT INTO offers (slug,product_id,title,subtitle,theme,main_product,free_items,special_price,total_mrp,you_save,save_extra,valid_till,is_active,sort_order,social_mode,social_count,is_top_deal) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    [$slug,$productId,$title,$d['subtitle']??'',$d['theme']??'orange',$mainJson,$freeJson,$special,$totalMrp,$youSave,($d['save_extra'] ?? null) ?: null,$validTill,$d['is_active']??1,$sortOrder,$socialMode,$socialCount,$isTopDeal]
+                );
+                $msg = 'Offer added';
+            }
+
+            // Rewrite gift rows (relational source of truth).
+            db()->execute("DELETE FROM offer_items WHERE offer_id=?", [$offerId]);
+            $i = 0;
+            foreach ($giftRows as $g) {
+                db()->execute(
+                    "INSERT INTO offer_items (offer_id,product_id,name,variant,image,mrp,qty,sort_order) VALUES (?,?,?,?,?,?,?,?)",
+                    [$offerId,$g['product_id'],$g['name'],$g['variant'],$g['image'],$g['mrp'],$g['qty'],$i++]
+                );
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            throw $e;   // bubble to the outer handler -> JSON error
         }
+        echo json_encode(['success'=>true,'message'=>$msg,'you_save'=>$youSave,'total_mrp'=>$totalMrp]);
     } elseif ($action === 'delete') {
-        db()->execute("DELETE FROM offers WHERE id=?", [$d['id']]);
+        db()->execute("DELETE FROM offers WHERE id=?", [$d['id']]);   // offer_items cascade via FK
         echo json_encode(['success'=>true,'message'=>'Offer deleted']);
     }
     } catch (Throwable $e) {

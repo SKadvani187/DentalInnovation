@@ -112,15 +112,45 @@ function mapEvent(array $r): array {
     ];
 }
 
-function mapOffer(array $r): array {
-    $main      = jcol($r['main_product'] ?? null, null);
-    $freeItems = jcol($r['free_items'] ?? null, []);
-    $special   = (float)$r['special_price'];
+// $giftRows: relational offer_items rows (each may carry a joined product_slug).
+// When present they are the source of truth; otherwise we fall back to the legacy
+// free_items JSON so un-migrated rows still render. Output shape stays
+// {name, mrp, image, variant} plus optional {productId, qty} for cart building.
+function mapOffer(array $r, array $giftRows = []): array {
+    $main    = jcol($r['main_product'] ?? null, null);
+    $special = (float)$r['special_price'];
+
+    if (!empty($giftRows)) {
+        $freeItems = array_map(fn($g) => [
+            'productId' => $g['product_slug'] ?? null,
+            'name'      => $g['name'],
+            'variant'   => $g['variant'],
+            'image'     => $g['image'],
+            'mrp'       => (float)$g['mrp'],
+            'qty'       => max(1, (int)($g['qty'] ?? 1)),
+        ], $giftRows);
+    } else {
+        // Legacy JSON fallback (productId may be absent on old snapshots).
+        $freeItems = array_map(fn($fi) => [
+            'productId' => $fi['productId'] ?? null,
+            'name'      => $fi['name'] ?? '',
+            'variant'   => $fi['variant'] ?? null,
+            'image'     => $fi['image'] ?? null,
+            'mrp'       => (float)($fi['mrp'] ?? 0),
+            'qty'       => max(1, (int)($fi['qty'] ?? 1)),
+        ], jcol($r['free_items'] ?? null, []));
+    }
+
     // Authoritative: recompute totalMrp + youSave from parts so stored values can never drift.
     $totalMrp = (float)($main['mrp'] ?? 0);
-    foreach ($freeItems as $fi) $totalMrp += (float)($fi['mrp'] ?? 0);
+    foreach ($freeItems as $fi) $totalMrp += $fi['mrp'] * $fi['qty'];
     if ($totalMrp <= 0) $totalMrp = (float)$r['total_mrp'];   // fallback for legacy rows
     $youSave = max(0, $totalMrp - $special);
+
+    // valid_till is stored in the app timezone (Asia/Kolkata); emit ISO-8601 with the
+    // explicit offset so the browser's `new Date()` is unambiguous.
+    $validTill = !empty($r['valid_till']) ? date('c', strtotime($r['valid_till'])) : null;
+
     return [
         'id'           => $r['slug'],
         'dbId'         => (int)$r['id'],
@@ -136,7 +166,7 @@ function mapOffer(array $r): array {
         'totalMrp'     => $totalMrp,
         'youSave'      => $youSave,
         'saveExtra'    => $r['save_extra'],
-        'validTill'    => $r['valid_till'],
+        'validTill'    => $validTill,
         'isTopDeal'    => (bool)($r['is_top_deal'] ?? 0),
     ];
 }

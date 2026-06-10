@@ -15,6 +15,8 @@ const STATIC = {
   fbtItems: siteStatic.fbtItems,
   freeGifts: siteStatic.freeGifts,
   bulkRule: siteStatic.bulkRule,
+  shippingConfig: siteStatic.shippingConfig,
+  taxConfig: siteStatic.taxConfig,
   coupons: siteStatic.coupons,
   sortOptions: siteStatic.sortOptions,
   pricePresets: siteStatic.pricePresets,

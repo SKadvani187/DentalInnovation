@@ -11,7 +11,13 @@ let authToken = null;
 export function setAuthToken(t) { authToken = t || null; }
 
 function authHeaders() {
-  return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+  // Send the token two ways: the standard Authorization header AND a custom
+  // X-Auth-Token header. Apache frequently strips Authorization on shared/XAMPP
+  // hosts, which breaks Bearer auth; X-Auth-Token is never stripped, so auth keeps
+  // working regardless of server config.
+  return authToken
+    ? { Authorization: `Bearer ${authToken}`, "X-Auth-Token": authToken }
+    : {};
 }
 
 async function get(path, params) {

@@ -13,7 +13,7 @@ if (in_array($origin, $allowed, true)) {
     header("Access-Control-Allow-Origin: *"); // public read API
 }
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Auth-Token');
 header('Content-Type: application/json; charset=utf-8');
 
 // Preflight
@@ -73,12 +73,18 @@ function authHeader(): string {
 
 // Resolve the bearer token -> customer row (or null). Used to protect order endpoints.
 function authCustomer(): ?array {
+    $token = '';
     $hdr = authHeader();
     if (stripos($hdr, 'Bearer ') === 0) {
         $token = trim(substr($hdr, 7));
-        if ($token !== '') {
-            return db()->fetchOne("SELECT * FROM customers WHERE api_token=?", [$token]) ?: null;
-        }
+    }
+    // Fallback: custom header that Apache never strips (works even when the standard
+    // Authorization header is dropped by the server). The client sends both.
+    if ($token === '' && !empty($_SERVER['HTTP_X_AUTH_TOKEN'])) {
+        $token = trim((string)$_SERVER['HTTP_X_AUTH_TOKEN']);
+    }
+    if ($token !== '') {
+        return db()->fetchOne("SELECT * FROM customers WHERE api_token=?", [$token]) ?: null;
     }
     return null;
 }

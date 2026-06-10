@@ -3,7 +3,31 @@
 require_once __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/_map.php';
 
-$rows = db()->fetchAll("SELECT * FROM offers WHERE is_active=1 ORDER BY sort_order");
+// Exclude expired offers (valid_till in the past). Compute "now" in PHP using the
+// app timezone (config sets Asia/Kolkata) rather than trusting the MySQL session tz.
+$now = date('Y-m-d H:i:s');
+$rows = db()->fetchAll(
+    "SELECT * FROM offers
+     WHERE is_active=1 AND (valid_till IS NULL OR valid_till >= ?)
+     ORDER BY sort_order",
+    [$now]
+);
+
+// Batch-load free gift items relationally (with each gift's product slug for the cart).
+$giftsByOffer = [];
+if ($rows) {
+    $offerIds = array_map(fn($r) => (int)$r['id'], $rows);
+    $ph = implode(',', array_fill(0, count($offerIds), '?'));
+    $giftRows = db()->fetchAll(
+        "SELECT oi.*, p.slug AS product_slug
+         FROM offer_items oi
+         LEFT JOIN products p ON p.id = oi.product_id
+         WHERE oi.offer_id IN ($ph)
+         ORDER BY oi.offer_id, oi.sort_order, oi.id",
+        $offerIds
+    );
+    foreach ($giftRows as $g) $giftsByOffer[(int)$g['offer_id']][] = $g;
+}
 
 // Real "bought today" count per product slug (distinct orders today containing that product).
 $soldRows = db()->fetchAll(
@@ -28,8 +52,8 @@ foreach ($prodRows as $pr) {
     ];
 }
 
-$offers = array_map(function ($r) use ($soldToday, $prodBySlug) {
-    $o = mapOffer($r);
+$offers = array_map(function ($r) use ($soldToday, $prodBySlug, $giftsByOffer) {
+    $o = mapOffer($r, $giftsByOffer[(int)$r['id']] ?? []);
     $pid = $o['mainProduct']['productId'] ?? null;
     // Sync the main product's NAME + IMAGE from the real linked product so the card matches
     // what opens on click. Keep the offer's own price/mrp (that's the negotiated deal pricing).

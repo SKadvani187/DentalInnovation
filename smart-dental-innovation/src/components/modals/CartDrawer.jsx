@@ -20,17 +20,16 @@ const cartIcon = (
 
 export default function CartDrawer() {
   const { modal, closeModal, openModal } = useUI();
-  const { items, updateQty, removeFromCart, subtotal, itemCount } = useCart();
+  const { items, updateQty, removeFromCart, subtotal, itemCount, pricing, appliedCoupon, applyCoupon: applyCouponCtx, removeCoupon } = useCart();
   const { user } = useAuth();
   const { toggle: toggleWish } = useWishlist();
-  const { fbtItems: FBT_ITEMS, freeGifts, bulkRule, coupons: COUPONS } = useSettings();
+  const { fbtItems: FBT_ITEMS, freeGifts, coupons: COUPONS, bulkRule } = useSettings();
   const FREE_GIFTS = freeGifts.items;
   const [priceOpen, setPriceOpen] = useState(true);
   const [confirmRemove, setConfirmRemove] = useState(null);
   const [view, setView] = useState("cart");
   const [couponCode, setCouponCode] = useState("");
   const [couponTab, setCouponTab] = useState("all");
-  const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponMsg, setCouponMsg] = useState("");
 
   const askRemove = (item) => setConfirmRemove(item);
@@ -55,31 +54,10 @@ export default function CartDrawer() {
     openModal("checkout");
   };
 
-  const bulkSavings = items.reduce(
-    (s, i) => (i.qty >= bulkRule.minQty ? s + i.price * bulkRule.rate * i.qty : s),
-    0
-  );
-  const mrpTotal = items.reduce((s, i) => s + (i.mrp || i.price) * i.qty, 0);
+  // All money comes from the shared, server-mirrored calculator (CartContext → lib/pricing.js).
+  const { mrpTotal, bulkSavings, couponDiscount, deliveryCharges, tax, finalTotal, totalSaved } = pricing;
   const productDiscount = Math.max(0, mrpTotal - subtotal);
-  const FREE_DELIVERY_THRESHOLD = 20000;
-  const baseDelivery = subtotal >= FREE_DELIVERY_THRESHOLD || items.length === 0 ? 0 : 600;
   const codCharges = 0;
-  const couponShippingWaived = appliedCoupon?.perk === "shipping";
-  const deliveryCharges = couponShippingWaived ? 0 : baseDelivery;
-  const couponDiscount = (() => {
-    if (!appliedCoupon || subtotal < appliedCoupon.minSubtotal) return 0;
-    // Backend-validated discount takes precedence.
-    if (typeof appliedCoupon.serverDiscount === "number") return appliedCoupon.serverDiscount;
-    const d = appliedCoupon.discount;
-    if (d.type === "flat") return d.value;
-    if (d.type === "percent") {
-      const raw = Math.round(subtotal * (d.value / 100));
-      return d.max ? Math.min(raw, d.max) : raw;
-    }
-    return 0;
-  })();
-  const finalTotal = Math.max(0, subtotal - bulkSavings - couponDiscount) + deliveryCharges + codCharges;
-  const totalSaved = Math.max(0, mrpTotal - (subtotal - bulkSavings - couponDiscount));
   const showFreeGifts = subtotal >= freeGifts.threshold;
 
   const eligibleCoupons = COUPONS.filter((c) => subtotal >= c.minSubtotal);
@@ -95,7 +73,7 @@ export default function CartDrawer() {
       setCouponMsg(`Add ${fmt(c.minSubtotal - subtotal)} more to use ${c.code}.`);
       return;
     }
-    setAppliedCoupon(c);
+    applyCouponCtx(c);
     setCouponMsg(`${c.code} applied.`);
     setView("cart");
   };
@@ -108,7 +86,7 @@ export default function CartDrawer() {
       const res = await api.validateCoupon(code, Math.round(subtotal));
       if (res.valid) {
         // Normalize to the shape the cart's discount calc expects.
-        setAppliedCoupon({
+        applyCouponCtx({
           code: res.code,
           minSubtotal: 0,
           discount: { type: res.type === "percent" ? "percent" : "flat", value: res.value },
@@ -164,7 +142,7 @@ export default function CartDrawer() {
               className="w-full flex items-center justify-between bg-green-600 text-white px-4 py-2.5 rounded-md text-sm font-bold"
             >
               <span>
-                Price summary <span className="line-through opacity-80 font-normal ml-2">Rs. {mrpTotal.toFixed(0)}</span>{" "}
+                Price summary <span className="line-through opacity-80 font-normal ml-2">{fmt(mrpTotal)}</span>{" "}
                 <span className="ml-2">{fmt(finalTotal)}</span>
               </span>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className={`transition ${priceOpen ? "" : "rotate-180"}`}>
@@ -205,6 +183,12 @@ export default function CartDrawer() {
                   </div>
                   <span className="font-semibold text-green-600">FREE</span>
                 </div>
+                {tax > 0 && (
+                  <div className="flex items-center justify-between pt-1 border-t border-gray-200">
+                    <span className="text-brand-ink">Tax (GST)</span>
+                    <span className="font-semibold text-brand-ink">₹{tax.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                )}
                 {totalSaved > 0 && (
                   <div className="bg-green-50 border border-green-100 rounded-md px-3 py-2 text-center text-sm text-green-800 font-semibold mt-2">
                     🎉 🎁 You saved {fmt(totalSaved)} on this order!
@@ -286,16 +270,24 @@ export default function CartDrawer() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-semibold text-brand-ink line-clamp-2">{i.name}</p>
-                    <button
-                      onClick={() => askRemove(i)}
-                      className="text-brand-muted hover:text-red-500 shrink-0"
-                      aria-label="Remove"
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="3 6 5 6 21 6" /><path d="M19 6l-2 14a2 2 0 01-2 2H9a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-                      </svg>
-                    </button>
+                    <p className="text-sm font-semibold text-brand-ink line-clamp-2">
+                      {i.name}
+                      {i.type === "gift" && (
+                        <span className="ml-2 align-middle text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 rounded px-1.5 py-0.5">FREE GIFT</span>
+                      )}
+                    </p>
+                    {/* Gift lines are bound to their offer's main line — not independently removable. */}
+                    {i.type !== "gift" && (
+                      <button
+                        onClick={() => askRemove(i)}
+                        className="text-brand-muted hover:text-red-500 shrink-0"
+                        aria-label="Remove"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="3 6 5 6 21 6" /><path d="M19 6l-2 14a2 2 0 01-2 2H9a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
 
                   {i.variant && (
@@ -306,37 +298,46 @@ export default function CartDrawer() {
 
                   <div className="mt-2 flex items-center justify-between">
                     <div className="flex items-baseline gap-2">
-                      <span className="text-base font-bold text-brand-ink">{fmt(i.price)}</span>
+                      {i.type === "gift" ? (
+                        <span className="text-base font-bold text-green-600">FREE</span>
+                      ) : (
+                        <span className="text-base font-bold text-brand-ink">{fmt(i.price)}</span>
+                      )}
                       {i.mrp && i.mrp > i.price && (
                         <span className="text-xs text-brand-muted line-through">₹{i.mrp.toLocaleString("en-IN")}.00</span>
                       )}
                     </div>
-                    <div className="inline-flex items-center border border-[#3684bf] rounded-md text-sm bg-white overflow-hidden">
-                      {i.qty <= 1 ? (
+                    {i.type === "gift" ? (
+                      // Free gifts scale with their offer line; show a static count, no controls.
+                      <span className="text-xs text-brand-muted bg-gray-100 rounded-full px-2.5 py-1">x{i.qty}</span>
+                    ) : (
+                      <div className="inline-flex items-center border border-[#3684bf] rounded-md text-sm bg-white overflow-hidden">
+                        {i.qty <= 1 ? (
+                          <button
+                            onClick={() => askRemove(i)}
+                            className="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-50"
+                            aria-label="Remove"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => updateQty(i.key, i.qty - 1)}
+                            className="w-8 h-8 hover:bg-gray-50 text-[#3684bf] font-bold"
+                          >−</button>
+                        )}
+                        <span className="w-8 text-center font-semibold text-brand-ink">{i.qty}</span>
                         <button
-                          onClick={() => askRemove(i)}
-                          className="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-50"
-                          aria-label="Remove"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                            <path d="M6 6l12 12M18 6L6 18" />
-                          </svg>
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => updateQty(i.key, i.qty - 1)}
+                          onClick={() => updateQty(i.key, i.qty + 1)}
                           className="w-8 h-8 hover:bg-gray-50 text-[#3684bf] font-bold"
-                        >−</button>
-                      )}
-                      <span className="w-8 text-center font-semibold text-brand-ink">{i.qty}</span>
-                      <button
-                        onClick={() => updateQty(i.key, i.qty + 1)}
-                        className="w-8 h-8 hover:bg-gray-50 text-[#3684bf] font-bold"
-                      >+</button>
-                    </div>
+                        >+</button>
+                      </div>
+                    )}
                   </div>
 
-                  {i.qty >= bulkRule.minQty && (
+                  {i.type !== "gift" && i.qty >= bulkRule.minQty && (
                     <div className="mt-2 bg-green-50 border border-green-100 rounded text-xs text-green-800 font-semibold px-2 py-1.5 flex items-center gap-1.5">
                       <span>🔥</span> You got {fmt(i.price * bulkRule.rate * i.qty)} saving due to bulk buying
                     </div>
@@ -385,7 +386,7 @@ export default function CartDrawer() {
                   {appliedCoupon.code} applied
                 </span>
                 <button
-                  onClick={() => { setAppliedCoupon(null); setCouponMsg(""); }}
+                  onClick={() => { removeCoupon(); setCouponMsg(""); }}
                   className="text-xs text-red-600 font-semibold hover:underline"
                 >
                   Remove

@@ -7,7 +7,7 @@ const WishlistContext = createContext(null);
 
 export function WishlistProvider({ children }) {
   const [ids, setIds] = useLocalStorage("sdi:wishlist", []);
-  const { token, clearToken } = useAuth();
+  const { token } = useAuth();
   const synced = useRef(false);
 
   // On login: merge local + server wishlist, then push back the union.
@@ -17,11 +17,11 @@ export function WishlistProvider({ children }) {
     api.syncWishlist(ids)
       .then((merged) => { if (Array.isArray(merged)) setIds(merged); })
       .catch((err) => {
-        // Stale/invalid token -> clear it silently (stay in local-only mode).
-        if (/unauthorized/i.test(err.message)) clearToken?.();
-        else console.warn("[wishlist] sync failed:", err.message);
+        // A wishlist sync failure must NOT log the user out — just stay in local-only
+        // mode. (Previously a 401 here cleared the token and broke account/checkout.)
+        console.warn("[wishlist] sync failed:", err.message);
       });
-  }, [token, ids, setIds, clearToken]);
+  }, [token, ids, setIds]);
 
   // Reset sync flag on logout so next login re-syncs.
   useEffect(() => { if (!token) synced.current = false; }, [token]);

@@ -281,7 +281,8 @@ function OfferCard({ offer, rank, anyFlagged }) {
     : "";
   const main = offer.mainProduct || {};
 
-  const cartItem = items.find((i) => i.id === main.productId);
+  // Match this offer's own main line (not a normal purchase of the same product).
+  const cartItem = items.find((i) => i.type === "offer" && i.offerId === offer.id);
   const inCart = !!cartItem;
 
   const discountPct = Math.max(0, offer.totalMrp > 0 ? Math.round(((offer.totalMrp - offer.specialPrice) / offer.totalMrp) * 100) : 0);
@@ -293,6 +294,7 @@ function OfferCard({ offer, rank, anyFlagged }) {
 
   const onAdd = () => {
     if (!main.productId || ended) return;   // expired offers can't be grabbed
+    // Main discounted line, tagged with the offer so checkout can revalidate the price.
     addToCart(
       {
         id: main.productId,
@@ -301,9 +303,28 @@ function OfferCard({ offer, rank, anyFlagged }) {
         price: offer.specialPrice,
         mrp: offer.totalMrp,
         category: "offer",
+        type: "offer",
+        offerId: offer.id,
       },
       1
     );
+    // Free gifts as ₹0 lines bound to this offer (server forces price 0 + validates).
+    (offer.freeItems || []).forEach((g) => {
+      addToCart(
+        {
+          id: g.productId || `gift::${offer.id}::${g.name}`,
+          name: g.name,
+          image: g.image,
+          price: 0,
+          mrp: g.mrp,
+          category: "gift",
+          type: "gift",
+          offerId: offer.id,
+          parentId: main.productId,
+        },
+        g.qty || 1
+      );
+    });
     openModal("cart");
   };
 

@@ -292,6 +292,15 @@ export const heroSlides = [
   { src: "https://merchant-cdn.storedum.com/new_Website_slider_344_x_1080_px_5_(1).png", productId: "n-003" },
 ];
 
+// Header branding — admin-managed via Settings → General → Logos & WhatsApp.
+// Two header logos (no text) + the storefront WhatsApp number. Empty logo URLs
+// fall back to the bundled logo asset in the header component.
+export const branding = {
+  logo1: "",
+  logo2: "",
+  whatsappNumber: "919328762586",
+};
+
 export const company = {
   name: "Smart Dental Innovations",
   shortName: "Dentinno",
@@ -354,6 +363,22 @@ export const freeGifts = {
 export const bulkRule = {
   minQty: 2,
   rate: 0.1, // 10% per line when qty >= minQty
+};
+
+// Shipping rule — must mirror dentinno/api/v1/_pricing.php (settingVal 'shippingConfig').
+// Flat rate unless the order subtotal reaches the free threshold. Admin-configurable.
+export const shippingConfig = {
+  freeThreshold: 20000,
+  flatRate: 600,
+};
+
+// Tax (GST) rule — disabled by default (prices treated as tax-inclusive). When the
+// admin enables it and sets inclusive:false, rate% is added on the discounted amount.
+// Must mirror dentinno/api/v1/_pricing.php (settingVal 'taxConfig').
+export const taxConfig = {
+  enabled: false,
+  rate: 0,        // e.g. 18 for 18% GST
+  inclusive: true,
 };
 
 // Coupon offers — applied at cart. Discount: { type: "flat"|"percent", value, max? }.

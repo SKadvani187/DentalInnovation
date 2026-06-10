@@ -18,7 +18,8 @@ function mapSavedAddress(a) {
 
 export default function CheckoutModal() {
   const { modal, closeModal, showToast, openModal } = useUI();
-  const { items, subtotal, clearCart } = useCart();
+  const { items, pricing, appliedCoupon, clearCart } = useCart();
+  const orderTotal = pricing.finalTotal;   // server-mirrored total (incl. coupon/bulk/shipping/tax)
   const { user, token } = useAuth();
   const [step, setStep] = useState(1);
   const [address, setAddress] = useState(initialAddress);
@@ -56,10 +57,16 @@ export default function CheckoutModal() {
   const addressValid = address.fullName && address.phone && address.line1 && address.city && address.state && address.pincode;
 
   const buildPayload = (paymentMethod) => ({
-    items: items.map((i) => ({ id: i.id, name: i.name, price: i.price, qty: i.qty, variant: i.variant })),
+    // The server re-prices every line authoritatively (ignoring `price` here) and
+    // recomputes discount/shipping/tax from the coupon code + settings. We only tell it
+    // WHICH coupon to try; type/offerId/parentId let it validate offer + free-gift lines.
+    items: items.map((i) => ({
+      id: i.id, name: i.name, price: i.price, qty: i.qty, variant: i.variant,
+      type: i.type || "product", offerId: i.offerId, parentId: i.parentId,
+    })),
     address,
     paymentMethod,
-    subtotal,
+    couponCode: appliedCoupon?.code || null,
   });
 
   const confirm = async () => {
@@ -223,12 +230,12 @@ export default function CheckoutModal() {
             </div>
             <div className="mt-5 p-4 bg-gray-50 rounded-lg flex items-center justify-between text-sm">
               <span className="text-brand-muted">Order Total ({items.length} items)</span>
-              <span className="font-bold text-brand-ink text-lg">{fmt(subtotal)}</span>
+              <span className="font-bold text-brand-ink text-lg">{fmt(orderTotal)}</span>
             </div>
             <div className="mt-6 flex justify-between gap-2">
               <Button variant="ghost" onClick={() => setStep(1)}>← Back</Button>
               <Button variant="primary" onClick={confirm} disabled={placing}>
-                {placing ? "Processing…" : payment === "online" ? `Pay ${fmt(subtotal)}` : "Place Order"}
+                {placing ? "Processing…" : payment === "online" ? `Pay ${fmt(orderTotal)}` : "Place Order"}
               </Button>
             </div>
           </>

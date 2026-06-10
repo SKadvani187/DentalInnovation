@@ -4,6 +4,7 @@ import { useCart } from "../../context/CartContext";
 import { useUI } from "../../context/UIContext";
 import { useSettings } from "../../context/SettingsContext";
 import { useCombos } from "../../hooks/useApiData";
+import { discountPct } from "../../lib/pricing";
 
 const fmt = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 
@@ -115,7 +116,7 @@ export default function CombosPage() {
 function ComboCard({ combo: c, bundleNote, lowStockThreshold = 10, cartItem, onOpen, onAdd, onInc, onDec, onView }) {
   const inCart = !!cartItem;
   const save = Math.max(0, (c.mrp || 0) - (c.price || 0));
-  const disc = c.discount || (c.mrp > 0 ? Math.round((save / c.mrp) * 100) : 0);
+  const disc = c.discount || discountPct(c.mrp, c.price);
   const out = c.inStock === false;
   // Low-stock urgency: stock known, in stock, and at/under the admin threshold.
   const lowStock = !out && typeof c.stock === "number" && c.stock > 0 && c.stock <= lowStockThreshold;

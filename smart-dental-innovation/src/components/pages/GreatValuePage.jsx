@@ -3,6 +3,7 @@ import { useCart } from "../../context/CartContext";
 import { useUI } from "../../context/UIContext";
 import { useSettings } from "../../context/SettingsContext";
 import { useProducts, useCombos, useCategories } from "../../hooks/useApiData";
+import { discountPct } from "../../lib/pricing";
 
 const fmt = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 
@@ -149,7 +150,7 @@ function Stat({ value, label, highlight }) {
 
 function DealCard({ product: p, onOpen, onAdd }) {
   const save = Math.max(0, (p.mrp || 0) - (p.price || 0));
-  const disc = p.discount || (p.mrp > 0 ? Math.round((save / p.mrp) * 100) : 0);
+  const disc = p.discount || discountPct(p.mrp, p.price);
   const out = p.inStock === false;
   return (
     <article className="group relative border border-gray-200 rounded-2xl bg-white overflow-hidden flex flex-col hover:shadow-md hover:border-[#ea580c]/40 transition-all">

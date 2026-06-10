@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { allProducts, findProductById } from "../../data/products";
+import { findProductById } from "../../data/products";
 import { useUI } from "../../context/UIContext";
 import { useCart } from "../../context/CartContext";
 import { useWishlist } from "../../context/WishlistContext";
@@ -8,6 +8,7 @@ import { categories } from "../../data/categories";
 import { useProducts, useCombos, useEvents, useReviews, useFaqs } from "../../hooks/useApiData";
 import api from "../../lib/api";
 import { useSettings } from "../../context/SettingsContext";
+import { discountPct } from "../../lib/pricing";
 
 const fmt = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 
@@ -22,10 +23,10 @@ export default function ProductDetailPage() {
   const { company, tierOffers, productDefaults, productContent } = useSettings();
 
   const id = view?.params?.id;
-  const product = useMemo(() => {
+  const resolvedProduct = useMemo(() => {
     const ev = events.find((e) => e.id === id);
     if (ev) {
-      const discount = Math.round(((ev.mrp - ev.price) / ev.mrp) * 100);
+      const discount = discountPct(ev.mrp, ev.price);
       const gallery = ev.images?.length ? ev.images : [ev.image];
       return {
         id: ev.id,
@@ -46,14 +47,23 @@ export default function ProductDetailPage() {
         variants: [],
       };
     }
+    // Resolve to null when the product isn't in the loaded data yet — never fall back
+    // to a different product (that caused the wrong-image flash on first open).
     return (
       apiProducts.find((p) => p.id === id) ||
       findProductById(id) ||
       combos.find((c) => c.id === id) ||
-      apiProducts[0] ||
-      allProducts[0]
+      null
     );
   }, [id, apiProducts, combos, events]);
+
+  // Safe placeholder (same id, blank media) so the hooks below never crash while the
+  // real product is still loading; the actual render is gated on `resolvedProduct`.
+  const product = resolvedProduct || {
+    id, name: "", image: "", images: [], mrp: 0, price: 0, discount: 0,
+    rating: 0, reviews: 0, category: "", warranty: "", inStock: true,
+    description: "", variants: [],
+  };
 
   // Real reviews from DB (approved only) + aggregate. No sample fallback — shows 0 until
   // a customer review is approved.
@@ -94,7 +104,7 @@ export default function ProductDetailPage() {
   const onOpenCatalogue = () => setShowDownloadModal(true);
 
   const displayQty = qty > 0 ? qty : 1;
-  const discount = product.discount || Math.round(((product.mrp - product.price) / product.mrp) * 100);
+  const discount = product.discount || discountPct(product.mrp, product.price);
   const activeTier = useMemo(() => {
     return [...tierOffers]
       .filter((t) => displayQty >= t.minQty)
@@ -103,7 +113,7 @@ export default function ProductDetailPage() {
   const effectivePrice = activeTier ? product.price * (1 - activeTier.rate) : product.price;
   const subtotal = Math.round(effectivePrice * displayQty);
   const mrpTotal = product.mrp * displayQty;
-  const off = Math.round(((mrpTotal - subtotal) / mrpTotal) * 100);
+  const off = discountPct(mrpTotal, subtotal);
   const bulkSaved = activeTier ? Math.round((product.price - effectivePrice) * displayQty) : 0;
 
   const checkPin = async () => {
@@ -143,6 +153,17 @@ export default function ProductDetailPage() {
     if (cartItem.qty <= 1) removeFromCart(cartItem.key);
     else updateQty(cartItem.key, cartItem.qty - 1);
   };
+
+  // Until the real product is found in the loaded data, show a loader instead of a
+  // placeholder/other product. (All hooks are called above this line.)
+  if (!resolvedProduct) {
+    return (
+      <div className="max-w-[1400px] mx-auto px-4 py-24 flex flex-col items-center justify-center text-brand-muted">
+        <div className="w-10 h-10 border-2 border-gray-200 border-t-[#3684bf] rounded-full animate-spin" />
+        <p className="mt-4 text-sm">Loading product…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-[1400px] mx-auto px-4 py-5">
@@ -202,7 +223,7 @@ export default function ProductDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* LEFT image gallery */}
         <div className="lg:col-span-5 lg:sticky lg:top-[110px] lg:self-start">
-          <ProductGallery product={product} wished={wished} onWish={() => toggle(product.id)} />
+          <ProductGallery key={product.id} product={product} wished={wished} onWish={() => toggle(product.id)} />
         </div>
 
         {/* CENTER details */}
