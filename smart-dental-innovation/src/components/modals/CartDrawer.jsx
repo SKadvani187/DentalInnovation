@@ -6,6 +6,7 @@ import { useCart } from "../../context/CartContext";
 import { useWishlist } from "../../context/WishlistContext";
 import { useAuth } from "../../context/AuthContext";
 import { useSettings } from "../../context/SettingsContext";
+import { tierFor } from "../../lib/pricing";
 import api from "../../lib/api";
 
 const fmt = (n) => `₹${Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -23,7 +24,7 @@ export default function CartDrawer() {
   const { items, updateQty, removeFromCart, subtotal, itemCount, pricing, appliedCoupon, applyCoupon: applyCouponCtx, removeCoupon } = useCart();
   const { user } = useAuth();
   const { toggle: toggleWish } = useWishlist();
-  const { freeGifts = {}, coupons: COUPONS = [], bulkRule = {} } = useSettings();
+  const { freeGifts = {}, coupons: COUPONS = [], bulkRule = {}, tierOffers = [] } = useSettings();
   const FREE_GIFTS = freeGifts.items || [];
   const [priceOpen, setPriceOpen] = useState(true);
   const [confirmRemove, setConfirmRemove] = useState(null);
@@ -340,11 +341,17 @@ export default function CartDrawer() {
                     )}
                   </div>
 
-                  {i.type !== "gift" && i.qty >= bulkRule.minQty && (
-                    <div className="mt-2 bg-green-50 border border-green-100 rounded text-xs text-green-800 font-semibold px-2 py-1.5 flex items-center gap-1.5">
-                      <span>🔥</span> You got {fmt(i.price * bulkRule.rate * i.qty)} saving due to bulk buying
-                    </div>
-                  )}
+                  {i.type !== "gift" && (() => {
+                    const tier = tierFor(i.qty, tierOffers, bulkRule);
+                    if (!tier || !tier.rate) return null;
+                    const saved = fmt(i.price * tier.rate * i.qty);
+                    const label = tier.label || `${Math.round(tier.rate * 100)}% quantity discount`;
+                    return (
+                      <div className="mt-2 bg-green-50 border border-green-100 rounded text-xs text-green-800 font-semibold px-2 py-1.5 flex items-center gap-1.5">
+                        <span>🔥</span> You saved {saved} — {label}
+                      </div>
+                    );
+                  })()}
                 </div>
               </li>
             ))}

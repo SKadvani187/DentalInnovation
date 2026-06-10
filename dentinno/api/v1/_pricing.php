@@ -192,6 +192,24 @@ function couponEvaluate(string $code, float $subtotal): array {
     return ['valid'=>true, 'message'=>'Coupon applied — you save ₹' . number_format($discount, 0), 'discount'=>$discount, 'coupon'=>$c];
 }
 
+// Quantity-discount rate for one line. Tiers are the primary engine: pick the highest
+// tier whose minQty <= qty. When NO tiers are configured, fall back to the legacy single
+// bulk rule (kept dormant in the DB). Mirrors tierRateFor() in src/lib/pricing.js.
+function tierRateForQty(int $qty, $tiers, $bulk): float {
+    if (is_array($tiers) && count($tiers) > 0) {
+        $best = null;
+        foreach ($tiers as $t) {
+            $mq = (int)($t['minQty'] ?? 0);
+            if ($qty >= $mq && ($best === null || $mq > (int)($best['minQty'] ?? 0))) {
+                $best = $t;
+            }
+        }
+        return $best ? (float)($best['rate'] ?? 0) : 0.0;
+    }
+    $mq = (int)($bulk['minQty'] ?? 2);
+    return $qty >= $mq ? (float)($bulk['rate'] ?? 0.1) : 0.0;
+}
+
 // Compute all order-level money from an authoritative line subtotal + the resolved
 // order lines (each ['price','qty','line_type']) + an optional coupon code.
 // Mirrors the storefront cart util (src/lib/pricing.js). Returns a breakdown incl.
@@ -199,14 +217,17 @@ function couponEvaluate(string $code, float $subtotal): array {
 function computeOrderTotals(float $subtotal, array $lines, ?string $couponCode, ?string $pincode = null): array {
     $subtotal = round($subtotal, 2);
 
-    // Bulk savings: rate% off each line with qty >= minQty (gift lines excluded).
-    $bulk   = settingVal('bulkRule', ['minQty'=>2, 'rate'=>0.1]);
-    $minQty = (int)($bulk['minQty'] ?? 2);
-    $rate   = (float)($bulk['rate'] ?? 0.1);
+    // Quantity discount: tier table first, single bulk rule as a dormant fallback.
+    // rate% off each non-gift line based on its qty. The result is still reported as
+    // `bulkSavings` so downstream consumers/columns don't change.
+    $tiers = settingVal('tierOffers', []);
+    $bulk  = settingVal('bulkRule', ['minQty'=>2, 'rate'=>0.1]);
     $bulkSavings = 0.0;
     foreach ($lines as $l) {
         if (($l['line_type'] ?? 'product') === 'gift') continue;
-        if ((int)$l['qty'] >= $minQty) $bulkSavings += (float)$l['price'] * $rate * (int)$l['qty'];
+        $qty  = (int)$l['qty'];
+        $rate = tierRateForQty($qty, $tiers, $bulk);
+        if ($rate > 0) $bulkSavings += (float)$l['price'] * $rate * $qty;
     }
     $bulkSavings = round($bulkSavings, 2);
 

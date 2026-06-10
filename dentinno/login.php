@@ -204,12 +204,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </button>
             </form>
 
-            <div class="login-hint">
+            <!-- <div class="login-hint">
                 <strong>Demo Credentials:</strong><br>
                 Email: <strong>admin@dentinno.com</strong><br>
                 Password: <strong>password</strong>
                 <br><small style="color:var(--text-muted);margin-top:6px;display:block;">⚠️ Default password is "password" — change it after setup</small>
-            </div>
+            </div> -->
         </div>
     </div>
 </div>

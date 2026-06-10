@@ -108,6 +108,11 @@ export const api = {
   // wishlist (auth)
   getWishlist: () => get("wishlist.php").then((j) => j.ids),
   syncWishlist: (ids) => post("wishlist.php", { ids }).then((j) => j.ids),
+  // cart (auth) — server-side cart for logged-in customers.
+  // mode "merge" (default) unions the guest cart with the saved one on login;
+  // "replace" overwrites the saved cart with the current items.
+  getCart: () => get("cart.php").then((j) => j.items),
+  syncCart: (items, mode = "replace") => post("cart.php", { items, mode }).then((j) => j.items),
 };
 
 // Inject Razorpay's hosted checkout.js once; resolves true when window.Razorpay is ready.

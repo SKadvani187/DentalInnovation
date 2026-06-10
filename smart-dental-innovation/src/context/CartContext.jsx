@@ -1,6 +1,7 @@
-import { createContext, useContext, useMemo, useCallback, useState, useEffect } from "react";
+import { createContext, useContext, useMemo, useCallback, useState, useEffect, useRef } from "react";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useSettings } from "./SettingsContext";
+import { useAuth } from "./AuthContext";
 import { computeCartPricing } from "../lib/pricing";
 import api from "../lib/api";
 
@@ -8,11 +9,58 @@ const CartContext = createContext(null);
 
 export function CartProvider({ children }) {
   const [items, setItems] = useLocalStorage("sdi:cart", []);
-  // Applied coupon is shared (cart + checkout) and survives reloads.
+  const { token } = useAuth();
+  // cartSynced  = the one-time login merge has STARTED (prevents duplicate merges).
+  // cartReady    = the merge has COMPLETED. The per-change "replace" sync is gated on THIS,
+  // not on cartSynced — otherwise replace fires with the still-empty local cart before the
+  // merge resolves and wipes the saved server cart (the multi-browser "empty cart" bug).
+  const cartSynced = useRef(false);
+  const cartReady = useRef(false);
+  // Applied coupon is shared (cart + checkout) and survives reloads. Declared up here so the
+  // login/logout sync effects below can reference setAppliedCoupon (avoids a TDZ ReferenceError).
   const [appliedCoupon, setAppliedCoupon] = useLocalStorage("sdi:coupon", null);
+
+  // On login: merge the guest (local) cart with the customer's saved server cart (union by
+  // line key, max qty), then adopt the merged result. Server cart now follows the account.
+  useEffect(() => {
+    if (!token || cartSynced.current) return;
+    cartSynced.current = true;
+    api.syncCart(items, "merge")
+      .then((merged) => { if (Array.isArray(merged)) setItems(merged); })
+      // A cart sync failure must never log the user out or block checkout — stay local-only.
+      .catch((err) => console.warn("[cart] sync failed:", err.message))
+      // Only now is it safe to push local changes back (merge is reconciled).
+      .finally(() => { cartReady.current = true; });
+  }, [token, items, setItems]);
+
+  // On logout, clear the local cart (and coupon) so one customer's items can't leak into
+  // the next session on a shared device. The cart stays saved on the server under the
+  // account and restores on the next login. We detect the genuine logged-in -> logged-out
+  // transition (not just "no token", which is also the initial guest state); the server
+  // cart is NOT wiped because the "replace" sync above is gated on `token` being present.
+  const prevToken = useRef(token);
+  useEffect(() => {
+    const wasLoggedIn = !!prevToken.current;
+    prevToken.current = token;
+    if (!token) {
+      cartSynced.current = false;   // next login re-merges
+      cartReady.current = false;    // and must re-complete before pushing again
+      if (wasLoggedIn) {            // genuine logout, not the initial guest page load
+        setItems([]);
+        setAppliedCoupon(null);
+      }
+    }
+  }, [token, setItems, setAppliedCoupon]);
+
+  // While logged in, persist every cart change to the server (replace = authoritative, so
+  // removals and clears propagate). Fire-and-forget; failures are non-fatal.
+  useEffect(() => {
+    if (!token || !cartReady.current) return;
+    api.syncCart(items, "replace").catch(() => {});
+  }, [items, token]);
   // Delivery pincode drives the server shipping quote (zone + weight aware). Persisted.
   const [deliveryPincode, setDeliveryPincode] = useLocalStorage("sdi:pincode", "");
-  const { bulkRule, shippingConfig, taxConfig } = useSettings();
+  const { tierOffers, bulkRule, shippingConfig, taxConfig } = useSettings();
 
   // Server-authoritative shipping quote (shipping_methods/rules/zones). null until fetched;
   // until then the cart shows the flat shippingConfig estimate from computeCartPricing.
@@ -106,6 +154,7 @@ export function CartProvider({ children }) {
   // so deliveryCharges and finalTotal stay consistent with whichever shipping we use.
   const pricing = useMemo(() => {
     const base = computeCartPricing(items, {
+      tierOffers,
       bulkRule,
       shipping: shippingConfig,
       tax: taxConfig,
@@ -115,7 +164,7 @@ export function CartProvider({ children }) {
     const deliveryCharges = items.length === 0 ? 0 : shippingQuote.shipping;
     const finalTotal = Math.max(0, Math.round((base.finalTotal - base.deliveryCharges + deliveryCharges) * 100) / 100);
     return { ...base, deliveryCharges, finalTotal };
-  }, [items, bulkRule, shippingConfig, taxConfig, appliedCoupon, shippingQuote]);
+  }, [items, tierOffers, bulkRule, shippingConfig, taxConfig, appliedCoupon, shippingQuote]);
 
   const itemCount = useMemo(() => items.reduce((c, i) => c + i.qty, 0), [items]);
   const subtotal = pricing.subtotal;

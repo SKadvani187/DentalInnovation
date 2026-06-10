@@ -14,6 +14,33 @@ export const discountPct = (mrp, price) => {
   return Math.round(((m - p) / m) * 100);
 };
 
+// Matching quantity-discount tier for one line (or null if none applies).
+// Tiers are the primary engine: pick the highest tier whose minQty <= qty.
+// When NO tiers are configured, fall back to the legacy single-step bulk rule
+// (kept dormant in the DB), synthesized into a tier-shaped object.
+// Mirrors tierRateForQty() in dentinno/api/v1/_pricing.php.
+export function tierFor(qty, tiers, bulkRule) {
+  const list = Array.isArray(tiers) ? tiers : [];
+  if (list.length) {
+    return (
+      list
+        .filter((t) => qty >= (Number(t.minQty) || 0))
+        .sort((a, b) => (Number(b.minQty) || 0) - (Number(a.minQty) || 0))[0] || null
+    );
+  }
+  // Dormant fallback: legacy single bulk rule (no label).
+  if (bulkRule && qty >= (Number(bulkRule.minQty) || 0) && (Number(bulkRule.rate) || 0) > 0) {
+    return { minQty: Number(bulkRule.minQty) || 0, rate: Number(bulkRule.rate) || 0, label: "" };
+  }
+  return null;
+}
+
+// Convenience: just the rate for a line (0 when no tier applies).
+export function tierRateFor(qty, tiers, bulkRule) {
+  const t = tierFor(qty, tiers, bulkRule);
+  return t ? (Number(t.rate) || 0) : 0;
+}
+
 // Coupon discount for a given subtotal. CAP first, THEN round (matches the server).
 // Accepts the cart's applied-coupon shape: { minSubtotal?, discount:{type,value,max?}, serverDiscount? }.
 export function couponDiscountFor(coupon, subtotal) {
@@ -33,7 +60,7 @@ export function couponDiscountFor(coupon, subtotal) {
 }
 
 // Compute the full cart price breakdown.
-// opts: { bulkRule:{minQty,rate}, shipping:{freeThreshold,flatRate}, tax:{enabled,rate,inclusive}, coupon }
+// opts: { tierOffers:[{minQty,rate}], bulkRule:{minQty,rate}, shipping:{freeThreshold,flatRate}, tax:{enabled,rate,inclusive}, coupon }
 export function computeCartPricing(items, opts = {}) {
   // Per-field fallbacks: an empty/partial config object (e.g. DB row missing) must
   // not produce NaN totals, so we default each field rather than the whole object.
@@ -54,6 +81,7 @@ export function computeCartPricing(items, opts = {}) {
     rate:      Number.isFinite(+ot.rate) ? +ot.rate : DEF_TAX.rate,
     inclusive: typeof ot.inclusive === "boolean" ? ot.inclusive : DEF_TAX.inclusive,
   };
+  const tiers = opts.tierOffers;
   const coupon = opts.coupon || null;
 
   // Free-gift lines (price 0) are excluded from MRP/"you saved" so their value
@@ -63,8 +91,13 @@ export function computeCartPricing(items, opts = {}) {
   const mrpTotal = r2(nonGift.reduce((s, i) => s + (i.mrp || i.price) * i.qty, 0));
   const subtotal = r2(items.reduce((s, i) => s + i.price * i.qty, 0));
 
+  // Quantity discount: tier table first, single bulk rule as dormant fallback.
+  // Field name kept as `bulkSavings` so existing consumers don't break.
   const bulkSavings = r2(
-    nonGift.reduce((s, i) => (i.qty >= bulkRule.minQty ? s + i.price * bulkRule.rate * i.qty : s), 0)
+    nonGift.reduce((s, i) => {
+      const rate = tierRateFor(i.qty, tiers, bulkRule);
+      return rate > 0 ? s + i.price * rate * i.qty : s;
+    }, 0)
   );
   const couponDiscount = couponDiscountFor(coupon, subtotal);
   const discount = r2(bulkSavings + couponDiscount);

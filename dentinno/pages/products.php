@@ -8,6 +8,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
 
+    // Surface the real DB error (e.g. "Unknown column …" when a migration is missing)
+    // instead of letting a PDOException corrupt the JSON response and show a generic
+    // "Save failed" in the UI. Run `php migrate.php` if you see an Unknown column error.
+    try {
+
     if ($action === 'delete') {
         db()->execute("DELETE FROM products WHERE id = ?", [$data['id']]);
         echo json_encode(['success' => true, 'message' => 'Product deleted']);
@@ -54,6 +59,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     } elseif ($action === 'delete_review') {
         db()->execute("DELETE FROM product_reviews WHERE id=?", [$data['id']]);
         echo json_encode(['success' => true]);
+    }
+
+    } catch (Throwable $e) {
+        echo json_encode(['success' => false, 'message' => 'Save failed: ' . $e->getMessage()]);
     }
     exit;
 }
@@ -107,7 +116,7 @@ if ($status !== '') { $where[] = "p.is_active = ?"; $params[] = (int)$status; }
 $whereStr = implode(' AND ', $where);
 $total = db()->fetchOne("SELECT COUNT(*) as cnt FROM products p WHERE $whereStr", $params)['cnt'];
 $pages = ceil($total/$per_page);
-$products = db()->fetchAll("SELECT p.*,c.name as category FROM products p LEFT JOIN categories c ON p.category_id=c.id WHERE $whereStr ORDER BY p.created_at DESC LIMIT $per_page OFFSET $offset", $params);
+$products = db()->fetchAll("SELECT p.*,c.name as category FROM products p LEFT JOIN categories c ON p.category_id=c.id WHERE $whereStr ORDER BY p.id DESC LIMIT $per_page OFFSET $offset", $params);
 $categories = db()->fetchAll("SELECT * FROM categories WHERE is_active=1 ORDER BY name");
 // Active shipping methods power the product "Shipping Method" dropdown (Shipping Management).
 $shipMethods = db()->fetchAll("SELECT id, name, type FROM shipping_methods WHERE is_active=1 ORDER BY sort_order, name");
@@ -378,6 +387,19 @@ function switchTab(name,btn){
 }
 function applyFilters(){window.location.href=`products.php?search=${encodeURIComponent(document.getElementById('searchInput').value)}&cat=${document.getElementById('catFilter').value}&status=${document.getElementById('statusFilter').value}`;}
 function goPage(p){window.location.href=`products.php?page=${p}`;}
+
+// Live search: search as the user types (debounced) instead of only on the Filter button.
+// Each search reloads the page so it queries the full catalog, not just the current 15 rows.
+(function(){
+  const si = document.getElementById('searchInput');
+  if (!si) return;
+  let t;
+  si.addEventListener('input', () => { clearTimeout(t); t = setTimeout(applyFilters, 400); });
+  // Enter searches immediately (skips the debounce wait).
+  si.addEventListener('keydown', (e) => { if (e.key === 'Enter') { clearTimeout(t); applyFilters(); } });
+  // After the reload, restore focus + put the caret at the end so typing continues seamlessly.
+  if (si.value) { const v = si.value; si.focus(); si.value = ''; si.value = v; }
+})();
 
 // Spec rows
 function addSpecRow(k='',v=''){

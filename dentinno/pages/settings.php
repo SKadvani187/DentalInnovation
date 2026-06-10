@@ -496,6 +496,7 @@ include __DIR__ . '/../includes/header.php';
             <div class="form-group"><label class="form-label">City</label><input type="text" class="form-control" id="co_city" value="<?= htmlspecialchars($company['city'] ?? '') ?>"></div>
             <div class="form-group"><label class="form-label">Pincode</label><input type="text" class="form-control" id="co_pincode" value="<?= htmlspecialchars($company['pincode'] ?? '') ?>"></div>
             <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Full Address</label><textarea class="form-control" id="co_address" rows="2"><?= htmlspecialchars($company['address'] ?? '') ?></textarea></div>
+            <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Map Address <small class="text-muted">(used for the Contact page map pin)</small></label><input type="text" class="form-control" id="co_addressShort" value="<?= htmlspecialchars($company['addressShort'] ?? '') ?>" placeholder="e.g. Area, City, Pincode (blank = use Full Address)"><small class="text-muted" style="font-size:.73rem;">A short, geocodable address (area + city + pincode) gives the most accurate map pin. Leave blank to use Full Address.</small></div>
             <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Business Hours</label><input type="text" class="form-control" id="co_hours" value="<?= htmlspecialchars($company['hours'] ?? '') ?>"></div>
         </div>
         <button class="btn btn-gold" onclick="saveCompany()"><i class="fa-solid fa-floppy-disk"></i> Save Company Info</button>
@@ -514,7 +515,7 @@ async function saveCompany() {
         state: <?= json_encode($company['state'] ?? '') ?>,
         pincode: document.getElementById('co_pincode').value,
         address: document.getElementById('co_address').value,
-        addressShort: <?= json_encode($company['addressShort'] ?? '') ?>,
+        addressShort: document.getElementById('co_addressShort').value,
         email: document.getElementById('co_email').value,
         emailSales: document.getElementById('co_emailSales').value,
         phone: document.getElementById('co_phone').value,
@@ -1147,11 +1148,11 @@ HTML;
 
 <!-- Pricing rules: bulk + tier + freeGifts threshold + priceBounds + productDefaults -->
 <div class="card fade-in" data-subcard="catalog" data-seckey="pricing" style="margin-top:14px;">
-  <div class="card-header"><span class="card-title"><i class="fa-solid fa-tags text-gold" style="margin-right:8px;"></i>Pricing & Offers Rules</span></div>
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-tags text-gold" style="margin-right:8px;"></i>Pricing & Offers Rules</span><small class="text-muted">Quantity discounts now come from <strong>Tier Offers</strong> below. The <em>Bulk</em> fields are only used as a fallback when no tiers are set.</small></div>
   <div class="card-body">
     <div class="grid-2" style="gap:16px;">
-      <div class="form-group"><label class="form-label">Bulk Min Qty</label><input type="number" class="form-control" id="bulk_minQty" value="<?= htmlspecialchars($site['bulkRule']['minQty'] ?? 2) ?>"></div>
-      <div class="form-group"><label class="form-label">Bulk Rate (e.g. 0.1 = 10%)</label><input type="number" step="0.01" class="form-control" id="bulk_rate" value="<?= htmlspecialchars($site['bulkRule']['rate'] ?? 0.1) ?>"></div>
+      <div class="form-group"><label class="form-label">Bulk Min Qty <small class="text-muted">(fallback)</small></label><input type="number" class="form-control" id="bulk_minQty" value="<?= htmlspecialchars($site['bulkRule']['minQty'] ?? 2) ?>"></div>
+      <div class="form-group"><label class="form-label">Bulk Rate (e.g. 0.1 = 10%) <small class="text-muted">(fallback)</small></label><input type="number" step="0.01" class="form-control" id="bulk_rate" value="<?= htmlspecialchars($site['bulkRule']['rate'] ?? 0.1) ?>"></div>
       <div class="form-group"><label class="form-label">Free Gift Threshold (₹)</label><input type="number" class="form-control" id="fg_threshold" value="<?= htmlspecialchars($site['freeGifts']['threshold'] ?? 5000) ?>"></div>
       <div class="form-group"><label class="form-label">Delivery Days</label><input type="text" class="form-control" id="pd_deliveryDays" value="<?= htmlspecialchars($site['productDefaults']['deliveryDays'] ?? '3–5 business days') ?>"></div>
       <div class="form-group"><label class="form-label">Price Min (₹)</label><input type="number" class="form-control" id="pb_min" value="<?= htmlspecialchars($site['priceBounds']['min'] ?? 10) ?>"></div>
@@ -1288,7 +1289,7 @@ function listCard($id, $title, $desc, $addLabel, $saveFn, $addFn, $seckey='') {
 </div>
 HTML;
 }
-listCard('tier', 'Tier Offers', 'Bulk discount tiers (Buy 2 / Buy 5)', 'Add Tier', 'saveTiers', 'addTierRow', 'tier');
+listCard('tier', 'Tier Offers', 'Quantity discounts applied in cart &amp; orders (e.g. Buy 2 → 5%, Buy 5 → 8%)', 'Add Tier', 'saveTiers', 'addTierRow', 'tier');
 listCard('pp', 'Price Presets', 'Shop-by-price quick filters', 'Add Preset', 'savePresets', 'addPpRow', 'presets');
 listCard('sort', 'Sort Options', 'Category / combos sort dropdown', 'Add Option', 'saveSort', 'addSortRow', 'sort');
 listCard('fbt', 'Frequently Bought Together', 'Cart cross-sell items', 'Add Item', 'saveFbt', 'addFbtRow', 'fbt');
@@ -1402,7 +1403,17 @@ async function savePricingRules(){
 
 // ---- Tier Offers ----
 let TIERS = <?= json_encode($site['tierOffers'] ?? [], JSON_UNESCAPED_SLASHES) ?> || [];
-function renderTiers(){ document.getElementById('tier_rows').innerHTML = TIERS.map((t,i)=>`
+function renderTiers(){
+  // Column header row — shown above the inputs so it's clear what each field is when
+  // adding a tier. Hidden when there are no tiers yet.
+  const header = TIERS.length ? `
+  <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);">
+    <div style="width:110px;">Min Qty</div>
+    <div style="width:150px;">Rate (0.05 = 5%)</div>
+    <div style="flex:1;">Label</div>
+    <div style="width:34px;"></div>
+  </div>` : '';
+  document.getElementById('tier_rows').innerHTML = header + TIERS.map((t,i)=>`
   <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
     <input class="form-control" type="number" placeholder="Min Qty" value="${t.minQty||''}" oninput="TIERS[${i}].minQty=parseInt(this.value)||0" style="width:110px;">
     <input class="form-control" type="number" step="0.01" placeholder="Rate (0.05=5%)" value="${t.rate||''}" oninput="TIERS[${i}].rate=parseFloat(this.value)||0" style="width:150px;">
@@ -1410,7 +1421,21 @@ function renderTiers(){ document.getElementById('tier_rows').innerHTML = TIERS.m
     <button class="btn btn-ghost btn-sm" onclick="TIERS.splice(${i},1);renderTiers()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
   </div>`).join(''); }
 function addTierRow(){ TIERS.push({minQty:2,rate:0.05,label:''}); renderTiers(); }
-function saveTiers(){ saveSetting('tierOffers', TIERS, 'Tier offers'); }
+function saveTiers(){
+  // Validate before saving: every tier needs a positive Min Qty, and Min Qty must be
+  // unique across tiers (two tiers at the same quantity are ambiguous — which rate wins?).
+  const seen = new Set();
+  for (const t of TIERS) {
+    const q = parseInt(t.minQty) || 0;
+    if (q < 1) { showToast('Each tier needs a Min Qty of 1 or more.', 'danger'); return; }
+    if (seen.has(q)) {
+      showToast('Duplicate Min Qty "' + q + '" — each tier must have a unique Min Qty.', 'danger');
+      return;
+    }
+    seen.add(q);
+  }
+  saveSetting('tierOffers', TIERS, 'Tier offers');
+}
 
 // ---- FBT items ----
 let FBT = <?= json_encode($site['fbtItems'] ?? [], JSON_UNESCAPED_SLASHES) ?> || [];
@@ -2138,39 +2163,5 @@ renderTiers(); renderFbt(); renderFg(); renderFeat(); renderSort(); renderPp(); 
 </script>
 
 </div><!-- /home group (Premium) -->
-<!-- Setup Instructions -->
-<div class="card fade-in" style="margin-top:24px;" data-cfg="account">
-    <div class="card-header">
-        <span class="card-title"><i class="fa-solid fa-circle-info text-gold" style="margin-right:8px;"></i>Setup & Configuration Guide</span>
-    </div>
-    <div class="card-body">
-        <div class="grid-2" style="gap:20px;">
-            <div>
-                <h4 style="font-size:0.9rem;font-weight:700;margin-bottom:12px;color:var(--gold-primary);">📦 Installation Steps</h4>
-                <ol style="font-size:0.83rem;color:var(--text-secondary);line-height:2;padding-left:20px;">
-                    <li>Copy <code style="background:var(--bg-elevated);padding:2px 6px;border-radius:4px;">dentinno/</code> folder to your web server (htdocs / www)</li>
-                    <li>Create MySQL database: <code style="background:var(--bg-elevated);padding:2px 6px;border-radius:4px;">dentinno_crm</code></li>
-                    <li>Import <code style="background:var(--bg-elevated);padding:2px 6px;border-radius:4px;">database.sql</code> into your database</li>
-                    <li>Edit <code style="background:var(--bg-elevated);padding:2px 6px;border-radius:4px;">includes/config.php</code> with your DB credentials</li>
-                    <li>Update <code style="background:var(--bg-elevated);padding:2px 6px;border-radius:4px;">APP_URL</code> in config.php</li>
-                    <li>Open browser → <code style="background:var(--bg-elevated);padding:2px 6px;border-radius:4px;">http://localhost/dentinno/login.php</code></li>
-                    <li>Login: <code style="background:var(--bg-elevated);padding:2px 6px;border-radius:4px;">admin@dentinno.com</code> / <code style="background:var(--bg-elevated);padding:2px 6px;border-radius:4px;">password</code></li>
-                    <li>Change default password immediately!</li>
-                </ol>
-            </div>
-            <div>
-                <h4 style="font-size:0.9rem;font-weight:700;margin-bottom:12px;color:var(--gold-primary);">⚙️ Config.php Settings</h4>
-                <pre style="background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;padding:14px;font-size:0.75rem;color:var(--text-secondary);overflow-x:auto;line-height:1.8;">define('DB_HOST', 'localhost');
-define('DB_USER', 'your_username');
-define('DB_PASS', 'your_password');
-define('DB_NAME', 'dentinno_crm');
-define('APP_URL', 'http://localhost/dentinno');</pre>
-                <div style="margin-top:12px;padding:10px;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:8px;font-size:0.78rem;color:var(--danger);">
-                    <i class="fa-solid fa-triangle-exclamation"></i> &nbsp;Default login password is <strong>"password"</strong> — change it immediately after setup!
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>
