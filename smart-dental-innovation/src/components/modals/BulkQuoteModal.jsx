@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useUI } from "../../context/UIContext";
 import { useAuth } from "../../context/AuthContext";
+import api from "../../lib/api";
+import { isValidPhone, cleanPhone } from "../../lib/phone";
 
 const BULK_THRESHOLD = 10000;
 const STORAGE_KEY = "sdi:bulkQuotes";
@@ -23,6 +25,7 @@ export default function BulkQuoteModal() {
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -56,54 +59,102 @@ export default function BulkQuoteModal() {
 
   const validate = () => {
     const e = {};
-    if (!form.name.trim()) e.name = "Required";
-    if (!/^\d{10}$/.test(form.phone.trim())) e.phone = "10-digit phone";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) e.email = "Invalid email";
-    if (!/^\d{6}$/.test(form.pincode.trim())) e.pincode = "6-digit PIN";
-    if (!form.address.trim()) e.address = "Required";
-    if (!form.quantity || Number(form.quantity) <= 0) e.quantity = "Min 1";
-    if (!form.expectedPrice || Number(form.expectedPrice) <= 0) e.expectedPrice = "Required";
+    const name = form.name.trim();
+    if (!name) e.name = "Please enter your name";
+    else if (name.length < 2) e.name = "Name is too short";
+
+    if (!form.phone.trim()) e.phone = "Please enter your phone number";
+    else if (!isValidPhone(form.phone)) e.phone = "Enter a valid 10-digit mobile number";
+
+    const email = form.email.trim();
+    if (!email) e.email = "Please enter your email";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = "Enter a valid email address";
+
+    if (!form.pincode.trim()) e.pincode = "Please enter your pincode";
+    else if (!/^[1-9]\d{5}$/.test(form.pincode.trim())) e.pincode = "Enter a valid 6-digit pincode";
+
+    if (!form.address.trim()) e.address = "Please enter your address";
+    else if (form.address.trim().length < 6) e.address = "Address is too short";
+
+    const qty = Number(form.quantity);
+    if (!form.quantity) e.quantity = "Please enter the quantity";
+    else if (!Number.isInteger(qty) || qty < 1) e.quantity = "Enter a valid quantity (min 1)";
+
+    const price = Number(form.expectedPrice);
+    if (!form.expectedPrice) e.expectedPrice = "Please enter your expected price";
+    else if (!(price > 0)) e.expectedPrice = "Enter a valid price";
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = (ev) => {
+  const handleSubmit = async (ev) => {
     ev.preventDefault();
     if (!validate()) return;
     setSubmitting(true);
+    // Server-side shape (saved to DB; admin sees it under Bulk Quotes).
     const payload = {
-      id: `bq-${Date.now()}`,
-      ts: Date.now(),
-      productId: selectedProduct?.id || null,
+      name: form.name,
+      phone: cleanPhone(form.phone),
+      email: form.email,
+      pincode: form.pincode,
+      address: form.address,
+      productSlug: selectedProduct?.id || null,
       productName: selectedProduct?.name || null,
-      ...form,
       quantity: Number(form.quantity),
       expectedPrice: Number(form.expectedPrice),
     };
     try {
-      const prev = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([payload, ...prev]));
-    } catch { /* ignore quota */ }
-
-    setTimeout(() => {
+      await api.bulkQuote(payload);
       setSubmitting(false);
-      showToast?.("Bulk quote request submitted. Our team will reach out soon.", "success");
       setForm(initialForm());
-      closeModal();
-    }, 450);
+      setSubmitted(true);   // show the success screen instead of just a toast
+    } catch (err) {
+      // Real failure — tell the user (don't silently pretend success). Keep a local copy
+      // as a backup, but surface the error so they can retry.
+      console.warn("[bulkQuote] submit failed:", err.message);
+      try {
+        const prev = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+        localStorage.setItem(STORAGE_KEY, JSON.stringify([{ id: `bq-${Date.now()}`, ts: Date.now(), ...payload }, ...prev]));
+      } catch { /* ignore quota */ }
+      setSubmitting(false);
+      showToast?.(err.message || "Could not submit. Please try again.", "error");
+    }
   };
+
+  // Closing always resets the success screen so the form is fresh next time.
+  const handleClose = () => { setSubmitted(false); closeModal(); };
 
   return createPortal(
     <div
       className="fixed inset-0 z-[1200] bg-black/50 flex items-center justify-center p-3 sm:p-4"
       role="dialog"
       aria-modal="true"
-      onClick={closeModal}
+      onClick={handleClose}
     >
       <div
-        className="w-full max-w-[760px] bg-white rounded-xl shadow-2xl overflow-hidden"
+        className={`w-full ${submitted ? "max-w-[440px]" : "max-w-[760px]"} bg-white rounded-xl shadow-2xl overflow-hidden`}
         onClick={(e) => e.stopPropagation()}
       >
+        {submitted ? (
+          <div className="px-6 py-10 text-center">
+            <div className="w-16 h-16 mx-auto rounded-full bg-green-500 flex items-center justify-center mb-5">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M5 13l4 4L19 7" /></svg>
+            </div>
+            <h3 className="text-2xl font-bold text-brand-ink mb-2">Request Submitted Successfully!</h3>
+            <p className="text-sm text-brand-muted leading-relaxed max-w-sm mx-auto">
+              Thank you for your bulk order inquiry. Our team will review your request and get
+              back to you within 24–48 hours with a customized quote.
+            </p>
+            <button
+              onClick={handleClose}
+              className="mt-6 bg-[#3684bf] hover:bg-[#1f5f96] text-white font-bold text-sm uppercase tracking-wider px-10 py-3 rounded-lg transition"
+            >
+              Got it
+            </button>
+          </div>
+        ) : (
+        <>
         <div className="flex items-start justify-between px-5 sm:px-6 pt-5 pb-3 border-b border-gray-100">
           <div>
             <h3 className="text-base sm:text-lg font-semibold text-brand-ink leading-tight">
@@ -116,7 +167,7 @@ export default function BulkQuoteModal() {
             )}
           </div>
           <button
-            onClick={closeModal}
+            onClick={handleClose}
             aria-label="Close"
             className="w-9 h-9 rounded-full hover:bg-red-50 flex items-center justify-center text-red-500 shrink-0 -mt-1"
           >
@@ -143,7 +194,7 @@ export default function BulkQuoteModal() {
               icon={<PhoneIcon />}
               placeholder="Enter your phone number"
               value={form.phone}
-              onChange={(v) => setField("phone", v.replace(/\D/g, "").slice(0, 10))}
+              onChange={(v) => setField("phone", v.replace(/[^\d+\s-()]/g, "").slice(0, 18))}
               error={errors.phone}
               inputMode="numeric"
             />
@@ -207,6 +258,8 @@ export default function BulkQuoteModal() {
             {submitting ? "Submitting..." : "Submit"}
           </button>
         </form>
+        </>
+        )}
       </div>
     </div>,
     document.body

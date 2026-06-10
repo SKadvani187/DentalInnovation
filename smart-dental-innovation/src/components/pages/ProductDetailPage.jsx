@@ -7,7 +7,7 @@ import { useUI } from "../../context/UIContext";
 import { useAppNavigate } from "../../hooks/useAppNavigate";
 import { useCart } from "../../context/CartContext";
 import { useWishlist } from "../../context/WishlistContext";
-import { useProducts, useCombos, useEvents, useCategories, useReviews, useFaqs } from "../../hooks/useApiData";
+import { useProducts, useCombos, useEvents, useCategories, useReviews, useFaqs, useQuestions } from "../../hooks/useApiData";
 import api from "../../lib/api";
 import { useSettings } from "../../context/SettingsContext";
 import { discountPct } from "../../lib/pricing";
@@ -26,7 +26,7 @@ export default function ProductDetailPage() {
   const { data: combos } = useCombos();
   const { data: events } = useEvents();
   const { data: categories } = useCategories();
-  const { company = {}, tierOffers = [], productDefaults = {}, productContent = {} } = useSettings();
+  const { company = {}, tierOffers = [], productDefaults = {} } = useSettings();
 
   const resolvedProduct = useMemo(() => {
     const ev = matchBySlug(events, id);
@@ -74,8 +74,10 @@ export default function ProductDetailPage() {
   // a customer review is approved.
   const { reviews: dbReviews, summary: reviewSummary, reload: reloadReviews } = useReviews(product.id);
   const { faqs: dbFaqs } = useFaqs(product.id);
-  // Per-product FAQs if any, else the global default set.
-  const faqList = dbFaqs.length ? dbFaqs : (productContent.faqs || []);
+  const { questions: answeredQ } = useQuestions(product.id);
+  // Answered customer questions + this product's own admin FAQs (no global fallback).
+  // Same set the Q&A page shows. The FAQ section hides when empty.
+  const faqList = [...answeredQ, ...dbFaqs];
   const reviewList = dbReviews;
   const ratingValue = reviewSummary.avg || 0;
   const reviewCount = reviewSummary.count || 0;
@@ -88,8 +90,8 @@ export default function ProductDetailPage() {
   const [pinMsg, setPinMsg] = useState("");
   const [pinInfo, setPinInfo] = useState(null);
   const [pinChecking, setPinChecking] = useState(false);
-  const [catalogueDownloaded, setCatalogueDownloaded] = useState(false);
-  const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);   // shared: Feedback link + Reviews card
+  const [reviewWrite, setReviewWrite] = useState(false); // open review modal straight into write mode
   const [reviewsOpen, setReviewsOpen] = useState(false);
   const [crumbsOpen, setCrumbsOpen] = useState(false);
   const wished = has(product.id);
@@ -105,12 +107,6 @@ export default function ProductDetailPage() {
     { id: product.category || "", title: product.category || "Products" };
   const otherCategories = cats.filter((c) => c.id !== crumbCategory.id).slice(0, 8);
 
-  const catalogueFile = `${product.name.split(" ")[0]}_${product.name.split(" ")[1] || "Catalogue"}.pdf`;
-  const onDownloadCatalogue = () => {
-    setCatalogueDownloaded(true);
-    setShowDownloadModal(true);
-  };
-  const onOpenCatalogue = () => setShowDownloadModal(true);
 
   const displayQty = qty > 0 ? qty : 1;
   const discount = product.discount || discountPct(product.mrp, product.price);
@@ -225,7 +221,7 @@ export default function ProductDetailPage() {
         </nav>
         <div className="text-sm text-brand-muted">
           Would you like to tell us about the product?{" "}
-          <a className="text-[#3684bf] font-semibold hover:underline cursor-pointer">Feedback →</a>
+          <a onClick={() => { setReviewWrite(true); setReviewOpen(true); }} className="text-[#3684bf] font-semibold hover:underline cursor-pointer">Feedback →</a>
         </div>
       </div>
 
@@ -342,22 +338,16 @@ export default function ProductDetailPage() {
               <p className="text-sm text-brand-muted leading-relaxed">{product.description}</p>
             )}
 
-            {catalogueDownloaded ? (
-              <button
-                onClick={onOpenCatalogue}
+            {product.catalogueUrl && (
+              <a
+                href={product.catalogueUrl}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="mt-3 inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-semibold text-sm transition"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M14 3h7v7M10 14L21 3M21 14v5a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h5" /></svg>
                 Open Catalogue
-              </button>
-            ) : (
-              <button
-                onClick={onDownloadCatalogue}
-                className="mt-3 inline-flex items-center gap-2 border border-[#3684bf] text-[#3684bf] px-3 py-1.5 rounded font-semibold text-sm hover:bg-blue-50"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z" /></svg>
-                Catalogue
-              </button>
+              </a>
             )}
           </div>
 
@@ -436,9 +426,9 @@ export default function ProductDetailPage() {
 
           <AvailableVariants product={product} />
 
-          <ProductHighlights highlights={product.highlights?.length ? product.highlights : productContent.highlights} />
+          <ProductHighlights highlights={product.highlights} />
 
-          <ProductAccordions product={product} fallback={productContent.accordions} />
+          <ProductAccordions product={product} fallback={[]} />
 
           <FaqsSection faqs={faqList} productId={product.id} productName={product.name} />
         </div>
@@ -504,7 +494,7 @@ export default function ProductDetailPage() {
               <button
                 onClick={() => {
                   const msg = encodeURIComponent(`Hi, I'm interested in ${product.name} (₹${product.price}). Is it available?`);
-                  const wa = (company.phoneSales || company.phone || "919328762586").replace(/\D/g, "");
+                  const wa = (company.phoneSales || company.phone || "").replace(/\D/g, "");
                   window.open(`https://wa.me/${wa}?text=${msg}`, "_blank");
                 }}
                 className="relative flex items-center justify-center bg-white border border-gray-200 rounded-lg h-[45px] w-full hover:border-green-500 transition cursor-pointer"
@@ -566,6 +556,9 @@ export default function ProductDetailPage() {
             count={reviewCount}
             reviews={reviewList}
             onSubmitted={reloadReviews}
+            open={reviewOpen}
+            setOpen={(v) => { setReviewOpen(v); if (!v) setReviewWrite(false); }}
+            autoWrite={reviewWrite}
           />
         </div>
       </div>
@@ -573,50 +566,7 @@ export default function ProductDetailPage() {
       <RelatedProducts product={product} />
 
 
-      {showDownloadModal && (
-        <DownloadModal filename={catalogueFile} onClose={() => setShowDownloadModal(false)} />
-      )}
     </div>
-  );
-}
-
-function DownloadModal({ filename, onClose }) {
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[1200] bg-black/50 flex items-center justify-center p-4"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-    >
-      <div
-        className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6 text-center"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="text-lg font-bold text-brand-ink text-left mb-4">Download Complete</h3>
-        <div className="mx-auto w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-3">
-          <svg width="34" height="34" viewBox="0 0 24 24" fill="#16a34a">
-            <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-          </svg>
-        </div>
-        <p className="text-sm text-brand-ink mb-5">{filename} is ready!</p>
-        <div className="flex items-center justify-center gap-3">
-          <button
-            onClick={onClose}
-            className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-2 rounded transition"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M14 3h7v7M10 14L21 3M21 14v5a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h5" /></svg>
-            Open File
-          </button>
-          <button
-            onClick={onClose}
-            className="border border-gray-300 hover:border-gray-400 text-brand-ink font-semibold px-5 py-2 rounded transition"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
   );
 }
 
@@ -789,9 +739,9 @@ function AvailableVariants({ product }) {
   const { openModal } = useUI();
   const navigate = useAppNavigate();
   const { productDefaults = {} } = useSettings();
-  const [tab, setTab] = useState("All");
   const { data: allProducts } = useProducts();
 
+  // Same-category products (excluding this one) as related cross-sell suggestions.
   const variantList = useMemo(() => {
     return allProducts
       .filter((p) => p.id !== product.id && p.category === product.category)
@@ -802,18 +752,7 @@ function AvailableVariants({ product }) {
 
   return (
     <div className="border border-gray-200 rounded-xl p-5">
-      <h3 className="font-bold text-brand-ink mb-3">Available Variants</h3>
-      <div className="flex items-center gap-2 mb-4">
-        {["All", "Others"].map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`text-xs font-bold px-3 py-1.5 rounded-full transition ${tab === t ? "bg-[#3684bf] text-white" : "text-brand-ink hover:bg-gray-100"}`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
+      <h3 className="font-bold text-brand-ink mb-4">Related Products</h3>
 
       <div className="space-y-3">
         {variantList.map((v) => (
@@ -907,9 +846,12 @@ function ProductAccordions({ product, fallback = [] }) {
     { id: "packing", title: "Packaging Info", body: product.packingInfo },
     { id: "additional", title: "Additional Information", body: product.additionalInfo },
     { id: "warranty", title: "Warranty", body: product.warrantyInfo },
+    { id: "keyfeatures", title: "Key Features", body: product.keyFeatures },
+    { id: "warrantyno", title: "Warranty No", body: product.warrantyNo },
+    { id: "directionuse", title: "Direction of Use", body: product.directionOfUse },
   ].filter((s) => (s.specs ? s.specs.length > 0 : !!(s.body && String(s.body).trim())));
 
-  // No per-product content -> use the admin global accordions.
+  // Only this product's own content (fallback is empty now — no global default accordions).
   const list = sections.length
     ? sections
     : (fallback || []).map((s) => ({
@@ -957,9 +899,7 @@ function ProductAccordions({ product, fallback = [] }) {
 
 function FaqsSection({ faqs, productId, productName }) {
   const navigate = useAppNavigate();
-  const [showAll, setShowAll] = useState(false);
-  if (!faqs.length) return null;
-  const visible = showAll ? faqs : faqs.slice(0, 2);
+  const visible = faqs.slice(0, 2);   // preview; "View all" opens the full Q&A page
 
   return (
     <div className="border border-gray-200 rounded-xl p-5">
@@ -972,6 +912,11 @@ function FaqsSection({ faqs, productId, productName }) {
           Get Instant Answer
         </button>
       </div>
+      {faqs.length === 0 ? (
+        <p className="text-sm text-brand-muted py-2">
+          No questions yet. Have a doubt? Tap <span className="font-semibold text-orange-500">Get Instant Answer</span> to ask.
+        </p>
+      ) : (
       <div className="space-y-5">
         {visible.map((f) => (
           <div key={f.id}>
@@ -985,12 +930,13 @@ function FaqsSection({ faqs, productId, productName }) {
           </div>
         ))}
       </div>
+      )}
       {faqs.length > 2 && (
         <button
-          onClick={() => setShowAll((v) => !v)}
+          onClick={() => navigate("qna", { id: productId, name: productName })}
           className="mt-4 w-full text-orange-500 font-bold text-sm flex items-center justify-center gap-1 hover:underline"
         >
-          {showAll ? "Show less" : `View all ${faqs.length} questions →`}
+          View all {faqs.length} questions →
         </button>
       )}
     </div>
@@ -1207,8 +1153,9 @@ function PaymentOptionsModal({ items, initialId, onClose }) {
 }
 
 function SmartBenefitsCard() {
-  const { productBenefits = [] } = useSettings();
+  const { productBenefits = [], company = {} } = useSettings();
   const navigate = useAppNavigate();
+  const brand = company.name || "";
   const icons = {
     shield: <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" />,
     x: <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />,
@@ -1219,7 +1166,7 @@ function SmartBenefitsCard() {
   return (
     <div className="border border-gray-200 rounded-xl p-5">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-bold text-brand-ink">Smart Dental Innovation Benefits</h3>
+        <h3 className="font-bold text-brand-ink">{brand} Benefits</h3>
         <button
           onClick={() => navigate("about")}
           className="inline-flex items-center gap-1.5 bg-transparent border-none text-[#f97316] font-semibold cursor-pointer normal-case whitespace-nowrap hover:opacity-80"
@@ -1244,8 +1191,11 @@ function SmartBenefitsCard() {
   );
 }
 
-function RatingsReviewsCard({ product, rating = 0, count = 0, reviews = [], onSubmitted }) {
-  const [open, setOpen] = useState(false);
+function RatingsReviewsCard({ product, rating = 0, count = 0, reviews = [], onSubmitted, open: openProp, setOpen: setOpenProp, autoWrite = false }) {
+  const [openLocal, setOpenLocal] = useState(false);
+  // Controlled when the parent passes open/setOpen (e.g. the "Feedback" link), else local.
+  const open = openProp !== undefined ? openProp : openLocal;
+  const setOpen = setOpenProp || setOpenLocal;
   return (
     <div className="border border-gray-200 rounded-xl p-5">
       <h3 className="font-bold text-brand-ink mb-3">Ratings & Reviews</h3>
@@ -1269,6 +1219,7 @@ function RatingsReviewsCard({ product, rating = 0, count = 0, reviews = [], onSu
           count={count}
           reviews={reviews}
           onSubmitted={onSubmitted}
+          autoWrite={autoWrite}
           onClose={() => setOpen(false)}
         />
       )}
@@ -1276,9 +1227,11 @@ function RatingsReviewsCard({ product, rating = 0, count = 0, reviews = [], onSu
   );
 }
 
-function ReviewsModal({ product, rating = 0, count = 0, reviews = [], onSubmitted, onClose }) {
+function ReviewsModal({ product, rating = 0, count = 0, reviews = [], onSubmitted, onClose, autoWrite = false }) {
   const { showToast } = useUI();
-  const [writing, setWriting] = useState(false);
+  const { company = {} } = useSettings();
+  const brand = company.name || "";
+  const [writing, setWriting] = useState(autoWrite);   // Feedback link opens straight into the form
   const totalReviews = count || reviews.length;
   const distribution = useMemo(() => {
     const counts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
@@ -1376,7 +1329,7 @@ function ReviewsModal({ product, rating = 0, count = 0, reviews = [], onSubmitte
                     <span className="text-amber-400 text-sm">{"★".repeat(r.stars)}{"☆".repeat(5 - r.stars)}</span>
                     <span className="text-xs text-brand-muted">{r.date}</span>
                   </div>
-                  <p className="font-bold text-brand-ink mt-2">{r.title || "Happy with Smartdental Innovations"}</p>
+                  <p className="font-bold text-brand-ink mt-2">{r.title || `Happy with ${brand}`}</p>
                   <p className="text-sm text-brand-ink mt-1">{r.text}</p>
                   <div className="flex items-center gap-3 mt-3 text-xs text-brand-muted">
                     <span>Was this helpful?</span>
@@ -1505,17 +1458,38 @@ function RelatedProducts({ product }) {
   };
 
   const list = useMemo(() => {
-    return allProducts.filter((p) => p.id !== product.id).slice(0, 8);
+    const others = allProducts.filter((p) => p.id !== product.id);
+    // Prefer same-category products; if there aren't enough, top up with the rest.
+    const sameCat = others.filter((p) => p.category === product.category);
+    const merged = sameCat.length >= 8 ? sameCat : [...sameCat, ...others.filter((p) => p.category !== product.category)];
+    return merged.slice(0, 8);
   }, [product, allProducts]);
 
   const scroll = (dir) => {
+    paused.current = true;                       // manual nudge pauses auto-scroll briefly
     scroller.current?.scrollBy({ left: dir * 320, behavior: "smooth" });
+    setTimeout(() => { paused.current = false; }, 1500);
   };
+
+  // Auto-scroll the carousel. Pauses on hover; loops back to start at the end.
+  const paused = useRef(false);
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el || list.length <= 1) return;
+    const id = setInterval(() => {
+      if (paused.current) return;
+      const maxLeft = el.scrollWidth - el.clientWidth;
+      if (maxLeft <= 0) return;
+      if (el.scrollLeft >= maxLeft - 2) el.scrollTo({ left: 0, behavior: "smooth" });
+      else el.scrollBy({ left: 1, behavior: "auto" });
+    }, 30);
+    return () => clearInterval(id);
+  }, [list.length]);
 
   return (
     <section className="mt-10 pt-10 border-t border-gray-200">
       <h2 className="text-2xl font-bold text-brand-ink mb-5">
-        <span className="text-brand-ink">Related</span> <span className="text-[#3684bf]">Products</span>
+        <span className="text-brand-ink">You May Also</span> <span className="text-[#3684bf]">Like</span>
       </h2>
 
       <div className="relative">
@@ -1526,7 +1500,12 @@ function RelatedProducts({ product }) {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M14 6 8 12l6 6 1.41-1.41L10.83 12l4.58-4.59z" /></svg>
         </button>
 
-        <div ref={scroller} className="flex gap-4 overflow-x-auto no-scrollbar pb-3">
+        <div
+          ref={scroller}
+          onMouseEnter={() => { paused.current = true; }}
+          onMouseLeave={() => { paused.current = false; }}
+          className="flex gap-4 overflow-x-auto no-scrollbar pb-3"
+        >
           {list.map((p) => (
             <article key={p.id} className="shrink-0 w-[260px] border border-gray-200 rounded-xl bg-white overflow-hidden flex flex-col">
               <div className="relative aspect-square bg-gray-50">

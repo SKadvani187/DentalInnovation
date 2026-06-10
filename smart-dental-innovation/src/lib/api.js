@@ -58,11 +58,17 @@ export const api = {
   testimonials: () => get("testimonials.php").then((j) => j.testimonials),
   // Live shipping quote (server computes via DB shipping engine). { items:[{slug,qty}], pincode? }
   shippingQuote: (payload) => post("shipping_quote.php", payload), // -> { shipping, free, weight, methods }
+  // Frequently Bought Together for the cart. { slugs:[...] } -> { items:[product] }
+  fbt: (slugs) => post("fbt.php", { slugs }).then((j) => j.items),
+  // Per-product free gifts for the cart. { slugs:[...] } -> { items:[{...,price:0,parentSlug}] }
+  gifts: (slugs) => post("gifts.php", { slugs }).then((j) => j.items),
   // per-product FAQs (active)
   faqs: (slug) => get("faqs.php", { product: slug }).then((j) => j.faqs),
   // per-product customer Q&A (answered + approved) + submit
   questions: (slug) => get("questions.php", { product: slug }).then((j) => j.questions),
   submitQuestion: (payload) => post("questions.php", payload), // { product, question, name?, email? }
+  // Helpful vote on an answered question. { id, dir:"up"|"down", undo? } -> { up, down }
+  voteQuestion: (payload) => post("questions.php", { action: "vote", ...payload }),
   // product reviews (real DB; approved only) + aggregate summary
   reviews: (slug) => get("reviews.php", { product: slug }), // { reviews, summary }
   submitReview: (payload) => post("reviews.php", payload),  // { product, name, email?, rating, title?, review }
@@ -74,6 +80,8 @@ export const api = {
   checkDelivery: (pincode) => get("delivery.php", { pincode }), // { serviceable, days, cod, label, eta }
   // contact form submit
   contact: (payload) => post("contact.php", payload),
+  // Bulk quote request (product page form). { name, phone, email, pincode, address, productSlug, productName, quantity, expectedPrice }
+  bulkQuote: (payload) => post("bulk_quote.php", payload),
   // AI image search (Claude Vision) — endpoint lives at /api/image_search.php (above /v1)
   imageSearch: async (dataUrl) => {
     const res = await fetch(`${ROOT}/image_search.php`, {

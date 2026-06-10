@@ -37,7 +37,7 @@ export default function CheckoutDrawer() {
   const { modal, closeModal, showToast, openModal } = useUI();
   const { items, pricing, appliedCoupon, applyCoupon, removeCoupon, clearCart, setDeliveryPincode } = useCart();
   const { user, token, addAddress, updateAddress, setDefaultAddress } = useAuth();
-  const { branding = {}, coupons: COUPONS = [] } = useSettings();
+  const { branding = {}, coupons: COUPONS = [], company = {} } = useSettings();
   const navigate = useAppNavigate();
   const logoSrc = branding.logo1 || branding.logo2 || logoAsset;
 
@@ -188,7 +188,7 @@ export default function CheckoutDrawer() {
         order_id: rzp.rzpOrderId,
         amount: rzp.amount,
         currency: rzp.currency,
-        name: "Smart Dental Innovations",
+        name: company.name || "",
         description: `Order ${order.orderId}`,
         prefill: rzp.prefill,
         theme: { color: "#0b2545" },

@@ -104,6 +104,30 @@ foreach ($items as $it) {
                        'qty'=>$qty,'price'=>(float)$orow['special_price'],'line_type'=>'offer','offer_id'=>(int)$orow['id']];
         $stockNeed[$pid] = ($stockNeed[$pid] ?? 0) + $qty;
     }
+    elseif ($type === 'gift' && !empty($it['autoGift'])) {
+        // Per-product free gift (product_gifts). Verified server-side: the gift product must
+        // exist + be active, AND its parent product must be in this cart AND actually grant
+        // it (anti-tamper). Price is forced to 0 — never trusted from the client.
+        $gprod = $db->fetchOne("SELECT id, slug, name, stock, is_active FROM products WHERE slug=?", [$slug]);
+        if (!$gprod || !$gprod['is_active']) jsonErr('A free gift in your cart is unavailable', 409);
+        $parentSlug = (string)($it['parentSlug'] ?? '');
+        $valid = $db->fetchOne(
+            "SELECT 1 FROM product_gifts pg
+             JOIN products pp ON pp.id=pg.product_id
+             JOIN products gp ON gp.id=pg.gift_product_id
+             WHERE pp.slug=? AND gp.slug=?",
+            [$parentSlug, $slug]
+        );
+        if (!$valid) jsonErr('An invalid free gift was found in your cart', 409);
+        // Ensure the parent is genuinely in the cart (else the gift shouldn't exist).
+        $parentInCart = false;
+        foreach ($items as $chk) { if (($chk['type'] ?? 'product') === 'product' && (string)($chk['id'] ?? '') === $parentSlug) { $parentInCart = true; break; } }
+        if (!$parentInCart) jsonErr('A free gift has no qualifying product in the cart', 409);
+        $gpid = (int)$gprod['id'];
+        $resolved[] = ['product_id'=>$gpid,'slug'=>$gprod['slug'],'name'=>$gprod['name'],'variant'=>null,
+                       'qty'=>$qty,'price'=>0.0,'line_type'=>'gift','offer_id'=>null];
+        $stockNeed[$gpid] = ($stockNeed[$gpid] ?? 0) + $qty;
+    }
     elseif ($type === 'gift') {
         $oslug = (string)($it['offerId'] ?? '');
         if (!isset($offerLines[$oslug])) jsonErr('A free gift in your cart has no matching offer', 409);

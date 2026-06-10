@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useUI } from "../../context/UIContext";
+import { useSettings } from "../../context/SettingsContext";
 import { useAppNavigate } from "../../hooks/useAppNavigate";
 import api, { loadRazorpayScript } from "../../lib/api";
 
@@ -15,6 +16,7 @@ export default function OrderDetailPage() {
   const { id } = useParams();
   const { token } = useAuth();
   const { showToast } = useUI();
+  const { company = {} } = useSettings();
   const navigate = useAppNavigate();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -90,7 +92,7 @@ export default function OrderDetailPage() {
       await loadRazorpayScript();
       const rz = new window.Razorpay({
         key: rzp.keyId, order_id: rzp.rzpOrderId, amount: rzp.amount, currency: rzp.currency,
-        name: "Smart Dental Innovations", description: `Order ${order.orderId}`,
+        name: company.name || "", description: `Order ${order.orderId}`,
         prefill: rzp.prefill, theme: { color: "#0b2545" },
         handler: async (resp) => {
           try {

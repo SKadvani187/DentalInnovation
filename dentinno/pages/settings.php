@@ -1120,8 +1120,6 @@ HTML;
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="tier" onclick="showSubSec('catalog','tier')">📦 Tiers</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="presets" onclick="showSubSec('catalog','presets')">₹ Presets</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="sort" onclick="showSubSec('catalog','sort')">↕️ Sort</button>
-    <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="fbt" onclick="showSubSec('catalog','fbt')">🛒 FBT</button>
-    <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="gifts" onclick="showSubSec('catalog','gifts')">🎁 Gifts</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="featured" onclick="showSubSec('catalog','featured')">🌟 Featured</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="content" onclick="showSubSec('catalog','content')">❓ Product Content</button>
   </div>
@@ -1146,17 +1144,12 @@ HTML;
   </div>
 </div>
 
-<!-- Pricing rules: bulk + tier + freeGifts threshold + priceBounds + productDefaults -->
+<!-- Pricing rules: bulk + tier + priceBounds + productDefaults -->
 <div class="card fade-in" data-subcard="catalog" data-seckey="pricing" style="margin-top:14px;">
-  <div class="card-header"><span class="card-title"><i class="fa-solid fa-tags text-gold" style="margin-right:8px;"></i>Pricing & Offers Rules</span><small class="text-muted">Quantity discounts now come from <strong>Tier Offers</strong> below. The <em>Bulk</em> fields are only used as a fallback when no tiers are set.</small></div>
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-tags text-gold" style="margin-right:8px;"></i>Pricing & Offers Rules</span><small class="text-muted">Quantity discounts come from <strong>Tier Offers</strong>. The price-filter range auto-adjusts to your live products.</small></div>
   <div class="card-body">
     <div class="grid-2" style="gap:16px;">
-      <div class="form-group"><label class="form-label">Bulk Min Qty <small class="text-muted">(fallback)</small></label><input type="number" class="form-control" id="bulk_minQty" value="<?= htmlspecialchars($site['bulkRule']['minQty'] ?? 2) ?>"></div>
-      <div class="form-group"><label class="form-label">Bulk Rate (e.g. 0.1 = 10%) <small class="text-muted">(fallback)</small></label><input type="number" step="0.01" class="form-control" id="bulk_rate" value="<?= htmlspecialchars($site['bulkRule']['rate'] ?? 0.1) ?>"></div>
-      <div class="form-group"><label class="form-label">Free Gift Threshold (₹)</label><input type="number" class="form-control" id="fg_threshold" value="<?= htmlspecialchars($site['freeGifts']['threshold'] ?? 5000) ?>"></div>
       <div class="form-group"><label class="form-label">Delivery Days</label><input type="text" class="form-control" id="pd_deliveryDays" value="<?= htmlspecialchars($site['productDefaults']['deliveryDays'] ?? '3–5 business days') ?>"></div>
-      <div class="form-group"><label class="form-label">Price Min (₹)</label><input type="number" class="form-control" id="pb_min" value="<?= htmlspecialchars($site['priceBounds']['min'] ?? 10) ?>"></div>
-      <div class="form-group"><label class="form-label">Price Max (₹)</label><input type="number" class="form-control" id="pb_max" value="<?= htmlspecialchars($site['priceBounds']['max'] ?? 500000) ?>"></div>
       <div class="form-group"><label class="form-label">Great Value min discount (%)</label><input type="number" class="form-control" id="gvp_threshold" value="<?= htmlspecialchars($site['gvpThreshold'] ?? 10) ?>"><small class="text-muted" style="font-size:.7rem;">Products with this % off or more show under "Great Value Products"</small></div>
       <div class="form-group" style="grid-column:1/-1;"><label class="form-label">Product page: replacement note</label><input type="text" class="form-control" id="pd_replacement" value="<?= htmlspecialchars($site['productDefaults']['replacementText'] ?? 'Easy 7 days replacement available') ?>"><small class="text-muted" style="font-size:.7rem;">Shown after a valid pincode check on the product page</small></div>
       <div class="form-group"><label class="form-label">Variant: delivery note</label><input type="text" class="form-control" id="pd_varDelivery" value="<?= htmlspecialchars($site['productDefaults']['variantDeliveryNote'] ?? '📦 Get it by 3–5 days') ?>"></div>
@@ -1164,10 +1157,9 @@ HTML;
     </div>
 
     <div style="border-top:1px solid var(--border-color);margin-top:8px;padding-top:12px;">
-      <div class="font-bold" style="margin-bottom:8px;color:var(--gold-primary);"><i class="fa-solid fa-truck"></i> Shipping &amp; Tax</div>
+      <div class="font-bold" style="margin-bottom:8px;color:var(--gold-primary);"><i class="fa-solid fa-receipt"></i> Tax</div>
+      <div class="text-muted" style="font-size:.72rem;margin-bottom:10px;">Shipping rates &amp; free-shipping rules are managed in <strong>Shipping Management</strong> (methods, zones, weight/price rules).</div>
       <div class="grid-2" style="gap:16px;">
-        <div class="form-group"><label class="form-label">Flat Shipping Rate (₹)</label><input type="number" min="0" class="form-control" id="ship_flat" value="<?= htmlspecialchars($site['shippingConfig']['flatRate'] ?? 600) ?>"></div>
-        <div class="form-group"><label class="form-label">Free Shipping Above (₹)</label><input type="number" min="0" class="form-control" id="ship_free" value="<?= htmlspecialchars($site['shippingConfig']['freeThreshold'] ?? 20000) ?>"><small class="text-muted" style="font-size:.7rem;">Orders at/above this = free shipping</small></div>
         <div class="form-group"><label class="form-label">Tax</label>
           <select class="form-control" id="tax_enabled">
             <option value="0" <?= empty($site['taxConfig']['enabled']) ? 'selected' : '' ?>>Disabled (prices tax-inclusive)</option>
@@ -1292,8 +1284,6 @@ HTML;
 listCard('tier', 'Tier Offers', 'Quantity discounts applied in cart &amp; orders (e.g. Buy 2 → 5%, Buy 5 → 8%)', 'Add Tier', 'saveTiers', 'addTierRow', 'tier');
 listCard('pp', 'Price Presets', 'Shop-by-price quick filters', 'Add Preset', 'savePresets', 'addPpRow', 'presets');
 listCard('sort', 'Sort Options', 'Category / combos sort dropdown', 'Add Option', 'saveSort', 'addSortRow', 'sort');
-listCard('fbt', 'Frequently Bought Together', 'Cart cross-sell items', 'Add Item', 'saveFbt', 'addFbtRow', 'fbt');
-listCard('fg', 'Free Gift Items', 'Gifts unlocked above threshold', 'Add Gift', 'saveFreeGifts', 'addFgRow', 'gifts');
 listCard('feat', 'Featured Showcase Cards', 'Home featured product banners', 'Add Card', 'saveFeatured', 'addFeatRow', 'featured');
 ?>
 
@@ -1311,8 +1301,6 @@ listCard('feat', 'Featured Showcase Cards', 'Home featured product banners', 'Ad
     <div id="pc_faqs"></div>
     <button class="btn btn-ghost btn-sm" onclick="addFaq()"><i class="fa-solid fa-plus"></i> Add FAQ</button>
     <div style="margin-top:12px;"><button class="btn btn-gold" onclick="saveProductContent()"><i class="fa-solid fa-floppy-disk"></i> Save Product Content</button></div>
-    <input type="file" id="fbtFileInput" accept="image/*" style="display:none">
-    <input type="file" id="fgFileInput" accept="image/*" style="display:none">
     <input type="file" id="featFileInput" accept="image/*" style="display:none">
   </div>
 </div>
@@ -1380,20 +1368,15 @@ function saveBenefits(){ saveSetting('productBenefits', BENEFITS, 'Benefits'); }
 
 // ---- Pricing rules ----
 async function savePricingRules(){
-    const fg = <?= json_encode($site['freeGifts'] ?? ['items'=>[]], JSON_UNESCAPED_SLASHES) ?>;
-    fg.threshold = parseInt(document.getElementById('fg_threshold').value)||5000;
     const pd = <?= json_encode($site['productDefaults'] ?? [], JSON_UNESCAPED_SLASHES) ?>;
     pd.deliveryDays = document.getElementById('pd_deliveryDays').value;
     pd.replacementText = document.getElementById('pd_replacement').value;
     pd.variantDeliveryNote = document.getElementById('pd_varDelivery').value;
     pd.variantCodNote = document.getElementById('pd_varCod').value;
-    // Save every key silently, then show ONE toast for the whole card.
+    // Save every key silently, then show ONE toast for the whole card. (bulkRule keeps its
+    // existing DB value as a dormant fallback; priceBounds is auto-derived from products.)
     const results = await Promise.all([
-        saveSetting('bulkRule', { minQty: parseInt(document.getElementById('bulk_minQty').value)||2, rate: parseFloat(document.getElementById('bulk_rate').value)||0.1 }, null, true),
-        saveSetting('freeGifts', fg, null, true),
-        saveSetting('priceBounds', { min: parseInt(document.getElementById('pb_min').value)||10, max: parseInt(document.getElementById('pb_max').value)||500000 }, null, true),
         saveSetting('productDefaults', pd, null, true),
-        saveSetting('shippingConfig', { flatRate: parseFloat(document.getElementById('ship_flat').value)||0, freeThreshold: parseFloat(document.getElementById('ship_free').value)||0 }, null, true),
         saveSetting('taxConfig', { enabled: document.getElementById('tax_enabled').value === '1', rate: parseFloat(document.getElementById('tax_rate').value)||0, inclusive: document.getElementById('tax_enabled').value !== '1' }, null, true),
         saveSetting('gvpThreshold', parseInt(document.getElementById('gvp_threshold').value)||10, null, true),
     ]);
@@ -1437,37 +1420,7 @@ function saveTiers(){
   saveSetting('tierOffers', TIERS, 'Tier offers');
 }
 
-// ---- FBT items ----
-let FBT = <?= json_encode($site['fbtItems'] ?? [], JSON_UNESCAPED_SLASHES) ?> || [];
-function renderFbt(){ document.getElementById('fbt_rows').innerHTML = FBT.map((f,i)=>`
-  <div style="border:1px solid var(--border-color);border-radius:8px;padding:8px;margin-bottom:8px;display:flex;gap:8px;align-items:center;">
-    <div onclick="uploadFbt(${i})" style="width:56px;height:56px;border:2px dashed var(--border-active);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">
-      ${f.image?`<img src="${(f.image||'').replace(/"/g,'&quot;')}" style="width:100%;height:100%;object-fit:contain;">`:`<i class="fa-solid fa-upload text-gold"></i>`}
-    </div>
-    <input class="form-control" placeholder="Name" value="${(f.name||'').replace(/"/g,'&quot;')}" oninput="FBT[${i}].name=this.value" style="flex:2;">
-    <input class="form-control" type="number" placeholder="MRP" value="${f.mrp||''}" oninput="FBT[${i}].mrp=parseFloat(this.value)||0" style="width:90px;">
-    <input class="form-control" type="number" placeholder="Price" value="${f.price||''}" oninput="FBT[${i}].price=parseFloat(this.value)||0" style="width:90px;">
-    <button class="btn btn-ghost btn-sm" onclick="FBT.splice(${i},1);renderFbt()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
-  </div>`).join(''); }
-function addFbtRow(){ FBT.push({id:'fbt-'+Date.now(),name:'',mrp:0,price:0,warranty:'',discount:0,image:''}); renderFbt(); }
-function uploadFbt(i){ genericUpload((url)=>{ FBT[i].image=url; renderFbt(); })('fbtFileInput'); }
-function saveFbt(){ saveSetting('fbtItems', FBT, 'Frequently bought'); }
 
-// ---- Free Gifts ----
-let FG = <?= json_encode($site['freeGifts'] ?? ['threshold'=>5000,'items'=>[]], JSON_UNESCAPED_SLASHES) ?>;
-if(!FG.items) FG.items = [];
-function renderFg(){ document.getElementById('fg_rows').innerHTML = FG.items.map((g,i)=>`
-  <div style="border:1px solid var(--border-color);border-radius:8px;padding:8px;margin-bottom:8px;display:flex;gap:8px;align-items:center;">
-    <div onclick="uploadFg(${i})" style="width:56px;height:56px;border:2px dashed var(--border-active);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">
-      ${g.image?`<img src="${(g.image||'').replace(/"/g,'&quot;')}" style="width:100%;height:100%;object-fit:contain;">`:`<i class="fa-solid fa-upload text-gold"></i>`}
-    </div>
-    <input class="form-control" placeholder="Gift name" value="${(g.name||'').replace(/"/g,'&quot;')}" oninput="FG.items[${i}].name=this.value" style="flex:2;">
-    <input class="form-control" type="number" placeholder="MRP" value="${g.mrp||''}" oninput="FG.items[${i}].mrp=parseFloat(this.value)||0" style="width:100px;">
-    <button class="btn btn-ghost btn-sm" onclick="FG.items.splice(${i},1);renderFg()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
-  </div>`).join(''); }
-function addFgRow(){ FG.items.push({id:'g-'+Date.now(),name:'',mrp:0,image:''}); renderFg(); }
-function uploadFg(i){ genericUpload((url)=>{ FG.items[i].image=url; renderFg(); })('fgFileInput'); }
-function saveFreeGifts(){ saveSetting('freeGifts', FG, 'Free gifts'); }
 
 // ---- Featured cards ----
 let FEAT = <?= json_encode($site['featured'] ?? [], JSON_UNESCAPED_SLASHES) ?> || [];
@@ -2115,7 +2068,7 @@ function saveTrust(){ saveSetting('trustBadges', TRUST, 'Trust badges'); }
 
 // init
 renderStats(); renderSocials(); renderPay(); renderBenefits(); renderHero(); renderTrust(); renderRfFeatures(); renderPremium();
-renderTiers(); renderFbt(); renderFg(); renderFeat(); renderSort(); renderPp(); renderPo(); renderPC(); renderHome(); renderCC(); renderAbout(); showPolicy('return'); renderOzVp(); renderNav(); renderFooter(); renderCpTrust(); renderAboutLayout(); renderContactLayout();
+renderTiers(); renderFeat(); renderSort(); renderPp(); renderPo(); renderPC(); renderHome(); renderCC(); renderAbout(); showPolicy('return'); renderOzVp(); renderNav(); renderFooter(); renderCpTrust(); renderAboutLayout(); renderContactLayout();
 // Show only the active config page's section groups
 (function(){
   const active = '<?= $cfgPage ?>';

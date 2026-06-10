@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Drawer from "../ui/Drawer";
 import { useUI } from "../../context/UIContext";
@@ -24,8 +24,7 @@ export default function CartDrawer() {
   const { items, updateQty, removeFromCart, subtotal, itemCount, pricing, appliedCoupon, applyCoupon: applyCouponCtx, removeCoupon } = useCart();
   const { user } = useAuth();
   const { toggle: toggleWish } = useWishlist();
-  const { freeGifts = {}, coupons: COUPONS = [], bulkRule = {}, tierOffers = [] } = useSettings();
-  const FREE_GIFTS = freeGifts.items || [];
+  const { coupons: COUPONS = [], bulkRule = {}, tierOffers = [] } = useSettings();
   const [priceOpen, setPriceOpen] = useState(true);
   const [confirmRemove, setConfirmRemove] = useState(null);
   const [view, setView] = useState("cart");
@@ -59,7 +58,6 @@ export default function CartDrawer() {
   const { mrpTotal, bulkSavings, couponDiscount, deliveryCharges, tax, finalTotal, totalSaved } = pricing;
   const productDiscount = Math.max(0, mrpTotal - subtotal);
   const codCharges = 0;
-  const showFreeGifts = subtotal >= freeGifts.threshold;
 
   const eligibleCoupons = COUPONS.filter((c) => subtotal >= c.minSubtotal);
   const unavailableCoupons = COUPONS.filter((c) => subtotal < c.minSubtotal);
@@ -260,8 +258,10 @@ export default function CartDrawer() {
         <div className="-mx-5 -my-4">
           <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
             <span className="text-sm font-bold uppercase tracking-wider text-brand-ink">
-              {items[0]?.name?.split(" ").slice(0, 2).join(" ").toUpperCase() || "CART"}{" "}
-              <span className="text-brand-muted font-normal">+{Math.max(0, items.length - 1)} MORE</span>
+              {items[0]?.name?.split(" ").slice(0, 2).join(" ").toUpperCase() || "CART"}
+              {items.length > 1 && (
+                <span className="text-brand-muted font-normal"> +{items.length - 1} MORE</span>
+              )}
             </span>
             <span className="text-xs text-brand-muted">({itemCount} item{itemCount !== 1 ? "s" : ""})</span>
           </div>
@@ -357,32 +357,6 @@ export default function CartDrawer() {
             ))}
           </ul>
 
-          {showFreeGifts && (
-            <div className="px-5 py-4 bg-white border-b border-gray-100">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-lg">🎁</span>
-                <h4 className="font-bold text-brand-ink">Free Gifts</h4>
-                <span className="bg-green-100 text-green-800 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">{FREE_GIFTS.length}</span>
-              </div>
-              <div className="space-y-2">
-                {FREE_GIFTS.map((g) => (
-                  <div key={g.id} className="flex items-center gap-3 bg-white border border-gray-100 rounded-lg p-2">
-                    <div className="w-14 h-14 bg-gray-50 rounded shrink-0 flex items-center justify-center overflow-hidden">
-                      <img src={g.image} alt={g.name} className="max-w-full max-h-full object-contain" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-brand-ink line-clamp-1">{g.name}</p>
-                      <div className="flex items-baseline gap-2 mt-0.5">
-                        <span className="text-xs text-brand-muted line-through">Rs. {g.mrp}</span>
-                        <span className="text-xs font-bold text-green-600">FREE</span>
-                      </div>
-                    </div>
-                    <span className="text-xs text-brand-muted bg-gray-100 rounded-full px-2 py-0.5">x1</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           <div className="px-5 py-2 bg-gray-50 border-b border-gray-200">
             <span className="text-xs text-brand-muted">Offers & Rewards</span>
@@ -497,13 +471,54 @@ function RemoveConfirmDialog({ item, onCancel, onRemove, onWishlist }) {
 }
 
 function FrequentlyBought() {
-  const { addToCart } = useCart();
-  const { fbtItems: FBT_ITEMS = [] } = useSettings();
-  const scroller = useRef(null);
+  const { addToCart, items } = useCart();
+  const [fbt, setFbt] = useState([]);
+
+  // Per-product FBT: ask the server for products frequently bought with what's in the cart.
+  const cartSlugs = items.filter((i) => i.type !== "gift").map((i) => i.id).join(",");
+  useEffect(() => {
+    const slugs = cartSlugs ? cartSlugs.split(",") : [];
+    if (slugs.length === 0) { setFbt([]); return; }
+    let alive = true;
+    api.fbt(slugs)
+      .then((list) => { if (alive) setFbt(Array.isArray(list) ? list : []); })
+      .catch(() => { if (alive) setFbt([]); });
+    return () => { alive = false; };
+  }, [cartSlugs]);
 
   const onAdd = (item) => {
     addToCart(item, 1);
   };
+
+  // Transform-based carousel: one index, translateX, CSS transition. No native scroll/snap,
+  // so there's no scroll-vs-snap fight and the slide is perfectly smooth (no flicker).
+  const [idx, setIdx] = useState(0);
+  const paused = useRef(false);
+  const go = (dir) => setIdx((i) => (i + dir + fbt.length) % fbt.length); // wraps both ways
+
+  // Touch/drag swipe for manual control (no arrows). A horizontal flick past 40px advances.
+  const swipe = useRef({ x: 0, active: false });
+  const onStart = (x) => { swipe.current = { x, active: true }; paused.current = true; };
+  const onEnd = (x) => {
+    if (!swipe.current.active) return;
+    const dx = x - swipe.current.x;
+    if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1);
+    swipe.current.active = false; paused.current = false;
+  };
+
+  // Keep idx valid if the FBT list changes (e.g. items added/removed).
+  useEffect(() => { setIdx(0); }, [cartSlugs]);
+
+  // Auto-advance one card every 3s. Pauses on hover.
+  useEffect(() => {
+    if (fbt.length <= 1) return;
+    const id = setInterval(() => { if (!paused.current) go(1); }, 3000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fbt.length]);
+
+  // Nothing suggested for this cart -> hide the whole strip.
+  if (fbt.length === 0) return null;
 
   return (
     <div className="px-5 py-3 bg-white border-b border-gray-100">
@@ -511,11 +526,23 @@ function FrequentlyBought() {
         <h4 className="font-bold text-brand-ink flex items-center gap-2">
           <span>✨</span> Frequently Bought Together
         </h4>
-        <span className="text-xs text-brand-muted">Swipe →</span>
       </div>
-      <div ref={scroller} className="flex gap-3 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
-        {FBT_ITEMS.map((p) => (
-          <div key={p.id} className="shrink-0 w-[260px] border border-gray-200 rounded-xl bg-white p-3">
+      <div
+        className="overflow-hidden cursor-grab active:cursor-grabbing select-none"
+        onMouseEnter={() => { paused.current = true; }}
+        onMouseLeave={() => { if (swipe.current.active) onEnd(swipe.current.x); paused.current = false; }}
+        onMouseDown={(e) => onStart(e.clientX)}
+        onMouseUp={(e) => onEnd(e.clientX)}
+        onTouchStart={(e) => onStart(e.touches[0].clientX)}
+        onTouchEnd={(e) => onEnd(e.changedTouches[0].clientX)}
+      >
+        <div
+          className="flex"
+          style={{ transform: `translateX(-${idx * 100}%)`, transition: "transform 450ms cubic-bezier(0.4,0,0.2,1)" }}
+        >
+        {fbt.map((p) => (
+          <div key={p.id} className="shrink-0 w-full px-0.5">
+          <div className="border border-gray-200 rounded-xl bg-white p-3">
             <div className="flex gap-3">
               <div className="relative w-20 h-20 bg-gray-50 rounded shrink-0 flex items-center justify-center overflow-hidden">
                 <img src={p.image} alt={p.name} className="max-w-full max-h-full object-contain" />
@@ -542,7 +569,9 @@ function FrequentlyBought() {
               Add
             </button>
           </div>
+          </div>
         ))}
+        </div>
       </div>
     </div>
   );

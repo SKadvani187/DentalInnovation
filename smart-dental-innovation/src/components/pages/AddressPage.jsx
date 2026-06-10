@@ -11,7 +11,7 @@ export default function AddressPage() {
   const { openModal } = useUI();
   const navigate = useAppNavigate();
   const { company = {} } = useSettings();
-  const supportPhone = company.phone || "+919328762586";
+  const supportPhone = company.phone || "";
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null); // address being edited (null = add)
 
@@ -116,7 +116,7 @@ function AccountSidebar({ active }) {
   const { user, logout } = useAuth();
   const navigate = useAppNavigate();
   const { company = {} } = useSettings();
-  const supportPhone = company.phone || "+919328762586";
+  const supportPhone = company.phone || "";
   const [signoutOpen, setSignoutOpen] = useState(false);
 
   const items = [

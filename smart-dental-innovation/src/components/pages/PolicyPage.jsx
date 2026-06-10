@@ -6,7 +6,7 @@ export default function PolicyPage() {
   const navigate = useAppNavigate();
   const { type: typeParam } = useParams();
   const { policies = {}, company = {} } = useSettings();
-  const email = company.email || "info@smartdentalinnovations.com";
+  const email = company.email || "";
   const type = typeParam || "terms";
   const data = policies[type] || policies.terms || { title: "Policy", sections: [] };
   const tabs = [

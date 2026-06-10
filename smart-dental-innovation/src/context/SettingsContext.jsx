@@ -13,8 +13,6 @@ const STATIC = {
   socials: siteStatic.socials,
   footerConfig: siteStatic.footerConfig,
   payments: siteStatic.payments,
-  fbtItems: siteStatic.fbtItems,
-  freeGifts: siteStatic.freeGifts,
   bulkRule: siteStatic.bulkRule,
   shippingConfig: siteStatic.shippingConfig,
   taxConfig: siteStatic.taxConfig,

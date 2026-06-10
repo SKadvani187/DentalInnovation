@@ -43,6 +43,18 @@ function jcol($v, $default = []) {
 function qstr(string $k, string $def = ''): string { return isset($_GET[$k]) ? trim((string)$_GET[$k]) : $def; }
 function qint(string $k, int $def = 0): int { return isset($_GET[$k]) ? (int)$_GET[$k] : $def; }
 
+// Phone helpers for storefront forms — Indian mobile only (same rule as login/OTP).
+// Strips +91 / leading 0 / spaces / dashes, then validates the final 10-digit number.
+function cleanPhone(string $p): string {
+    $d = preg_replace('/\D/', '', $p);
+    if (strlen($d) > 10 && strncmp($d, '91', 2) === 0) $d = substr($d, 2);   // drop +91
+    if (strlen($d) === 11 && $d[0] === '0') $d = substr($d, 1);              // drop leading 0
+    return substr($d, -10) ?: '';                                            // last 10
+}
+function validPhone(string $p): bool {
+    return (bool) preg_match('/^[6-9]\d{9}$/', cleanPhone($p));
+}
+
 // Read JSON request body -> array
 function jsonBody(): array {
     $raw = file_get_contents('php://input');

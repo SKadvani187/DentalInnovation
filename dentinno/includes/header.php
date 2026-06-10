@@ -97,6 +97,10 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
                 <i class="fa-solid fa-envelope"></i>
                 <span>Messages</span>
             </a>
+            <a href="<?= APP_URL ?>/pages/bulk_quotes.php" class="nav-item <?= $current_page === 'bulk_quotes' ? 'active' : '' ?>">
+                <i class="fa-solid fa-file-invoice-dollar"></i>
+                <span>Bulk Quotes</span>
+            </a>
         </div>
 
         <div class="nav-section">

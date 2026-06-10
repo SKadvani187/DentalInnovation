@@ -52,12 +52,7 @@ export const footerConfig = {};
 // Payment methods — DB-only via settings API (key 'payments').
 export const payments = [];
 
-// Cart drawer cross-sell items — DB-only via settings API (key 'fbtItems').
-export const fbtItems = [];
 
-// Free gifts threshold + items — DB-only via settings API (key 'freeGifts').
-// Empty = no gift promo until DB serves it (CartDrawer guards items/threshold).
-export const freeGifts = {};
 
 // Bulk savings rule — DB-only via settings API (key 'bulkRule').
 // lib/pricing.js defaults each field, so an empty object can't produce NaN totals.

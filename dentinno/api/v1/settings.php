@@ -14,4 +14,15 @@ foreach ($rows as $r) {
 $out['liveCounts'] = [
     'products' => (int)(db()->fetchOne("SELECT COUNT(*) c FROM products WHERE is_active=1")['c'] ?? 0),
 ];
+
+// priceBounds is AUTO-derived from live products (storefront price filter slider range),
+// not admin-set. Floor the min / ceil the max to a round step so the slider looks clean.
+$pr = db()->fetchOne("SELECT MIN(COALESCE(discount_price,price)) mn, MAX(price) mx FROM products WHERE is_active=1");
+$min = (float)($pr['mn'] ?? 0);
+$max = (float)($pr['mx'] ?? 0);
+$out['priceBounds'] = [
+    'min' => $max > 0 ? (int)(floor($min / 10) * 10) : 0,
+    'max' => $max > 0 ? (int)(ceil($max / 100) * 100) : 500000,
+];
+
 jsonOut(['success' => true, 'settings' => $out]);

@@ -3,18 +3,20 @@ import { useUI } from "../../context/UIContext";
 import { useAppNavigate } from "../../hooks/useAppNavigate";
 import { useSettings } from "../../context/SettingsContext";
 import api from "../../lib/api";
+import { isValidPhone, cleanPhone } from "../../lib/phone";
 
 // Contact info derived from company settings (with fallbacks). Used across sub-components.
 function useContactInfo() {
   const { company = {} } = useSettings();
   return {
-    PHONE_DISPLAY: company.phoneSales || "+91 93287 62586",
-    PHONE_SUPPORT: company.phone || "+91 92653 18584",
-    PHONE_RAW: (company.phoneSales || "919328762586").replace(/\D/g, ""),
-    EMAIL_PRIMARY: company.emailSales || "smartdentalinnovations.web@gmail.com",
-    EMAIL_INFO: company.email || "info@smartdentalinnovations.com",
-    ADDRESS_FULL: company.address || "Third floor, Swastik Plaza, Varachha, Surat, Gujarat 395006",
-    MAPS_QUERY: encodeURIComponent(company.addressShort || company.address || "Swastik Plaza, Yogi Chowk, Varachha, Surat, Gujarat 395006"),
+    BRAND: company.name || "",
+    PHONE_DISPLAY: company.phoneSales || company.phone || "",
+    PHONE_SUPPORT: company.phone || "",
+    PHONE_RAW: (company.phoneSales || company.phone || "").replace(/\D/g, ""),
+    EMAIL_PRIMARY: company.emailSales || company.email || "",
+    EMAIL_INFO: company.email || "",
+    ADDRESS_FULL: company.address || "",
+    MAPS_QUERY: encodeURIComponent(company.addressShort || company.address || ""),
     CITY_LABEL: [company.city, company.state].filter(Boolean).join(", ") || "Surat, Gujarat",
   };
 }
@@ -125,8 +127,8 @@ export default function ContactPage() {
       setError("Please fill in all required fields.");
       return;
     }
-    if (!/^[6-9]\d{9}$/.test(form.phone)) {
-      setError("Please enter a valid 10-digit Indian phone number.");
+    if (!isValidPhone(form.phone)) {
+      setError("Please enter a valid phone number.");
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
@@ -135,7 +137,7 @@ export default function ContactPage() {
     }
     try {
       await api.contact({
-        name: form.name, phone: form.phone, email: form.email,
+        name: form.name, phone: cleanPhone(form.phone), email: form.email,
         department: form.department, message: form.description,
       });
     } catch (err) {
@@ -367,7 +369,7 @@ function FormCard({ form, setForm, onChange, onSubmit, submitted, error, onReset
               inputMode="numeric"
               maxLength={10}
               value={form.phone}
-              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
+              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value.replace(/[^\d+\s-()]/g, "").slice(0, 18) }))}
             />
             <FloatField id="email" label={LABELS.fieldEmail} type="email" value={form.email} onChange={onChange("email")} />
           </div>
@@ -537,7 +539,7 @@ function BusinessHours() {
 }
 
 function OfficeMap() {
-  const { MAPS_QUERY, ADDRESS_FULL, PHONE_RAW } = useContactInfo();
+  const { MAPS_QUERY, ADDRESS_FULL, PHONE_RAW, BRAND } = useContactInfo();
   const { OFFICE_SUBTITLE, OFFICE_BULLETS, LABELS } = useContactConfig();
   return (
     <section className="mt-10">
@@ -557,7 +559,7 @@ function OfficeMap() {
             src={`https://maps.google.com/maps?q=${MAPS_QUERY}&output=embed`}
             className="w-full h-full border-0"
             loading="lazy"
-            title="Smart Dental Innovations office location"
+            title={`${BRAND} office location`}
           />
         </div>
         <div className="lg:col-span-5 p-5 sm:p-6 lg:p-8 flex flex-col">

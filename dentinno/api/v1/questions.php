@@ -9,6 +9,20 @@ $db = db();
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     $b = jsonBody();
+
+    // Helpful vote: { action:'vote', id, dir:'up'|'down', undo?:bool }. Dedup is enforced
+    // client-side (localStorage); this just adjusts the stored counter (never below 0).
+    if (($b['action'] ?? '') === 'vote') {
+        $id  = (int)($b['id'] ?? 0);
+        $dir = ($b['dir'] ?? '') === 'down' ? 'down' : 'up';
+        $col = $dir === 'down' ? 'helpful_down' : 'helpful_up';
+        $delta = !empty($b['undo']) ? -1 : 1;
+        if ($id <= 0) jsonErr('Invalid question', 422);
+        $db->execute("UPDATE product_questions SET $col = GREATEST(0, $col + ?) WHERE id=? AND is_approved=1", [$delta, $id]);
+        $row = $db->fetchOne("SELECT helpful_up, helpful_down FROM product_questions WHERE id=?", [$id]);
+        jsonOut(['success' => true, 'up' => (int)($row['helpful_up'] ?? 0), 'down' => (int)($row['helpful_down'] ?? 0)]);
+    }
+
     $slug = trim((string)($b['product'] ?? ''));
     $q    = trim((string)($b['question'] ?? ''));
     $name = trim((string)($b['name'] ?? ''));

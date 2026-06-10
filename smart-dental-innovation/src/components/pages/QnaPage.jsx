@@ -5,7 +5,6 @@ import { findProductById } from "../../data/products";
 import { useProducts, useCombos, useFaqs, useQuestions } from "../../hooks/useApiData";
 import { useUI } from "../../context/UIContext";
 import { useAppNavigate } from "../../hooks/useAppNavigate";
-import { useSettings } from "../../context/SettingsContext";
 import api from "../../lib/api";
 
 const fmt = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
@@ -15,7 +14,6 @@ export default function QnaPage() {
   const navigate = useAppNavigate();
   const { data: allProducts } = useProducts();
   const { data: combos } = useCombos();
-  const { productContent = {} } = useSettings();
   const { id } = useParams();
   // Resolve to null when the product isn't in the loaded data yet (data is DB-only and
   // may be empty before the API responds) — never index allProducts[0], which is
@@ -36,8 +34,8 @@ export default function QnaPage() {
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const faqList = dbFaqs.length ? dbFaqs : (productContent.faqs || []);
-  const qnaList = [...answeredQ, ...faqList];
+  // Only this product's own FAQs (no global fallback).
+  const qnaList = [...answeredQ, ...dbFaqs];
 
   const onPost = async (e) => {
     e.preventDefault();
@@ -150,8 +148,7 @@ export default function QnaPage() {
               <div className="flex items-center justify-between text-xs text-brand-muted border-t border-gray-100 pt-3">
                 <span>| {f.date || todayStr}</span>
                 <div className="flex items-center gap-4">
-                  <ReactionBtn icon="up" initial={f.up} />
-                  <ReactionBtn icon="down" initial={f.down} />
+                  <HelpfulVote qId={f.id} up={f.up} down={f.down} />
                 </div>
               </div>
             </article>
@@ -162,20 +159,61 @@ export default function QnaPage() {
   );
 }
 
-function ReactionBtn({ icon, initial = 0 }) {
-  const [count, setCount] = useState(initial);
-  return (
-    <button onClick={() => setCount((c) => c + 1)} className="flex items-center gap-1 hover:text-[#3684bf]">
-      {icon === "up" ? (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+const VOTE_KEY = "sdi:qVotes";   // { [questionId]: "up" | "down" }
+function readVotes() { try { return JSON.parse(localStorage.getItem(VOTE_KEY) || "{}"); } catch { return {}; } }
+function writeVote(qId, dir) {
+  const v = readVotes();
+  if (dir) v[qId] = dir; else delete v[qId];
+  try { localStorage.setItem(VOTE_KEY, JSON.stringify(v)); } catch { /* ignore */ }
+}
+
+// Helpful up/down vote on an answered question. One vote per question per device
+// (localStorage), persisted to the DB. Clicking the same arrow again removes the vote;
+// clicking the other arrow switches it.
+function HelpfulVote({ qId, up = 0, down = 0 }) {
+  const [counts, setCounts] = useState({ up, down });
+  const [mine, setMine] = useState(() => readVotes()[qId] || null);
+  const [busy, setBusy] = useState(false);
+
+  const vote = async (dir) => {
+    if (busy || !qId) return;
+    setBusy(true);
+    try {
+      // Undo the previous vote (if any), then apply the new one (unless toggling off).
+      if (mine) await api.voteQuestion({ id: qId, dir: mine, undo: true });
+      const next = mine === dir ? null : dir;     // same arrow -> remove; else switch/add
+      let res = { up: counts.up - (mine === "up" ? 1 : 0), down: counts.down - (mine === "down" ? 1 : 0) };
+      if (next) res = await api.voteQuestion({ id: qId, dir: next });
+      setCounts({ up: res.up ?? 0, down: res.down ?? 0 });
+      setMine(next);
+      writeVote(qId, next);
+    } catch { /* keep current UI on failure */ }
+    setBusy(false);
+  };
+
+  const Arrow = ({ dir }) => (
+    <button
+      onClick={() => vote(dir)}
+      disabled={busy}
+      className={`flex items-center gap-1 transition ${mine === dir ? "text-[#3684bf] font-bold" : "hover:text-[#3684bf]"}`}
+    >
+      {dir === "up" ? (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill={mine === "up" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
           <path d="M7 10v12M15 5.88L14 10h5.83a2 2 0 011.92 2.56l-2.33 8A2 2 0 0117.5 22H7V10l5-9 1.88 1.88a2 2 0 01.62 1.45V5.5L13 10h2z" />
         </svg>
       ) : (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill={mine === "down" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
           <path d="M17 14V2M9 18.12L10 14H4.17a2 2 0 01-1.92-2.56l2.33-8A2 2 0 016.5 2H17v12l-5 9-1.88-1.88a2 2 0 01-.62-1.45v0z" />
         </svg>
       )}
-      <span>{count}</span>
+      <span>{dir === "up" ? counts.up : counts.down}</span>
     </button>
+  );
+
+  return (
+    <>
+      <Arrow dir="up" />
+      <Arrow dir="down" />
+    </>
   );
 }

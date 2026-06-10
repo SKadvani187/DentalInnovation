@@ -78,7 +78,7 @@ include __DIR__ . '/../includes/header.php';
     ['Total Reviews', $stats['total'] ?? 0, 'fa-star', '#C9A84C'],
     ['Pending', $stats['pending'] ?? 0, 'fa-clock', '#F39C12'],
     ['Avg Rating', ($stats['avg_rating'] ?? 0) . ' / 5', 'fa-chart-simple', '#3498DB'],
-    ['Verified', $stats['verified'] ?? 0, 'fa-badge-check', '#2ECC71'],
+    ['Verified', $stats['verified'] ?? 0, 'fa-circle-check', '#2ECC71'],
   ];
   foreach($sc as [$label,$val,$icon,$color]): ?>
   <div class="card" style="padding:16px 20px;display:flex;align-items:center;gap:14px;">
@@ -161,7 +161,7 @@ include __DIR__ . '/../includes/header.php';
               </button>
               <?php if(!$r['is_verified']): ?>
               <button class="btn btn-ghost btn-sm btn-icon" onclick="verifyReview(<?= $r['id'] ?>)" title="Mark Verified">
-                <i class="fa-solid fa-badge-check" style="color:#3498DB;"></i>
+                <i class="fa-solid fa-circle-check" style="color:#3498DB;"></i>
               </button>
               <?php endif; ?>
               <button class="btn btn-ghost btn-sm btn-icon" onclick="viewReview(<?= $r['id'] ?>)" title="View Full">

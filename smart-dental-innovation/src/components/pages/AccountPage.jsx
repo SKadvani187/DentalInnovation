@@ -10,7 +10,7 @@ export default function AccountPage() {
   const { openModal } = useUI();
   const navigate = useAppNavigate();
   const { company = {} } = useSettings();
-  const supportPhone = company.phone || "+919328762586";
+  const supportPhone = company.phone || "";
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user?.name || "");
   const [email, setEmail] = useState(user?.email || "");

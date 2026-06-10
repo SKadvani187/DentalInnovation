@@ -56,7 +56,9 @@ export function CartProvider({ children }) {
   // removals and clears propagate). Fire-and-forget; failures are non-fatal.
   useEffect(() => {
     if (!token || !cartReady.current) return;
-    api.syncCart(items, "replace").catch(() => {});
+    // Auto-gift lines are derived from the cart's products, so don't persist them — they're
+    // re-added on load. Persisting would double them up after the gift effect re-runs.
+    api.syncCart(items.filter((i) => !i.autoGift), "replace").catch(() => {});
   }, [items, token]);
   // Delivery pincode drives the server shipping quote (zone + weight aware). Persisted.
   const [deliveryPincode, setDeliveryPincode] = useLocalStorage("sdi:pincode", "");
@@ -76,6 +78,57 @@ export function CartProvider({ children }) {
       .catch(() => { if (alive) setShippingQuote(null); });   // fall back to flat estimate
     return () => { alive = false; };
   }, [items, deliveryPincode]);
+
+  // Per-product free gifts: auto-add a ₹0 gift line for each product that grants one, and
+  // drop gift lines whose granting product has left the cart. Keyed on the set of real
+  // product slugs so it only re-runs when products change (not on gift/qty churn).
+  const productSlugs = items.filter((i) => i.type === "product").map((i) => i.id).sort().join(",");
+  useEffect(() => {
+    const slugs = productSlugs ? productSlugs.split(",") : [];
+    let alive = true;
+    if (slugs.length === 0) {
+      // No products -> remove any auto gift lines.
+      setItems((prev) => prev.some((i) => i.autoGift) ? prev.filter((i) => !i.autoGift) : prev);
+      return;
+    }
+    api.gifts(slugs)
+      .then((gifts) => {
+        if (!alive) return;
+        const valid = Array.isArray(gifts) ? gifts : [];
+        setItems((prev) => {
+          const cartSlugs = new Set(prev.filter((i) => i.type === "product").map((i) => i.id));
+          // Keep non-auto-gift lines as-is; rebuild the auto-gift set from the server.
+          const base = prev.filter((i) => !i.autoGift);
+          const giftLines = valid
+            .filter((g) => g.parentSlug && cartSlugs.has(g.parentSlug)) // parent still in cart
+            .map((g) => ({
+              key: `autogift:${g.id}`,
+              id: g.id,
+              name: g.name,
+              image: g.image,
+              price: 0,
+              mrp: g.mrp,
+              category: g.category || "unique",
+              variant: null,
+              qty: 1,
+              type: "gift",
+              autoGift: true,
+              parentSlug: g.parentSlug,
+            }));
+          // Dedupe gift lines by key (a gift granted by 2 products appears once).
+          const seen = new Set();
+          const uniqGifts = giftLines.filter((g) => !seen.has(g.key) && seen.add(g.key));
+          const next = [...base, ...uniqGifts];
+          // Avoid a state churn loop: only update if the auto-gift set actually changed.
+          const prevKeys = prev.filter((i) => i.autoGift).map((i) => i.key).sort().join(",");
+          const nextKeys = uniqGifts.map((i) => i.key).sort().join(",");
+          return prevKeys === nextKeys ? prev : next;
+        });
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productSlugs]);
 
   const addToCart = useCallback((product, qty = 1, variant = null) => {
     setItems((prev) => {

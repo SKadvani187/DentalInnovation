@@ -168,7 +168,7 @@ export function Footer() {
       <div className="border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 py-5 text-center">
           <p className="text-[13px] font-medium uppercase tracking-wide text-gray-500">
-            © {company.name || "Smart Dental Innovations"} <span className="mx-1.5">•</span>
+            © {company.name} <span className="mx-1.5">•</span>
             {footerConfig.tagline || "Crafted with ♥ in India"}
           </p>
         </div>

@@ -28,15 +28,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $images_json = !empty($d['images']) ? json_encode($d['images']) : null;
         $hover_image = !empty($d['hover_image']) ? $d['hover_image'] : null;
         if (!empty($d['id'])) {
-            db()->execute("UPDATE products SET name=?,category_id=?,price=?,discount_price=?,discount_percent=?,stock=?,short_description=?,full_description=?,features=?,packing_info=?,key_specifications=?,directions_for_use=?,additional_information=?,warranty_info=?,images=?,hover_image=?,weight_kg=?,shipping_method_id=?,shipping_class=?,is_active=?,is_featured=?,is_new=? WHERE id=?",
-                [$d['name'],$d['category_id']?:null,$d['price'],$disc_price,$disc_pct,$d['stock'],$d['short_description'],$d['full_description'],$features,$d['packing_info'],$key_specs,$d['directions_for_use'],$d['additional_information'],$d['warranty_info'],$images_json,$hover_image,$d['weight_kg']?:null,(!empty($d['shipping_method_id'])?(int)$d['shipping_method_id']:null),$d['shipping_class']?:'standard',$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0,$d['id']]);
+            db()->execute("UPDATE products SET name=?,category_id=?,price=?,discount_price=?,discount_percent=?,stock=?,short_description=?,full_description=?,features=?,packing_info=?,key_specifications=?,directions_for_use=?,additional_information=?,warranty_info=?,key_features=?,warranty_no=?,direction_of_use=?,catalogue_url=?,images=?,hover_image=?,weight_kg=?,shipping_method_id=?,is_active=?,is_featured=?,is_new=? WHERE id=?",
+                [$d['name'],$d['category_id']?:null,$d['price'],$disc_price,$disc_pct,$d['stock'],$d['short_description'],$d['full_description'],$features,$d['packing_info'],$key_specs,$d['directions_for_use'],$d['additional_information'],$d['warranty_info'],$d['key_features']?:null,$d['warranty_no']?:null,$d['direction_of_use']?:null,$d['catalogue_url']?:null,$images_json,$hover_image,$d['weight_kg']?:null,(!empty($d['shipping_method_id'])?(int)$d['shipping_method_id']:null),$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0,$d['id']]);
             $pid = $d['id'];
             echo json_encode(['success' => true, 'message' => 'Product updated', 'id' => $pid]);
         } else {
             $slug = generateSlug($d['name']) . '-' . time();
             $sku  = 'SKU-' . strtoupper(substr(md5($d['name']), 0, 6));
-            $pid = db()->insert("INSERT INTO products (name,slug,sku,category_id,price,discount_price,discount_percent,stock,short_description,full_description,features,packing_info,key_specifications,directions_for_use,additional_information,warranty_info,images,hover_image,weight_kg,shipping_method_id,shipping_class,is_active,is_featured,is_new) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                [$d['name'],$slug,$sku,$d['category_id']?:null,$d['price'],$disc_price,$disc_pct,$d['stock'],$d['short_description'],$d['full_description'],$features,$d['packing_info'],$key_specs,$d['directions_for_use'],$d['additional_information'],$d['warranty_info'],$images_json,$hover_image,$d['weight_kg']?:null,(!empty($d['shipping_method_id'])?(int)$d['shipping_method_id']:null),$d['shipping_class']?:'standard',$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0]);
+            $pid = db()->insert("INSERT INTO products (name,slug,sku,category_id,price,discount_price,discount_percent,stock,short_description,full_description,features,packing_info,key_specifications,directions_for_use,additional_information,warranty_info,key_features,warranty_no,direction_of_use,catalogue_url,images,hover_image,weight_kg,shipping_method_id,is_active,is_featured,is_new) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                [$d['name'],$slug,$sku,$d['category_id']?:null,$d['price'],$disc_price,$disc_pct,$d['stock'],$d['short_description'],$d['full_description'],$features,$d['packing_info'],$key_specs,$d['directions_for_use'],$d['additional_information'],$d['warranty_info'],$d['key_features']?:null,$d['warranty_no']?:null,$d['direction_of_use']?:null,$d['catalogue_url']?:null,$images_json,$hover_image,$d['weight_kg']?:null,(!empty($d['shipping_method_id'])?(int)$d['shipping_method_id']:null),$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0]);
             echo json_encode(['success' => true, 'message' => 'Product added', 'id' => $pid]);
         }
         if (isset($d['faqs']) && $pid) {
@@ -47,9 +47,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 }
             }
         }
+        // Frequently Bought Together (per-product related products).
+        if (isset($d['fbt']) && $pid) {
+            db()->execute("DELETE FROM product_fbt WHERE product_id = ?", [$pid]);
+            foreach ((array)$d['fbt'] as $i => $fid) {
+                $fid = (int)$fid;
+                if ($fid > 0 && $fid !== (int)$pid) {  // can't suggest itself
+                    db()->query("INSERT IGNORE INTO product_fbt (product_id,fbt_product_id,sort_order) VALUES (?,?,?)", [$pid,$fid,$i]);
+                }
+            }
+        }
+        // Free gifts (per-product): buy this product, get these products free.
+        if (isset($d['gifts']) && $pid) {
+            db()->execute("DELETE FROM product_gifts WHERE product_id = ?", [$pid]);
+            foreach ((array)$d['gifts'] as $i => $gid) {
+                $gid = (int)$gid;
+                if ($gid > 0 && $gid !== (int)$pid) {  // can't gift itself
+                    db()->query("INSERT IGNORE INTO product_gifts (product_id,gift_product_id,sort_order) VALUES (?,?,?)", [$pid,$gid,$i]);
+                }
+            }
+        }
     } elseif ($action === 'get_faqs') {
         $faqs = db()->fetchAll("SELECT * FROM product_faqs WHERE product_id=? ORDER BY sort_order", [$data['product_id']]);
         echo json_encode(['success' => true, 'faqs' => $faqs]);
+    } elseif ($action === 'get_fbt') {
+        $fbt = db()->fetchAll("SELECT fbt_product_id FROM product_fbt WHERE product_id=? ORDER BY sort_order", [$data['product_id']]);
+        echo json_encode(['success' => true, 'fbt' => array_map(fn($r) => (int)$r['fbt_product_id'], $fbt)]);
+    } elseif ($action === 'get_gifts') {
+        $g = db()->fetchAll("SELECT gift_product_id FROM product_gifts WHERE product_id=? ORDER BY sort_order", [$data['product_id']]);
+        echo json_encode(['success' => true, 'gifts' => array_map(fn($r) => (int)$r['gift_product_id'], $g)]);
     } elseif ($action === 'get_reviews') {
         $reviews = db()->fetchAll("SELECT * FROM product_reviews WHERE product_id=? ORDER BY created_at DESC", [$data['product_id']]);
         echo json_encode(['success' => true, 'reviews' => $reviews]);
@@ -64,6 +90,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     } catch (Throwable $e) {
         echo json_encode(['success' => false, 'message' => 'Save failed: ' . $e->getMessage()]);
     }
+    exit;
+}
+
+// Catalogue PDF upload (product Content tab). Stored under assets/catalogues/.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['catalogue_pdf'])) {
+    header('Content-Type: application/json');
+    $dir = __DIR__ . '/../assets/catalogues/';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    $f = $_FILES['catalogue_pdf'];
+    if ($f['error'] !== UPLOAD_ERR_OK) { echo json_encode(['success'=>false,'message'=>'Upload error (code '.$f['error'].')']); exit; }
+    $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
+    if ($ext !== 'pdf') { echo json_encode(['success'=>false,'message'=>'Only PDF files are allowed']); exit; }
+    if ($f['size'] > 15*1024*1024) { echo json_encode(['success'=>false,'message'=>'File too large (max 15MB)']); exit; }
+    $fname = 'catalogue_' . time() . '_' . rand(1000,9999) . '.pdf';
+    if (move_uploaded_file($f['tmp_name'], $dir . $fname)) {
+        echo json_encode(['success'=>true,'url'=> APP_URL.'/assets/catalogues/'.$fname]);
+    } else { echo json_encode(['success'=>false,'message'=>'Could not save the PDF']); }
     exit;
 }
 
@@ -120,12 +163,16 @@ $products = db()->fetchAll("SELECT p.*,c.name as category FROM products p LEFT J
 $categories = db()->fetchAll("SELECT * FROM categories WHERE is_active=1 ORDER BY name");
 // Active shipping methods power the product "Shipping Method" dropdown (Shipping Management).
 $shipMethods = db()->fetchAll("SELECT id, name, type FROM shipping_methods WHERE is_active=1 ORDER BY sort_order, name");
+// All active products power the "Frequently Bought Together" picker.
+$allProducts = db()->fetchAll("SELECT id, name, price FROM products WHERE is_active=1 ORDER BY name");
 include __DIR__ . '/../includes/header.php';
 ?>
 <style>
-.tab-nav{display:flex;gap:2px;border-bottom:1px solid var(--border-color);margin-bottom:0;padding:0 20px;overflow-x:auto;}
-.tab-btn{padding:11px 16px;background:none;border:none;color:var(--text-secondary);font-size:.82rem;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;}
-.tab-btn.active{color:var(--gold-primary);border-bottom-color:var(--gold-primary);}
+.tab-nav{display:flex;flex-wrap:wrap;gap:2px;border-bottom:1px solid var(--border-color);margin-bottom:0;padding:6px 16px 0;}
+.tab-btn{padding:9px 12px;background:none;border:none;color:var(--text-secondary);font-size:.8rem;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;border-radius:6px 6px 0 0;}
+.tab-btn:hover{background:var(--bg-elevated);color:var(--text-primary);}
+.tab-btn.active{color:var(--gold-primary);border-bottom-color:var(--gold-primary);background:rgba(201,168,76,.06);}
+.tab-btn i{margin-right:5px;}
 .tab-pane{display:none;} .tab-pane.active{display:block;}
 .spec-row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
 .faq-item{background:var(--bg-elevated);border-radius:10px;padding:14px;margin-bottom:10px;}
@@ -238,10 +285,11 @@ include __DIR__ . '/../includes/header.php';
       <div class="tab-nav">
         <button class="tab-btn active" onclick="switchTab('basic',this)"><i class="fa-solid fa-circle-info" style="margin-right:5px;"></i>Basic</button>
         <button class="tab-btn" onclick="switchTab('content',this)"><i class="fa-solid fa-align-left" style="margin-right:5px;"></i>Content</button>
-        <button class="tab-btn" onclick="switchTab('specs',this)"><i class="fa-solid fa-list" style="margin-right:5px;"></i>Specs</button>
         <button class="tab-btn" onclick="switchTab('images',this)"><i class="fa-solid fa-images" style="margin-right:5px;"></i>Images</button>
         <button class="tab-btn" onclick="switchTab('faqs_tab',this)"><i class="fa-regular fa-circle-question" style="margin-right:5px;"></i>FAQs</button>
         <button class="tab-btn" onclick="switchTab('ship_tab',this)"><i class="fa-solid fa-truck" style="margin-right:5px;"></i>Shipping</button>
+        <button class="tab-btn" onclick="switchTab('fbt_tab',this)"><i class="fa-solid fa-cart-plus" style="margin-right:5px;"></i>Bought Together</button>
+        <button class="tab-btn" onclick="switchTab('gift_tab',this)"><i class="fa-solid fa-gift" style="margin-right:5px;"></i>Free Gift</button>
       </div>
       <div style="padding:20px;max-height:60vh;overflow-y:auto;">
 
@@ -278,13 +326,24 @@ include __DIR__ . '/../includes/header.php';
           <div class="form-group"><label class="form-label">Packing Information</label><textarea class="form-control" id="prod_packing" rows="2" placeholder="e.g. 1 Unit, Accessory Kit, Power Adapter, User Manual"></textarea></div>
           <div class="form-group"><label class="form-label">Additional Information</label><textarea class="form-control" id="prod_additional" rows="3" placeholder="Regulatory compliance, certifications, legal disclaimers..."></textarea></div>
           <div class="form-group"><label class="form-label">Warranty</label><textarea class="form-control" id="prod_warranty" rows="2" placeholder="e.g. 2 Year Manufacturer Warranty on unit, 6 months on accessories"></textarea></div>
-        </div>
-
-        <!-- SPECS -->
-        <div id="tab-specs" class="tab-pane">
-          <label class="form-label" style="margin-bottom:10px;">Key Specifications</label>
-          <div id="specs_container"></div>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="addSpecRow()" style="margin-top:8px;"><i class="fa-solid fa-plus"></i> Add Row</button>
+          <div class="form-group"><label class="form-label">Key Features</label><textarea class="form-control" id="prod_key_features" rows="3" placeholder="Main selling points / features..."></textarea></div>
+          <div class="form-group"><label class="form-label">Warranty No</label><input type="text" class="form-control" id="prod_warranty_no" placeholder="e.g. WRN-2024-00123"></div>
+          <div class="form-group"><label class="form-label">Direction of Use</label><textarea class="form-control" id="prod_direction_of_use" rows="3" placeholder="How to use / handling directions..."></textarea></div>
+          <div class="form-group">
+            <label class="form-label">Catalogue PDF <small class="text-muted">(shown as "Open Catalogue" on the product page; max 15MB)</small></label>
+            <input type="hidden" id="prod_catalogue_url">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('catalogueInput').click()"><i class="fa-solid fa-file-pdf"></i> Upload PDF</button>
+              <span id="catalogue_name" class="text-muted" style="font-size:.82rem;">No file</span>
+              <button type="button" class="btn btn-ghost btn-sm" id="catalogue_clear" style="display:none;" onclick="clearCatalogue()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
+            </div>
+            <input type="file" id="catalogueInput" accept="application/pdf" style="display:none" onchange="uploadCatalogue(this.files[0])">
+          </div>
+          <div class="form-group" style="border-top:1px solid var(--border-color);padding-top:14px;margin-top:6px;">
+            <label class="form-label" style="margin-bottom:10px;">Key Specifications <small class="text-muted">(key : value rows — shown in the product Specifications accordion)</small></label>
+            <div id="specs_container"></div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="addSpecRow()" style="margin-top:8px;"><i class="fa-solid fa-plus"></i> Add Row</button>
+          </div>
         </div>
 
         <!-- IMAGES -->
@@ -335,22 +394,48 @@ include __DIR__ . '/../includes/header.php';
               <small class="text-muted" id="prod_weight_hint" style="font-size:.72rem;">Used only by the <strong>Weight-Based</strong> method.</small>
             </div>
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Shipping Class</label>
-              <select class="form-control" id="prod_ship_class">
-                <option value="standard">Standard</option><option value="bulky">Bulky / Heavy</option>
-                <option value="fragile">Fragile</option><option value="express_only">Express Only</option><option value="free">Free Shipping</option>
-              </select>
-              <small class="text-muted" style="font-size:.72rem;">Used by <strong>product-class</strong> rules (Shipping Management → Rules → type "product").</small>
-            </div>
-          </div>
           <p class="text-muted" style="font-size:.78rem;margin-top:8px;">
-            Methods &amp; classes come from <strong>Shipping Management</strong>. Leave method on
+            Methods come from <strong>Shipping Management</strong>. Leave method on
             <em>Default</em> to use the storefront global rules (current model:
             <strong>Free above ₹1,000, otherwise ₹99</strong>). Pick a method to force its
-            cost; the class only matters if you add product-class rules.
+            cost for this product. Weight is used only by the Weight-Based method.
           </p>
+        </div>
+
+        <!-- FREQUENTLY BOUGHT TOGETHER -->
+        <div id="tab-fbt_tab" class="tab-pane">
+          <label class="form-label">Frequently Bought Together</label>
+          <p class="text-muted" style="font-size:.78rem;margin-bottom:10px;">
+            Pick products to suggest in the cart when THIS product is added. Shown on the
+            storefront as a "Frequently Bought Together" strip.
+          </p>
+          <div class="form-group">
+            <select class="form-control" id="fbt_picker" onchange="addFbt(this.value); this.value='';">
+              <option value="">+ Add a related product…</option>
+              <?php foreach ($allProducts as $ap): ?>
+              <option value="<?= (int)$ap['id'] ?>" data-name="<?= htmlspecialchars($ap['name']) ?>" data-price="<?= (float)$ap['price'] ?>"><?= htmlspecialchars($ap['name']) ?> — ₹<?= number_format((float)$ap['price'],0) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div id="fbt_list" style="display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+
+        <!-- FREE GIFT -->
+        <div id="tab-gift_tab" class="tab-pane">
+          <label class="form-label">Free Gift with this Product</label>
+          <p class="text-muted" style="font-size:.78rem;margin-bottom:10px;">
+            Pick products to give FREE when THIS product is purchased. They're auto-added to
+            the cart at ₹0 and removed if this product is removed.
+          </p>
+          <div class="form-group">
+            <select class="form-control" id="gift_picker" onchange="addGift(this.value); this.value='';">
+              <option value="">+ Add a free gift product…</option>
+              <?php foreach ($allProducts as $ap): ?>
+              <option value="<?= (int)$ap['id'] ?>" data-name="<?= htmlspecialchars($ap['name']) ?>" data-price="<?= (float)$ap['price'] ?>"><?= htmlspecialchars($ap['name']) ?> — ₹<?= number_format((float)$ap['price'],0) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div id="gift_list" style="display:flex;flex-direction:column;gap:6px;"></div>
         </div>
 
       </div>
@@ -432,6 +517,23 @@ function addFaqRow(q='',a=''){
   document.getElementById('faqs_container').appendChild(d);
 }
 
+// Catalogue PDF
+function setCatalogueUI(url){
+  document.getElementById('prod_catalogue_url').value=url||'';
+  document.getElementById('catalogue_name').textContent=url?url.split('/').pop():'No file';
+  document.getElementById('catalogue_clear').style.display=url?'':'none';
+}
+function clearCatalogue(){ setCatalogueUI(''); }
+async function uploadCatalogue(file){
+  if(!file)return;
+  const fd=new FormData();fd.append('catalogue_pdf',file);
+  document.getElementById('catalogue_name').textContent='Uploading…';
+  const res=await fetch('products.php',{method:'POST',body:fd});
+  const r=await res.json();
+  if(r.success){ setCatalogueUI(r.url); showToast('Catalogue uploaded','success'); }
+  else { setCatalogueUI(''); showToast(r.message||'Upload failed','danger'); }
+}
+
 // Images
 let uploadedImages=[];
 async function uploadImages(files){
@@ -479,6 +581,52 @@ function renderHover(){
   box.innerHTML=url?`<div class="img-thumb" style="width:90px;height:90px;"><img src="${url}" loading="lazy" style="background:#fff;"><button class="del-img" onclick="document.getElementById('prod_hover_image').value='';renderHover()"><i class="fa-solid fa-xmark"></i></button></div>`:'';
 }
 
+// ---- Frequently Bought Together (per-product related products) ----
+let fbtIds = [];
+function addFbt(id){
+  id=parseInt(id); if(!id||fbtIds.includes(id))return;
+  if(String(id)===document.getElementById('prod_id').value)return;  // not itself
+  fbtIds.push(id); renderFbt();
+}
+function removeFbt(id){ fbtIds=fbtIds.filter(x=>x!==parseInt(id)); renderFbt(); }
+function renderFbt(){
+  const sel=document.getElementById('fbt_picker');
+  const list=document.getElementById('fbt_list');
+  if(!fbtIds.length){list.innerHTML='<div class="text-muted" style="font-size:.8rem;padding:6px;">No related products yet.</div>';return;}
+  list.innerHTML=fbtIds.map(id=>{
+    const opt=[...sel.options].find(o=>o.value==id);
+    const name=opt?opt.dataset.name:('#'+id);
+    const price=opt?Number(opt.dataset.price).toLocaleString('en-IN'):'';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;border:1px solid var(--border-color);border-radius:8px;padding:8px 10px;">
+      <span style="font-size:.85rem;">${name}${price?` <span class="text-muted">— ₹${price}</span>`:''}</span>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="removeFbt(${id})"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
+    </div>`;
+  }).join('');
+}
+
+// ---- Free Gift (per-product gift products) ----
+let giftIds = [];
+function addGift(id){
+  id=parseInt(id); if(!id||giftIds.includes(id))return;
+  if(String(id)===document.getElementById('prod_id').value)return;  // not itself
+  giftIds.push(id); renderGift();
+}
+function removeGift(id){ giftIds=giftIds.filter(x=>x!==parseInt(id)); renderGift(); }
+function renderGift(){
+  const sel=document.getElementById('gift_picker');
+  const list=document.getElementById('gift_list');
+  if(!giftIds.length){list.innerHTML='<div class="text-muted" style="font-size:.8rem;padding:6px;">No free gifts yet.</div>';return;}
+  list.innerHTML=giftIds.map(id=>{
+    const opt=[...sel.options].find(o=>o.value==id);
+    const name=opt?opt.dataset.name:('#'+id);
+    const price=opt?Number(opt.dataset.price).toLocaleString('en-IN'):'';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;border:1px solid var(--border-color);border-radius:8px;padding:8px 10px;">
+      <span style="font-size:.85rem;">🎁 ${name}${price?` <span class="text-muted">— worth ₹${price}, FREE</span>`:''}</span>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="removeGift(${id})"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
+    </div>`;
+  }).join('');
+}
+
 // Weight is only meaningful for the Weight-Based method. Enable the field only when the
 // selected shipping method is of type "weight"; otherwise grey it out (and clear it).
 function toggleWeightField(){
@@ -508,7 +656,6 @@ function openProductModal(p=null){
   document.getElementById('prod_new').value=p?.is_new??0;
   document.getElementById('prod_weight').value=p?.weight_kg||'';
   document.getElementById('prod_ship_method').value=p?.shipping_method_id||'';
-  document.getElementById('prod_ship_class').value=p?.shipping_class||'standard';
   toggleWeightField();
   // Highlights (per-product). Stored in `features` column as [{title,text}].
   // Back-compat: old rows are plain strings -> convert to {title:'', text}.
@@ -526,6 +673,10 @@ function openProductModal(p=null){
   document.getElementById('prod_packing').value=p?.packing_info||'';
   document.getElementById('prod_additional').value=p?.additional_information||'';
   document.getElementById('prod_warranty').value=p?.warranty_info||'';
+  document.getElementById('prod_key_features').value=p?.key_features||'';
+  document.getElementById('prod_warranty_no').value=p?.warranty_no||'';
+  document.getElementById('prod_direction_of_use').value=p?.direction_of_use||'';
+  setCatalogueUI(p?.catalogue_url||'');
   document.getElementById('modalTitle').textContent=p?'Edit Product':'Add New Product';
   // Specs
   document.getElementById('specs_container').innerHTML='';
@@ -536,6 +687,18 @@ function openProductModal(p=null){
     fetch('products.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'get_faqs',product_id:p.id})})
     .then(r=>r.json()).then(d=>{if(d.faqs)d.faqs.forEach(f=>addFaqRow(f.question,f.answer));});
   }
+  // Frequently Bought Together from server
+  fbtIds=[];
+  if(p?.id){
+    fetch('products.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'get_fbt',product_id:p.id})})
+    .then(r=>r.json()).then(d=>{fbtIds=(d.fbt||[]).map(Number);renderFbt();});
+  } else { renderFbt(); }
+  // Free gifts from server
+  giftIds=[];
+  if(p?.id){
+    fetch('products.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'get_gifts',product_id:p.id})})
+    .then(r=>r.json()).then(d=>{giftIds=(d.gifts||[]).map(Number);renderGift();});
+  } else { renderGift(); }
   // Images
   uploadedImages=p?.images?(typeof p.images==='string'?JSON.parse(p.images):p.images):[];
   renderImgs();
@@ -582,14 +745,17 @@ async function saveProduct(){
     key_specifications:specs,directions_for_use:document.getElementById('prod_directions').value,
     additional_information:document.getElementById('prod_additional').value,
     warranty_info:document.getElementById('prod_warranty').value,
+    key_features:document.getElementById('prod_key_features').value,
+    warranty_no:document.getElementById('prod_warranty_no').value,
+    direction_of_use:document.getElementById('prod_direction_of_use').value,
+    catalogue_url:document.getElementById('prod_catalogue_url').value,
     discount_price:document.getElementById('prod_discount').value,
     weight_kg:document.getElementById('prod_weight').value,
     shipping_method_id:document.getElementById('prod_ship_method').value,
-    shipping_class:document.getElementById('prod_ship_class').value,
     is_active:document.getElementById('prod_status').value,
     is_featured:document.getElementById('prod_featured').value,
     is_new:document.getElementById('prod_new').value,
-    images,faqs};
+    images,faqs,fbt:fbtIds,gifts:giftIds};
   const res=await fetch('products.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(payload)});
   const result=await res.json();
   if(result.success){showToast(result.message,'success');closeModal('productModal');setTimeout(()=>location.reload(),800);}

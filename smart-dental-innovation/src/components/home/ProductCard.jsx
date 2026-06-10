@@ -6,13 +6,14 @@ import { useAuth } from "../../context/AuthContext";
 
 const fmt = (n) => `₹${n.toLocaleString("en-IN")}`;
 
-export default function ProductCard({ product }) {
+export default function ProductCard({ product, onOpen }) {
   const { addToCart } = useCart();
   const { openModal, showToast } = useUI();
   const navigate = useAppNavigate();
   const { has, toggle } = useWishlist();
   const { user } = useAuth();
-  const openProduct = () => navigate("product", { id: product.id, name: product.name });
+  // onOpen lets a host (e.g. the search overlay) close itself before navigating away.
+  const openProduct = () => { onOpen?.(); navigate("product", { id: product.id, name: product.name }); };
   const wished = has(product.id);
 
   const onWish = (e) => {
