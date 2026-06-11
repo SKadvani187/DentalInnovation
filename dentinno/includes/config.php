@@ -2,15 +2,31 @@
 // DentInno CRM - Database Configuration
 // ⚠️ Change these values to your server settings
 
+// ── Secret loading order (highest priority first) ──
+// 1. Environment variables (set on the server / in the host panel).
+// 2. includes/config.local.php (git-ignored — put real prod secrets here).
+// 3. The hardcoded fallbacks below (dev defaults; safe placeholders for prod).
+// config.local.php is plain PHP that may define() any of the constants below; because we
+// only define a constant if it isn't already set, anything it defines wins.
+if (is_file(__DIR__ . '/config.local.php')) {
+    require __DIR__ . '/config.local.php';
+}
+// define()-if-absent, preferring an env var of the same name when present.
+function defv(string $key, $fallback): void {
+    if (defined($key)) return;                 // already set by config.local.php
+    $env = getenv($key);
+    define($key, $env !== false && $env !== '' ? $env : $fallback);
+}
+
 define('DB_HOST', 'localhost');
-define('DB_USER', 'root');          // Apna MySQL username
-define('DB_PASS', '');              // Apna MySQL password
+define('DB_USER', 'dentinno');          // Apna MySQL username
+define('DB_PASS', 'DentPro@X2026');              // Apna MySQL password
 define('DB_NAME', 'dentinno_crm');
 define('DB_CHARSET', 'utf8mb4');
 
 // App Settings
 define('APP_NAME', 'DentInno CRM');
-define('APP_URL', 'http://localhost:8088');
+define('APP_URL', 'https://reetzdentinnovations.com/dentinno');
 define('APP_VERSION', '1.0.0');
 define('TIMEZONE', 'Asia/Kolkata');
 
@@ -25,8 +41,16 @@ define('OTP_TTL', 300);            // OTP valid for 5 minutes (seconds)
 define('OTP_MAX_ATTEMPTS', 5);    // send+verify attempts before block
 define('OTP_BLOCK_MINUTES', 60);  // block duration after limit (1 hour)
 define('OTP_RESEND_COOLDOWN', 30);// min seconds between resend
-define('OTP_DEV_RETURN', true);   // DEV: return OTP in API response (set false in prod)
-define('OTP_SSL_INSECURE', true); // DEV-only: skip SSL verify (local AV/proxy MITM). SET false IN PRODUCTION.
+// Boolean dev flags — env value '0'/'false'/'off' => false. Set both to false in production
+// (env: OTP_DEV_RETURN=false OTP_SSL_INSECURE=false, or define them in config.local.php).
+function defv_bool(string $key, bool $fallback): void {
+    if (defined($key)) return;
+    $env = getenv($key);
+    if ($env === false || $env === '') { define($key, $fallback); return; }
+    define($key, !in_array(strtolower($env), ['0','false','off','no',''], true));
+}
+defv_bool('OTP_DEV_RETURN', false);   // DEV: return OTP in API response (set false in prod)
+defv_bool('OTP_SSL_INSECURE', false); // DEV-only: skip SSL verify (local AV/proxy MITM). SET false IN PRODUCTION.
 
 // ---- OTP SMS provider ----
 // The LIVE provider (Fast2SMS / 2Factor / MSG91) is chosen in Admin -> Settings -> OTP
@@ -35,35 +59,35 @@ define('OTP_SSL_INSECURE', true); // DEV-only: skip SSL verify (local AV/proxy M
 // OTP_SSL_INSECURE=false (ship includes/cacert.pem).
 //
 // Fast2SMS (https://www.fast2sms.com/ -> Dev API -> API Key). Paste your key:
-define('FAST2SMS_API_KEY', '');   // <-- PASTE FAST2SMS KEY HERE
-define('FAST2SMS_SENDER_ID', '');
-define('FAST2SMS_ROUTE', '');    // 'q'=Quick SMS (no verification needed). 'otp'=needs account verification.
+defv('FAST2SMS_API_KEY', '');   // env: FAST2SMS_API_KEY  (or define in config.local.php)
+defv('FAST2SMS_SENDER_ID', '');
+defv('FAST2SMS_ROUTE', '');    // 'q'=Quick SMS (no verification needed). 'otp'=needs account verification.
 
 // Email OTP via SMTP (used when OTP_CHANNEL='email'). Gmail app password recommended.
-define('SMTP_HOST', 'smtp.gmail.com');
-define('SMTP_PORT', 587);
-define('SMTP_USER', '');          // <-- your gmail address
-define('SMTP_PASS', '');          // <-- gmail app password
-define('SMTP_FROM', 'no-reply@smartdentalinnovations.com');
-define('SMTP_FROM_NAME', 'Reetzdent Innovations Private limited');
+defv('SMTP_HOST', 'smtp.gmail.com');
+defv('SMTP_PORT', 587);
+defv('SMTP_USER', '');          // env: SMTP_USER
+defv('SMTP_PASS', '');          // env: SMTP_PASS
+defv('SMTP_FROM', 'no-reply@smartdentalinnovations.com');
+defv('SMTP_FROM_NAME', 'Reetzdent Innovations Private limited');
 
 // ---- AI Image Search (Anthropic Claude Vision) ----
-// Paste your Anthropic API key to enable real visual product recognition.
-// Get one at https://console.anthropic.com/ -> Settings -> API Keys.
-// Leave blank to fall back to filename-based matching (no AI).
-define('ANTHROPIC_API_KEY', '');                 // <-- PASTE ANTHROPIC API KEY HERE
-define('ANTHROPIC_MODEL', 'claude-haiku-4-5');   // fast + cheap; ideal for short image classification
+// Set via env ANTHROPIC_API_KEY or config.local.php. Leave blank to fall back to
+// filename-based matching (no AI).
+defv('ANTHROPIC_API_KEY', '');                 // env: ANTHROPIC_API_KEY
+defv('ANTHROPIC_MODEL', 'claude-haiku-4-5');   // fast + cheap; ideal for short image classification
 
 // ---- Razorpay Payment Gateway ----
 // Free to integrate (₹0 setup/AMC; per-transaction fee only). Get keys at
 // https://dashboard.razorpay.com/ -> Settings -> API Keys. Start in TEST MODE (rzp_test_...).
 // The webhook secret is set when you create a webhook (Settings -> Webhooks) pointing at
 // /api/v1/razorpay_webhook.php with the 'payment.captured' event.
-// SECURITY: like the Fast2SMS key above these are committed in plaintext for now; for
-// production prefer a git-ignored config.local.php or environment variables.
-define('RAZORPAY_KEY_ID', 'rzp_test_Sy7B3yIhK8TdMF');        // <-- PASTE RAZORPAY KEY ID HERE (rzp_test_... or rzp_live_...)
-define('RAZORPAY_KEY_SECRET', 'a4ytKAf1vtSLIPhoIQ55prwV');    // <-- PASTE RAZORPAY KEY SECRET HERE
-define('RAZORPAY_WEBHOOK_SECRET', ''); // <-- PASTE WEBHOOK SECRET HERE (after creating the webhook)
+// SECURITY: the values below are TEST/sandbox fallbacks. For production set the live keys via
+// env vars (RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET/RAZORPAY_WEBHOOK_SECRET) or config.local.php
+// and rotate the committed test key. Never commit a live (rzp_live_) secret to this file.
+defv('RAZORPAY_KEY_ID', 'rzp_test_Sy7B3yIhK8TdMF');        // env: RAZORPAY_KEY_ID (rzp_test_/rzp_live_)
+defv('RAZORPAY_KEY_SECRET', 'a4ytKAf1vtSLIPhoIQ55prwV');    // env: RAZORPAY_KEY_SECRET
+defv('RAZORPAY_WEBHOOK_SECRET', ''); // env: RAZORPAY_WEBHOOK_SECRET (after creating the webhook)
 define('RAZORPAY_CURRENCY', 'INR');
 
 date_default_timezone_set(TIMEZONE);
