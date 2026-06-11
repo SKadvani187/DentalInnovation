@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS shipping_methods (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(150) NOT NULL,
     description TEXT,
-    type ENUM('flat','free','product','weight','price','flexible') DEFAULT 'flat',
+    type ENUM('flat','free','product','weight','price','flexible','quantity') DEFAULT 'flat',
     base_cost DECIMAL(10,2) DEFAULT 0.00,
     is_active TINYINT(1) DEFAULT 1,
     sort_order INT DEFAULT 0,

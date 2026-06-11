@@ -32,6 +32,10 @@ INSERT INTO shipping_zones (id, name, states, pincodes, is_active) VALUES
 (2, 'Metro Cities',    '["Maharashtra","Delhi","Karnataka","Tamil Nadu","West Bengal"]', '["110","400","560","600","700"]', 1);
 
 -- ─── METHODS ───────────────────────────────────────────────────────────────
+-- Ensure the type ENUM allows 'quantity' (older schemas lack it → 1265 truncation).
+ALTER TABLE shipping_methods
+  MODIFY type ENUM('flat','free','product','weight','price','flexible','quantity') DEFAULT 'flat';
+
 INSERT INTO shipping_methods (id, name, description, type, base_cost, is_active, sort_order) VALUES
 (1, 'Standard Delivery',       'National baseline — applies everywhere by order value', 'price',    0.00,   1, 1),
 (2, 'Local Gujarat Delivery',  'Cheaper rate for Gujarat (zone 1)',                     'price',    0.00,   1, 2),
