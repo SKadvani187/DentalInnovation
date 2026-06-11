@@ -147,25 +147,64 @@ if ($action === 'verify') {
     }
 
     // Already reconciled (e.g. webhook landed first) — return success idempotently.
+    // Checked BEFORE the binding lookup: once paid, the pending rzp-order row has been
+    // rewritten to the pay_ id, so the order_ lookup below would no longer find it.
     if ($o['payment_status'] === 'paid') {
         jsonOut(['success' => true, 'orderId' => $o['order_number'], 'paymentStatus' => 'paid']);
     }
 
-    // Best-effort: fetch the payment to record the real method (signature is the trust anchor).
+    // SECURITY: the signature only proves these ids belong together — NOT that they belong to
+    // THIS storefront order. Without binding, a customer could pay a cheap rzp order they
+    // created and submit those (validly-signed) ids against an expensive order. Bind the
+    // submitted razorpay_order_id to the one we stored at create time for this order.
+    $pendingPay = $db->fetchOne(
+        "SELECT transaction_id FROM payments WHERE order_id=? AND transaction_id LIKE 'order\_%' ESCAPE '\\\\' ORDER BY id DESC LIMIT 1",
+        [$o['id']]
+    );
+    $storedRzpOrderId = $pendingPay['transaction_id'] ?? '';
+    if ($storedRzpOrderId === '' || !hash_equals($storedRzpOrderId, $rzpOrderId)) {
+        jsonErr('Payment does not match this order', 400);
+    }
+
+    // Fetch the payment: record the real method AND assert the captured amount + order id match
+    // what we expect. The signature is the integrity anchor; the amount check is the fraud anchor.
     $payMethod = 'upi';
     $rawMethod = '';
     try {
         $p = rzpRequest('GET', '/payments/' . rawurlencode($rzpPaymentId));
         $rawMethod = (string)($p['method'] ?? '');
         $payMethod = clampMethod($rawMethod);
+
+        $expectedPaise = (int) round(((float)$o['total']) * 100);
+        $paidPaise     = (int)($p['amount'] ?? 0);
+        if ($paidPaise !== $expectedPaise) {
+            jsonErr('Paid amount does not match order total', 400);
+        }
+        if (($p['order_id'] ?? '') !== $rzpOrderId) {
+            jsonErr('Payment is not for this order', 400);
+        }
+        if (($p['status'] ?? '') !== 'captured' && ($p['status'] ?? '') !== 'authorized') {
+            jsonErr('Payment not captured', 400);
+        }
     } catch (Throwable $t) {
-        // ignore — verification already succeeded via signature
+        // A gateway-fetch failure must NOT silently pass an unverified amount. Reject.
+        jsonErr('Could not verify payment with gateway. Please contact support if charged.', 502);
     }
 
     $pdo = $db->getConnection();
     $pdo->beginTransaction();
     try {
-        $db->execute("UPDATE orders SET payment_status='paid' WHERE id=?", [$o['id']]);
+        // Conditional transition — only the caller that flips unpaid->paid proceeds. A
+        // concurrent webhook (or retry) gets rowCount()===0 and bails, so WhatsApp/record
+        // side-effects fire exactly once.
+        $changed = $db->execute(
+            "UPDATE orders SET payment_status='paid' WHERE id=? AND payment_status<>'paid'",
+            [$o['id']]
+        );
+        if ($changed < 1) {
+            $pdo->rollBack();
+            jsonOut(['success' => true, 'orderId' => $o['order_number'], 'paymentStatus' => 'paid']);
+        }
         $notes = trim('razorpay; rzp_order=' . $rzpOrderId . ($rawMethod ? '; method=' . $rawMethod : ''));
         $existing = $db->fetchOne(
             "SELECT id FROM payments WHERE order_id=? ORDER BY (status='pending') DESC, id DESC LIMIT 1",

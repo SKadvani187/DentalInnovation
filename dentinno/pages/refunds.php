@@ -65,18 +65,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $amount    = (float)$rr['refund_amount'];
         $rzpRefId  = null;
 
+        // SECURITY (double-refund prevention): atomically claim this request BEFORE calling the
+        // gateway. Only the row-update that transitions pending/approved -> processing proceeds;
+        // a concurrent second click / re-submit gets rowCount()===0 and bails, so rzpRefund()
+        // fires at most once per request.
+        $claimed = db()->execute(
+            "UPDATE refund_requests SET status='processing' WHERE id=? AND status IN ('pending','approved') AND (razorpay_refund_id IS NULL OR razorpay_refund_id='')",
+            [$rid]
+        );
+        if ($claimed < 1) {
+            echo json_encode(['success' => false, 'message' => 'Refund already being processed or completed']); exit;
+        }
+
         // For an online order with a captured Razorpay payment, fire a real gateway refund.
         $pay = db()->fetchOne(
-            "SELECT * FROM payments WHERE order_id=? AND status='completed' AND transaction_id LIKE 'pay_%' ORDER BY id DESC LIMIT 1",
+            "SELECT * FROM payments WHERE order_id=? AND status='completed' AND transaction_id LIKE 'pay\_%' ESCAPE '\\\\' ORDER BY id DESC LIMIT 1",
             [$orderId]
         );
         if ($pay && ($rr['payment_method'] ?? '') !== 'cod') {
+            // Guard: refund amount must be within the captured payment amount.
+            $captured = (float)$pay['amount'];
+            if ($amount <= 0 || $amount > $captured + 0.001) {
+                db()->execute("UPDATE refund_requests SET status='approved' WHERE id=?", [$rid]); // release claim
+                echo json_encode(['success' => false, 'message' => 'Invalid refund amount (exceeds captured payment)']); exit;
+            }
             try {
                 $res = rzpRefund($pay['transaction_id'], $amount);
                 $rzpRefId = $res['id'] ?? null;
             } catch (Throwable $e) {
+                db()->execute("UPDATE refund_requests SET status='approved' WHERE id=?", [$rid]); // release claim on gateway failure
                 echo json_encode(['success' => false, 'message' => $e->getMessage()]); exit;
             }
+            // Persist the gateway refund id IMMEDIATELY so a crash before the txn below can't
+            // cause a second real refund (the claim guard above also blocks re-entry).
+            db()->execute("UPDATE refund_requests SET razorpay_refund_id=? WHERE id=?", [$rzpRefId, $rid]);
         }
         // COD / no gateway payment → manual refund (recorded, money returned out-of-band).
 

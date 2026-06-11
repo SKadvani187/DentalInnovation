@@ -75,7 +75,7 @@ include __DIR__ . '/../includes/header.php';
             <div class="admin-avatar" style="width:48px;height:48px;font-size:1.2rem;"><?= strtoupper(substr($cust_detail['name'],0,1)) ?></div>
             <div>
                 <div class="card-title"><?= htmlspecialchars($cust_detail['name']) ?></div>
-                <?php if($cust_detail['clinic_name']): ?><div class="text-muted" style="font-size:0.82rem;"><?= $cust_detail['clinic_name'] ?></div><?php endif; ?>
+                <?php if($cust_detail['clinic_name']): ?><div class="text-muted" style="font-size:0.82rem;"><?= htmlspecialchars($cust_detail['clinic_name']) ?></div><?php endif; ?>
             </div>
             <span class="badge badge-primary" style="margin-left:8px;"><?= ucfirst($cust_detail['customer_type']) ?></span>
         </div>
@@ -88,9 +88,9 @@ include __DIR__ . '/../includes/header.php';
                 <div style="display:flex;flex-direction:column;gap:8px;">
                     <?php $dEmail = (!empty($cust_detail['email']) && !str_ends_with($cust_detail['email'], '@storefront.local')) ? $cust_detail['email'] : '—'; ?>
                     <div><i class="fa-solid fa-envelope text-gold" style="width:20px;"></i> <?= htmlspecialchars($dEmail) ?></div>
-                    <div><i class="fa-solid fa-phone text-gold" style="width:20px;"></i> <?= $cust_detail['phone'] ?></div>
-                    <div><i class="fa-solid fa-location-dot text-gold" style="width:20px;"></i> <?= $cust_detail['city'] ?>, <?= $cust_detail['state'] ?></div>
-                    <?php if($cust_detail['pincode']): ?><div><i class="fa-solid fa-map-pin text-gold" style="width:20px;"></i> <?= $cust_detail['pincode'] ?></div><?php endif; ?>
+                    <div><i class="fa-solid fa-phone text-gold" style="width:20px;"></i> <?= htmlspecialchars($cust_detail['phone']) ?></div>
+                    <div><i class="fa-solid fa-location-dot text-gold" style="width:20px;"></i> <?= htmlspecialchars($cust_detail['city']) ?>, <?= htmlspecialchars($cust_detail['state']) ?></div>
+                    <?php if($cust_detail['pincode']): ?><div><i class="fa-solid fa-map-pin text-gold" style="width:20px;"></i> <?= htmlspecialchars($cust_detail['pincode']) ?></div><?php endif; ?>
                 </div>
             </div>
             <div>
@@ -178,19 +178,19 @@ include __DIR__ . '/../includes/header.php';
                             <div class="admin-avatar" style="width:34px;height:34px;font-size:0.85rem;"><?= strtoupper(substr($c['name'],0,1)) ?></div>
                             <div>
                                 <div class="font-bold" style="font-size:0.84rem;"><?= htmlspecialchars($c['name']) ?></div>
-                                <?php if($c['clinic_name']): ?><div class="text-muted" style="font-size:0.72rem;"><?= $c['clinic_name'] ?></div><?php endif; ?>
+                                <?php if($c['clinic_name']): ?><div class="text-muted" style="font-size:0.72rem;"><?= htmlspecialchars($c['clinic_name']) ?></div><?php endif; ?>
                             </div>
                         </div>
                     </td>
                     <td>
-                        <div><?= $c['phone'] ?></div>
+                        <div><?= htmlspecialchars($c['phone']) ?></div>
                         <?php $showEmail = (!empty($c['email']) && !str_ends_with($c['email'], '@storefront.local')) ? $c['email'] : ''; ?>
-                        <div class="text-muted" style="font-size:0.73rem;"><?= $showEmail ?: '<span style="opacity:.5;">—</span>' ?></div>
+                        <div class="text-muted" style="font-size:0.73rem;"><?= $showEmail ? htmlspecialchars($showEmail) : '<span style="opacity:.5;">—</span>' ?></div>
                     </td>
-                    <td><span class="badge badge-info"><?= $c['customer_type'] ?></span></td>
+                    <td><span class="badge badge-info"><?= htmlspecialchars($c['customer_type']) ?></span></td>
                     <td>
-                        <div><?= $c['city'] ?></div>
-                        <div class="text-muted" style="font-size:0.72rem;"><?= $c['state'] ?></div>
+                        <div><?= htmlspecialchars($c['city']) ?></div>
+                        <div class="text-muted" style="font-size:0.72rem;"><?= htmlspecialchars($c['state']) ?></div>
                     </td>
                     <td class="text-center font-bold"><?= $c['total_orders'] ?></td>
                     <td class="font-bold text-gold"><?= formatCurrency($c['total_spent']) ?></td>

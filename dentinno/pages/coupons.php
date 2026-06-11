@@ -62,7 +62,7 @@ include __DIR__ . '/../includes/header.php';
             <tbody>
                 <?php foreach($coupons as $c): ?>
                 <tr id="coupon-row-<?= $c['id'] ?>">
-                    <td><span class="font-bold text-gold" style="font-family:monospace;font-size:1rem;"><?= $c['code'] ?></span></td>
+                    <td><span class="font-bold text-gold" style="font-family:monospace;font-size:1rem;"><?= htmlspecialchars($c['code']) ?></span></td>
                     <td><span class="badge badge-info"><?= ucfirst($c['type']) ?></span></td>
                     <td class="font-bold">
                         <?= $c['type']==='percent' ? $c['value'].'%' : formatCurrency($c['value']) ?>

@@ -107,9 +107,9 @@ include __DIR__ . '/../includes/header.php';
             <div>
                 <h3 style="font-size:0.8rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Customer Info</h3>
                 <div class="font-bold"><?= htmlspecialchars($order_detail['customer_name']) ?></div>
-                <?php if($order_detail['clinic_name']): ?><div class="text-muted"><?= $order_detail['clinic_name'] ?></div><?php endif; ?>
-                <div class="text-muted"><?= $order_detail['phone'] ?></div>
-                <div class="text-muted"><?= $order_detail['customer_email'] ?></div>
+                <?php if($order_detail['clinic_name']): ?><div class="text-muted"><?= htmlspecialchars($order_detail['clinic_name']) ?></div><?php endif; ?>
+                <div class="text-muted"><?= htmlspecialchars($order_detail['phone']) ?></div>
+                <div class="text-muted"><?= htmlspecialchars($order_detail['customer_email']) ?></div>
             </div>
             <div>
                 <h3 style="font-size:0.8rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Order Summary</h3>
@@ -225,7 +225,7 @@ include __DIR__ . '/../includes/header.php';
                     <td><a href="?view=<?= $o['id'] ?>" class="text-gold font-bold"><?= $o['order_number'] ?></a></td>
                     <td>
                         <div class="font-bold" style="font-size:0.84rem;"><?= htmlspecialchars($o['customer_name']) ?></div>
-                        <div class="text-muted" style="font-size:0.73rem;"><?= $o['phone'] ?></div>
+                        <div class="text-muted" style="font-size:0.73rem;"><?= htmlspecialchars($o['phone']) ?></div>
                     </td>
                     <td>
                         <div><?= formatDate($o['created_at']) ?></div>

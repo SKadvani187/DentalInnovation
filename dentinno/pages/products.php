@@ -241,11 +241,11 @@ include __DIR__ . '/../includes/header.php';
               </div>
               <div>
                 <div class="font-bold" style="font-size:.85rem;"><?= htmlspecialchars($p['name']) ?></div>
-                <div class="text-muted" style="font-size:.72rem;">SKU: <?= $p['sku'] ?></div>
+                <div class="text-muted" style="font-size:.72rem;">SKU: <?= htmlspecialchars($p['sku']) ?></div>
               </div>
             </div>
           </td>
-          <td><?= $p['category'] ?? '<span class="text-muted">—</span>' ?></td>
+          <td><?= isset($p['category']) ? htmlspecialchars($p['category']) : '<span class="text-muted">—</span>' ?></td>
           <td class="font-bold"><?= formatCurrency($p['price']) ?></td>
           <td><?php if($p['discount_price']): ?><div><?= formatCurrency($p['discount_price']) ?></div><div class="badge badge-success"><?= $p['discount_percent'] ?>% off</div><?php else: ?><span class="text-muted">—</span><?php endif; ?></td>
           <td><span class="<?= $p['stock']<=$p['min_stock_alert']?'stock-low':($p['stock']<=10?'stock-warn':'stock-ok') ?>"><?= $p['stock'] ?> units</span></td>

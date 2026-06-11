@@ -25,6 +25,21 @@ if ($action === 'login') {
     if (!preg_match('/^[6-9]\d{9}$/', $mobile)) {
         jsonErr('Enter a valid 10-digit mobile number.', 422);
     }
+
+    // SECURITY: require a server-verified, unexpired OTP for THIS mobile before issuing a
+    // token. otp.php?action=verify sets otp_codes.verified=1 on a correct OTP. We consume it
+    // here (verified -> 0) so the same verification cannot be replayed for another login.
+    $otpRow = $db->fetchOne("SELECT * FROM otp_codes WHERE identifier=?", [$mobile]);
+    $otpOk = $otpRow
+        && (int)$otpRow['verified'] === 1
+        && !empty($otpRow['expires_at'])
+        && strtotime($otpRow['expires_at']) >= time();
+    if (!$otpOk) {
+        jsonErr('OTP verification required. Please verify the OTP sent to your mobile.', 401);
+    }
+    // Consume the verification (single-use) to block replay.
+    $db->execute("UPDATE otp_codes SET verified=0 WHERE identifier=?", [$mobile]);
+
     $existing = $db->fetchOne("SELECT * FROM customers WHERE phone=?", [$mobile]);
     $token = makeToken();
 

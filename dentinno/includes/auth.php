@@ -1,10 +1,31 @@
 <?php
 require_once __DIR__ . '/config.php';
 
-// Start session
+// Start session (hardened cookie flags — HttpOnly + SameSite, Secure when on HTTPS)
 if (session_status() === PHP_SESSION_NONE) {
+    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+          || (($_SERVER['SERVER_PORT'] ?? '') == 443)
+          || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path'     => '/',
+        'httponly' => true,
+        'secure'   => $https,
+        'samesite' => 'Lax',
+    ]);
     session_name(SESSION_NAME);
     session_start();
+}
+
+// Idle-timeout enforcement (SESSION_LIFETIME). Expire stale admin sessions.
+if (isset($_SESSION['admin_id'])) {
+    $last = $_SESSION['last_activity'] ?? time();
+    if ((time() - $last) > SESSION_LIFETIME) {
+        $_SESSION = [];
+        session_destroy();
+    } else {
+        $_SESSION['last_activity'] = time();
+    }
 }
 
 // Check if logged in
@@ -28,10 +49,13 @@ function loginAdmin($email, $password) {
     );
 
     if ($admin && password_verify($password, $admin['password'])) {
+        // Prevent session fixation — issue a fresh session id on privilege change.
+        session_regenerate_id(true);
         $_SESSION['admin_id']   = $admin['id'];
         $_SESSION['admin_name'] = $admin['name'];
         $_SESSION['admin_email']= $admin['email'];
         $_SESSION['admin_role'] = $admin['role'];
+        $_SESSION['last_activity'] = time();
 
         db()->execute(
             "UPDATE admin_users SET last_login = NOW() WHERE id = ?",
@@ -42,11 +66,50 @@ function loginAdmin($email, $password) {
     return false;
 }
 
-// Logout function
+// Logout function — clear session data, destroy, and expire the cookie.
 function logoutAdmin() {
+    $_SESSION = [];
+    if (ini_get('session.use_cookies')) {
+        $p = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000, $p['path'], $p['domain'], $p['secure'], $p['httponly']);
+    }
     session_destroy();
     header('Location: ' . APP_URL . '/login.php');
     exit;
+}
+
+// ---- CSRF protection (per-session token) ----
+function csrfToken(): string {
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+// Hidden form field for CSRF-protected POST forms.
+function csrfField(): string {
+    return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') . '">';
+}
+
+// Validate a submitted CSRF token (form field or X-CSRF-Token header). Constant-time.
+function verifyCsrf(): bool {
+    $sent = $_POST['csrf_token']
+        ?? $_SERVER['HTTP_X_CSRF_TOKEN']
+        ?? '';
+    return !empty($_SESSION['csrf_token']) && is_string($sent) && hash_equals($_SESSION['csrf_token'], $sent);
+}
+
+// ---- Auto-enforce admin auth ----
+// Every admin page in /pages/ includes this file at the very top. Enforce login HERE,
+// before any page-level request handler can run, so AJAX handlers that `exit` early
+// can never execute for an unauthenticated caller. Scripts that must bypass (login.php)
+// set $AUTH_PUBLIC = true BEFORE requiring this file.
+if (empty($GLOBALS['AUTH_PUBLIC'])) {
+    $caller = $_SERVER['SCRIPT_FILENAME'] ?? '';
+    // Enforce for anything living under the admin /pages/ directory.
+    if (strpos(str_replace('\\', '/', $caller), '/pages/') !== false) {
+        requireLogin();
+    }
 }
 
 // Get current admin

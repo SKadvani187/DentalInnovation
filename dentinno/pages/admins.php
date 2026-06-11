@@ -5,13 +5,23 @@ $page_title = 'Admin Users';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
+    // SECURITY: managing admin accounts (and assigning roles) is a super_admin-only action.
+    // Without this gate any logged-in admin could escalate themselves to super_admin.
+    if (!hasPermission('manage_admins')) {
+        http_response_code(403);
+        echo json_encode(['success'=>false,'message'=>'Forbidden: super admin only']); exit;
+    }
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
+
+    // Allowlist roles — never trust the client-supplied role string verbatim (mass-assignment).
+    $ALLOWED_ROLES = ['super_admin','admin','staff'];
+    $role = in_array($data['role'] ?? '', $ALLOWED_ROLES, true) ? $data['role'] : 'staff';
 
     if ($action === 'save') {
         if (!empty($data['id'])) {
             $extra = !empty($data['password']) ? ", password=?" : "";
-            $params = [$data['name'],$data['email'],$data['role'],$data['is_active']];
+            $params = [$data['name'],$data['email'],$role,$data['is_active']];
             if (!empty($data['password'])) $params[] = password_hash($data['password'], PASSWORD_DEFAULT);
             $params[] = $data['id'];
             db()->execute("UPDATE admin_users SET name=?,email=?,role=?,is_active=?$extra WHERE id=?", $params);
@@ -21,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $exists = db()->fetchOne("SELECT id FROM admin_users WHERE email=?",[$data['email']]);
             if ($exists) { echo json_encode(['success'=>false,'message'=>'Email already exists']); exit; }
             db()->insert("INSERT INTO admin_users (name,email,password,role,is_active) VALUES (?,?,?,?,?)",
-                [$data['name'],$data['email'],password_hash($data['password'],PASSWORD_DEFAULT),$data['role'],$data['is_active']??1]);
+                [$data['name'],$data['email'],password_hash($data['password'],PASSWORD_DEFAULT),$role,$data['is_active']??1]);
             echo json_encode(['success'=>true,'message'=>'Admin user created']);
         }
     } elseif ($action === 'delete') {
@@ -69,7 +79,7 @@ include __DIR__ . '/../includes/header.php';
                             <?php endif; ?>
                         </div>
                     </td>
-                    <td class="text-muted"><?= $a['email'] ?></td>
+                    <td class="text-muted"><?= htmlspecialchars($a['email']) ?></td>
                     <td>
                         <span class="badge badge-<?= $a['role']==='super_admin'?'warning':($a['role']==='admin'?'info':'secondary') ?>">
                             <?= ucfirst(str_replace('_',' ',$a['role'])) ?>

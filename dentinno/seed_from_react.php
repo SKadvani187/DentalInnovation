@@ -3,6 +3,12 @@
 // Run from CLI: php seed_from_react.php
 // Maps React shapes -> DB columns. React string id -> slug. Computed fields preserved.
 
+// SECURITY: this script TRUNCATEs catalog tables. CLI-only — never reachable over HTTP.
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit('This script can only be run from the command line.');
+}
+
 require_once __DIR__ . '/includes/config.php';
 
 $jsonPath = __DIR__ . '/../smart-dental-innovation/seed-data.json';
