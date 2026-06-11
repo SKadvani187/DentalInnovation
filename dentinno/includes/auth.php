@@ -105,9 +105,11 @@ function verifyCsrf(): bool {
 // can never execute for an unauthenticated caller. Scripts that must bypass (login.php)
 // set $AUTH_PUBLIC = true BEFORE requiring this file.
 if (empty($GLOBALS['AUTH_PUBLIC'])) {
-    $caller = $_SERVER['SCRIPT_FILENAME'] ?? '';
-    // Enforce for anything living under the admin /pages/ directory.
-    if (strpos(str_replace('\\', '/', $caller), '/pages/') !== false) {
+    $caller = str_replace('\\', '/', $_SERVER['SCRIPT_FILENAME'] ?? '');
+    // Enforce for anything under the admin /pages/ directory. stripos (not strpos) so a
+    // case-insensitive filesystem (Windows/IIS, some Apache) can't bypass via /Pages/.
+    // NOTE: this is a backstop — each handler should still gate itself; see verifyCsrf().
+    if (stripos($caller, '/pages/') !== false) {
         requireLogin();
     }
 }
@@ -131,7 +133,28 @@ function hasPermission($permission) {
     return false;
 }
 
-// Dashboard Stats
+// Lightweight sidebar/topbar badges — the ONLY stats header.php needs. Runs on every
+// admin page, so it must stay cheap (a handful of COUNTs), unlike getDashboardStats()
+// which fires ~20 aggregate/chart queries and should only run on the dashboard (index.php).
+function getSidebarBadges() {
+    $s = [];
+    $s['low_stock'] = db()->fetchOne(
+        "SELECT COUNT(*) as val FROM products WHERE stock <= min_stock_alert AND is_active = 1"
+    )['val'];
+    $s['pending_orders'] = db()->fetchOne(
+        "SELECT COUNT(*) as val FROM orders WHERE status = 'pending'"
+    )['val'];
+    $s['notifications'] = db()->fetchAll(
+        "SELECT * FROM notifications WHERE is_read = 0 ORDER BY created_at DESC LIMIT 10"
+    );
+    try {
+        $pendingReviews = db()->fetchOne("SELECT COUNT(*) as val FROM product_reviews WHERE is_approved=0")['val'] ?? 0;
+    } catch (Throwable $e) { $pendingReviews = 0; }
+    $s['notif_count'] = count($s['notifications']) + (int)$pendingReviews;
+    return $s;
+}
+
+// Dashboard Stats (full — dashboard/index.php only). Superset of getSidebarBadges().
 function getDashboardStats() {
     $stats = [];
 

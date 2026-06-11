@@ -5,6 +5,7 @@ $page_title = 'Shipping Calculator';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
+    if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
     $data   = json_decode(file_get_contents('php://input'), true);
     $price  = (float)($data['price'] ?? 0);
     $weight = (float)($data['weight'] ?? 0);

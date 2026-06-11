@@ -132,9 +132,22 @@ function mapEvent(array $r): array {
 // When present they are the source of truth; otherwise we fall back to the legacy
 // free_items JSON so un-migrated rows still render. Output shape stays
 // {name, mrp, image, variant} plus optional {productId, qty} for cart building.
-function mapOffer(array $r, array $giftRows = []): array {
-    $main    = jcol($r['main_product'] ?? null, null);
+function mapOffer(array $r, array $giftRows = [], array $mainById = []): array {
+    $main    = jcol($r['main_product'] ?? null, null) ?: [];
     $special = (float)$r['special_price'];
+
+    // Source of truth for WHICH product this offer is + its live pricing: the relational
+    // offers.product_id (resolved via $mainById = [id => ['slug','name','image','mrp','price']]).
+    // The JSON main_product snapshot is legacy and drifts; use it only when the relational link
+    // is missing (very old rows). Fixes the offers JSON-drift gap (productId + mrp/price + totalMrp).
+    $rel = $mainById[(int)($r['product_id'] ?? 0)] ?? null;
+    if ($rel) {
+        $main['productId'] = $rel['slug'];
+        $main['name']      = $rel['name'];
+        $main['image']     = $rel['image'] ?: ($main['image'] ?? null);
+        $main['mrp']       = $rel['mrp'];
+        $main['price']     = $rel['price'];
+    }
 
     if (!empty($giftRows)) {
         $freeItems = array_map(fn($g) => [

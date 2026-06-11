@@ -7,6 +7,7 @@ import { useSettings } from "../../context/SettingsContext";
 import { useAppNavigate } from "../../hooks/useAppNavigate";
 import api, { loadRazorpayScript } from "../../lib/api";
 import { lookupPincode, detectCurrentPincode, validateAddressLocality } from "../../lib/pincode";
+import { useDeliveryCheck, useStockCheck } from "../../hooks/useCheckout";
 import logoAsset from "../../assets/logo.png";
 
 const fmt = (n) => `₹${Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -51,9 +52,6 @@ export default function CheckoutDrawer() {
   const [selectedAddrId, setSelectedAddrId] = useState(null);
   const selectedAddr = addresses.find((a) => a.id === selectedAddrId) || null;
 
-  // Serviceability + COD for the chosen destination (from delivery.php).
-  const [delivery, setDelivery] = useState(null); // { serviceable, cod, days, eta }
-
   const [payment, setPayment] = useState("online");
   const [method, setMethod] = useState("upi"); // online sub-method (display only; Razorpay shows all)
   const [placing, setPlacing] = useState(false);
@@ -62,10 +60,6 @@ export default function CheckoutDrawer() {
   // Add/edit address form state. `editTarget` non-null = editing an existing address.
   const [form, setForm] = useState(emptyForm);
   const [editTarget, setEditTarget] = useState(null);
-
-  // Live stock guard: product lines whose requested qty exceeds current stock. Blocks
-  // PAY NOW so an out-of-stock item can't fail at the server with a raw error.
-  const [stockIssues, setStockIssues] = useState([]); // [{ name, available }]
 
   const { mrpTotal, subtotal, couponDiscount, deliveryCharges, tax, finalTotal, totalSaved } = pricing;
   const productDiscount = Math.max(0, mrpTotal - subtotal);
@@ -81,40 +75,10 @@ export default function CheckoutDrawer() {
     setSelectedAddrId(def?.id || null);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Keep the cart's shipping quote + the COD flag in sync with the selected destination.
-  useEffect(() => {
-    if (!open || !selectedAddr) { setDelivery(null); return; }
-    const pin = (selectedAddr.pincode || "").replace(/\D/g, "");
-    if (pin.length !== 6) { setDelivery(null); return; }
-    setDeliveryPincode(pin);
-    let alive = true;
-    api.checkDelivery(pin)
-      .then((d) => { if (alive) setDelivery(d); })
-      .catch(() => { if (alive) setDelivery(null); });
-    return () => { alive = false; };
-  }, [open, selectedAddr, setDeliveryPincode]);
-
-  // Re-check live stock for the product lines when the sheet opens / cart changes.
-  // (Offer/gift lines are server-priced combos — skip them here; the server still guards.)
-  useEffect(() => {
-    if (!open) { setStockIssues([]); return; }
-    const lines = items.filter((i) => (i.type || "product") === "product");
-    if (lines.length === 0) { setStockIssues([]); return; }
-    let alive = true;
-    Promise.all(lines.map((i) =>
-      api.product(i.id).then((p) => ({ i, p })).catch(() => null)
-    )).then((results) => {
-      if (!alive) return;
-      const issues = [];
-      for (const r of results) {
-        if (!r || !r.p) continue;
-        const avail = typeof r.p.stock === "number" ? r.p.stock : (r.p.inStock ? Infinity : 0);
-        if (avail < r.i.qty) issues.push({ name: r.i.name, available: avail });
-      }
-      setStockIssues(issues);
-    });
-    return () => { alive = false; };
-  }, [open, items]);
+  // Serviceability + COD for the chosen destination, and the live stock guard — extracted
+  // into hooks (see hooks/useCheckout.js). delivery = { serviceable, cod, days, eta } | null.
+  const delivery = useDeliveryCheck(open, selectedAddr, setDeliveryPincode);
+  const stockIssues = useStockCheck(open, items);  // [{ name, available }]
 
   const hasStockIssue = stockIssues.length > 0;
 
@@ -142,10 +106,13 @@ export default function CheckoutDrawer() {
 
   const buildPayload = (paymentMethod) => ({
     // Server re-prices every line authoritatively and recomputes discount/shipping/tax.
-    // We only pass the coupon code + line identity (type/offerId/parentId).
+    // We only pass the coupon code + line identity. For per-product free gifts the server
+    // (orders.php) requires `autoGift` + `parentSlug` to validate the gift against its
+    // granting product — omitting them routes the line into the offer-gift branch and 409s.
     items: items.map((i) => ({
       id: i.id, name: i.name, price: i.price, qty: i.qty, variant: i.variant,
-      type: i.type || "product", offerId: i.offerId, parentId: i.parentId,
+      type: i.type || "product", offerId: i.offerId,
+      autoGift: i.autoGift, parentSlug: i.parentSlug,
     })),
     address: toOrderAddress(selectedAddr),
     paymentMethod,

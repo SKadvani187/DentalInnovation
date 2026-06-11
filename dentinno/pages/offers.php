@@ -6,6 +6,7 @@ $page_title = 'Offers';
 // Image upload (shared products folder)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['offer_image'])) {
     header('Content-Type: application/json');
+    if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
     $upload_dir = __DIR__ . '/../assets/images/products/';
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
     $file = $_FILES['offer_image'];
@@ -36,6 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['offer_image'])) {
 // AJAX JSON actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
+    if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
     // Never let a PHP warning/exception leak HTML into the JSON response (that breaks res.json()
     // on the client with "Unexpected token '<'"). Any DB error is returned as a JSON message.
     try {
@@ -174,7 +176,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     exit;
 }
 
-$offers = db()->fetchAll("SELECT * FROM offers ORDER BY sort_order, id");
+// Paginate the offers grid (was: fetch ALL rows).
+$page     = max(1, (int)($_GET['page'] ?? 1));
+$per_page = 20;
+$offset   = ($page - 1) * $per_page;
+$total    = (int)(db()->fetchOne("SELECT COUNT(*) c FROM offers")['c'] ?? 0);
+$pages    = (int)ceil($total / $per_page);
+$offers = db()->fetchAll("SELECT * FROM offers ORDER BY sort_order, id LIMIT $per_page OFFSET $offset");
 // Real "bought today" count per product slug (same source as storefront API).
 $soldRows = db()->fetchAll(
     "SELECT oi.product_slug AS slug, COUNT(DISTINCT oi.order_id) AS cnt
@@ -252,6 +260,13 @@ include __DIR__ . '/../includes/header.php';
     <?php endforeach; ?>
     <?php if(empty($offers)): ?><p class="text-muted">No offers yet. Click "Add Offer".</p><?php endif; ?>
 </div>
+
+<?php if($pages > 1): ?>
+<div class="pagination" style="margin-top:16px;">
+    <?php for($i=1;$i<=$pages;$i++): ?><div class="page-item <?= $i==$page?'active':'' ?>" onclick="goOffersPage(<?= $i ?>)"><?= $i ?></div><?php endfor; ?>
+</div>
+<script>function goOffersPage(p){window.location.href=`offers.php?page=${p}`;}</script>
+<?php endif; ?>
 
 <!-- Modal -->
 <div class="modal-overlay" id="offerModal" style="display:none;" onclick="if(event.target===this)closeModal('offerModal')">

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/order_effects.php';
 $page_title = 'Refunds';
 $current_page = 'refunds';
 
@@ -37,6 +38,7 @@ function rzpRefund(string $paymentId, float $amount): array {
 // --- AJAX: approve / reject ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
+    if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
     $data   = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
     $rid    = (int)($data['id'] ?? 0);
@@ -111,6 +113,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             );
             db()->execute("UPDATE orders SET status='refunded', payment_status='refunded' WHERE id=?", [$orderId]);
             db()->execute("UPDATE payments SET status='refunded' WHERE order_id=? AND status='completed'", [$orderId]);
+            // Undo the order's inventory + aggregate effects (restock, decrement sales/LTV/coupon),
+            // once. Runs inside this open transaction so it commits/rolls back atomically with the refund.
+            reverseOrderEffects($orderId);
             $pdo->commit();
         } catch (Throwable $e) {
             $pdo->rollBack();

@@ -1,26 +1,84 @@
 <?php
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/order_effects.php';
 $page_title = 'Orders';
 
 // AJAX
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
+    if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
 
     if ($action === 'update_status') {
+        $newStatus = (string)($data['status'] ?? '');
+        $oid       = (int)$data['id'];
+
+        // Allowed next-states per current state. Forward-only lifecycle; terminal states are
+        // dead ends. 'refunded' is NOT settable here — it must go through the refunds module
+        // (pages/refunds.php) so the gateway refund + effect reversal stay coupled.
+        $TRANSITIONS = [
+            'pending'          => ['processing','confirmed','cancelled','rejected'],
+            'processing'       => ['confirmed','shipped','cancelled','rejected'],
+            'confirmed'        => ['shipped','out_for_delivery','cancelled','rejected'],
+            'shipped'          => ['out_for_delivery','delivered','returning'],
+            'out_for_delivery' => ['delivered','returning'],
+            'delivered'        => ['returning'],
+            'returning'        => ['returned'],
+            'returned'         => [],
+            'cancelled'        => [],
+            'rejected'         => [],
+            'refunded'         => [],
+        ];
+
+        $cur = db()->fetchOne("SELECT status FROM orders WHERE id=?", [$oid]);
+        if (!$cur) { echo json_encode(['success'=>false,'message'=>'Order not found']); exit; }
+        $curStatus = (string)$cur['status'];
+
+        if ($newStatus === $curStatus) { echo json_encode(['success'=>true,'message'=>'No change']); exit; }
+        $allowed = $TRANSITIONS[$curStatus] ?? null;
+        if ($allowed === null) { echo json_encode(['success'=>false,'message'=>"Unknown current status '$curStatus'"]); exit; }
+        if (!in_array($newStatus, $allowed, true)) {
+            echo json_encode(['success'=>false,'message'=>"Can't move an order from '$curStatus' to '$newStatus'."]); exit;
+        }
+
         $extra = [];
-        if ($data['status'] === 'shipped')   $extra[] = "shipped_at = NOW()";
-        if ($data['status'] === 'delivered') $extra[] = "delivered_at = NOW()";
+        if ($newStatus === 'shipped')   $extra[] = "shipped_at = NOW()";
+        if ($newStatus === 'delivered') $extra[] = "delivered_at = NOW()";
         $extraStr = $extra ? ', ' . implode(', ', $extra) : '';
-        db()->execute("UPDATE orders SET status = ? $extraStr WHERE id = ?", [$data['status'], $data['id']]);
+        $isTerminal = in_array($newStatus, ['cancelled', 'rejected', 'returned'], true);
+
+        if ($isTerminal) {
+            // Status change + effect reversal must be ATOMIC: if the reversal (restock /
+            // counter decrement) fails, the status change must roll back too — otherwise the
+            // order is terminal with effects_reversed=0 and stock leaks permanently with no
+            // path to retry. (refunds.php / cleanup do the same single-txn wrap.)
+            $pdo = db()->getConnection();
+            $pdo->beginTransaction();
+            try {
+                db()->execute("UPDATE orders SET status = ? $extraStr WHERE id = ?", [$newStatus, $oid]);
+                reverseOrderEffects($oid);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                $pdo->rollBack();
+                error_log('reverseOrderEffects(status): ' . $e->getMessage());
+                echo json_encode(['success' => false, 'message' => 'Could not complete the status change (inventory reversal failed). Please retry.']); exit;
+            }
+        } else {
+            db()->execute("UPDATE orders SET status = ? $extraStr WHERE id = ?", [$newStatus, $oid]);
+        }
         // Best-effort WhatsApp status update (only for customer-relevant transitions).
-        if (in_array($data['status'], ['confirmed', 'shipped', 'out_for_delivery', 'delivered', 'returning', 'returned', 'cancelled', 'rejected'], true)) {
-            notifyOrderStatusWA((int)$data['id'], $data['status']);
+        if (in_array($newStatus, ['confirmed', 'shipped', 'out_for_delivery', 'delivered', 'returning', 'returned', 'cancelled', 'rejected'], true)) {
+            notifyOrderStatusWA($oid, $newStatus);
         }
         echo json_encode(['success' => true, 'message' => 'Order status updated']);
     } elseif ($action === 'update_payment') {
+        // 'refunded' must be reached through the refunds module so the gateway refund and
+        // effect reversal are coupled — block setting it manually here (it would desync).
+        if (($data['payment_status'] ?? '') === 'refunded') {
+            echo json_encode(['success'=>false,'message'=>'Use the Refunds page to refund an order.']); exit;
+        }
         db()->execute("UPDATE orders SET payment_status = ?, payment_method = ? WHERE id = ?",
             [$data['payment_status'], $data['payment_method'], $data['id']]);
         echo json_encode(['success' => true, 'message' => 'Payment updated']);

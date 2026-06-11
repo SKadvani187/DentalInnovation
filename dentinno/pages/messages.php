@@ -5,6 +5,7 @@ $page_title = 'Messages';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
+    if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
     $d = json_decode(file_get_contents('php://input'), true);
     $action = $d['action'] ?? '';
     if ($action === 'read')   { db()->execute("UPDATE contact_messages SET is_read=1 WHERE id=?", [$d['id']]); echo json_encode(['success'=>true]); }

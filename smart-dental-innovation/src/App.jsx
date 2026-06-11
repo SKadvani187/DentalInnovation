@@ -6,6 +6,7 @@ import { SettingsProvider } from "./context/SettingsContext";
 import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ScrollToTop from "./components/ScrollToTop";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
@@ -59,7 +60,9 @@ export default function App() {
           <CartProvider>
             <WishlistProvider>
               <UIProvider>
-                <Shell />
+                <ErrorBoundary>
+                  <Shell />
+                </ErrorBoundary>
               </UIProvider>
             </WishlistProvider>
           </CartProvider>

@@ -1,7 +1,13 @@
 <?php
 requireLogin();
 $admin = currentAdmin();
-$stats = getDashboardStats();
+// Sidebar/topbar badges. The header uses its OWN $navBadges var so it never collides with a
+// page-level $stats (e.g. questions.php / reviews.php set $stats to their own page counts).
+// Reuse $stats only when it already carries the badge keys (the dashboard's full stats);
+// otherwise run the cheap badge query — not the ~20-query dashboard aggregate.
+$navBadges = (isset($stats) && is_array($stats) && array_key_exists('low_stock', $stats))
+    ? $stats
+    : getSidebarBadges();
 $current_page = basename($_SERVER['PHP_SELF'], '.php');
 ?>
 <!DOCTYPE html>
@@ -9,6 +15,7 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
     <title><?= isset($page_title) ? $page_title . ' — ' : '' ?>DentInno CRM</title>
     <link rel="icon" href="<?= APP_URL ?>/assets/images/logo.png">
     <!-- Fonts -->
@@ -47,8 +54,8 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
             <a href="<?= APP_URL ?>/pages/products.php" class="nav-item <?= $current_page === 'products' ? 'active' : '' ?>">
                 <i class="fa-solid fa-boxes-stacked"></i>
                 <span>Products</span>
-                <?php if($stats['low_stock'] > 0): ?>
-                <span class="nav-badge warn"><?= $stats['low_stock'] ?></span>
+                <?php if($navBadges['low_stock'] > 0): ?>
+                <span class="nav-badge warn"><?= $navBadges['low_stock'] ?></span>
                 <?php endif; ?>
             </a>
             <a href="<?= APP_URL ?>/pages/categories.php" class="nav-item <?= $current_page === 'categories' ? 'active' : '' ?>">
@@ -74,8 +81,8 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
             <a href="<?= APP_URL ?>/pages/orders.php" class="nav-item <?= $current_page === 'orders' ? 'active' : '' ?>">
                 <i class="fa-solid fa-cart-shopping"></i>
                 <span>Orders</span>
-                <?php if($stats['pending_orders'] > 0): ?>
-                <span class="nav-badge"><?= $stats['pending_orders'] ?></span>
+                <?php if($navBadges['pending_orders'] > 0): ?>
+                <span class="nav-badge"><?= $navBadges['pending_orders'] ?></span>
                 <?php endif; ?>
             </a>
             <a href="<?= APP_URL ?>/pages/refunds.php" class="nav-item <?= $current_page === 'refunds' ? 'active' : '' ?>">
@@ -227,8 +234,8 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
             <div class="notif-wrapper">
                 <button class="icon-btn" id="notifBtn">
                     <i class="fa-solid fa-bell"></i>
-                    <?php if($stats['notif_count'] > 0): ?>
-                    <span class="notif-dot"><?= $stats['notif_count'] ?></span>
+                    <?php if($navBadges['notif_count'] > 0): ?>
+                    <span class="notif-dot"><?= $navBadges['notif_count'] ?></span>
                     <?php endif; ?>
                 </button>
                 <div class="notif-dropdown" id="notifDropdown">
@@ -236,7 +243,7 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
                         <span>Notifications</span>
                         <a href="#">Mark all read</a>
                     </div>
-                    <?php foreach($stats['notifications'] as $notif): ?>
+                    <?php foreach($navBadges['notifications'] as $notif): ?>
                     <div class="notif-item notif-<?= $notif['type'] ?>">
                         <div class="notif-icon">
                             <?php
@@ -251,7 +258,7 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
                         </div>
                     </div>
                     <?php endforeach; ?>
-                    <?php if(empty($stats['notifications'])): ?>
+                    <?php if(empty($navBadges['notifications'])): ?>
                     <div class="notif-empty">No new notifications</div>
                     <?php endif; ?>
                 </div>

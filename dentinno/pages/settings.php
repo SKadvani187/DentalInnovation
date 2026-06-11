@@ -1,11 +1,13 @@
 <?php
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/settings_helpers.php';  // productSelect / imgUploadBox / settingJsonCard + key contract
 $page_title = 'Settings';
 
 // Image upload for banners (shared products folder)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['banner_image'])) {
     header('Content-Type: application/json');
+    if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
     $upload_dir = __DIR__ . '/../assets/images/products/';
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
     $file = $_FILES['banner_image'];
@@ -22,6 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['banner_image'])) {
 // AJAX: save a site_settings key (JSON value) — used for storefront config
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
+    if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
     $d = json_decode(file_get_contents('php://input'), true);
     if (($d['action'] ?? '') === 'save_setting') {
         $key = preg_replace('/[^a-zA-Z]/', '', $d['key'] ?? '');
@@ -60,7 +63,9 @@ $cfgPage = isset($_GET['page']) ? (preg_replace('/[^a-z]/','', $_GET['page']) ?:
 // Handle profile update
 $success_msg = '';
 $error_msg   = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verifyCsrf()) {
+    $error_msg = 'Security check failed. Please reload and try again.';
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if ($action === 'update_profile') {
         $name  = sanitize($_POST['name'] ?? '');
@@ -144,6 +149,7 @@ include __DIR__ . '/../includes/header.php';
 
             <form method="POST">
                 <input type="hidden" name="action" value="update_profile">
+                <?= csrfField() ?>
                 <div class="form-group">
                     <label class="form-label">Full Name</label>
                     <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($current_admin['name']) ?>" required>
@@ -178,6 +184,7 @@ include __DIR__ . '/../includes/header.php';
             </div>
             <form method="POST">
                 <input type="hidden" name="action" value="change_password">
+                <?= csrfField() ?>
                 <div class="form-group">
                     <label class="form-label">Current Password</label>
                     <input type="password" name="current_password" class="form-control" placeholder="Enter current password" required>
@@ -539,57 +546,7 @@ async function saveSetting(key, value, label, silent) {
 }
 </script>
 
-<?php
-// Product picker <select>: shows product name, value = slug. $extra = inline JS oninput.
-function productSelect($id, $value, $extra = '') {
-    global $linkProducts, $linkCombos;
-    $opts = '<option value="">— None —</option>';
-    foreach ($linkProducts as $p) {
-        $sel = ($p['slug'] === $value) ? 'selected' : '';
-        $nm = htmlspecialchars($p['name']);
-        $sl = htmlspecialchars($p['slug']);
-        $opts .= "<option value=\"$sl\" $sel>$nm</option>";
-    }
-    foreach ($linkCombos as $c) {
-        $sel = ($c['slug'] === $value) ? 'selected' : '';
-        $nm = htmlspecialchars('[Combo] ' . $c['name']);
-        $sl = htmlspecialchars($c['slug']);
-        $opts .= "<option value=\"$sl\" $sel>$nm</option>";
-    }
-    return "<select class=\"form-control\" id=\"$id\" $extra>$opts</select>";
-}
-
-// Image upload box: clickable dropzone + preview, hidden URL input (id holds the value).
-function imgUploadBox($id, $url, $onclick) {
-    $u = htmlspecialchars($url);
-    $hasImg = $url ? '' : 'style="display:none;"';
-    $hasPh  = $url ? 'style="display:none;"' : '';
-    return <<<HTML
-<div class="img-up-box" onclick="$onclick" style="border:2px dashed var(--border-active);border-radius:10px;padding:10px;text-align:center;cursor:pointer;min-height:90px;display:flex;align-items:center;justify-content:center;position:relative;">
-  <input type="hidden" id="$id" value="$u">
-  <img id="{$id}_prev" src="$u" $hasImg style="max-height:90px;max-width:100%;border-radius:6px;object-fit:contain;">
-  <div id="{$id}_ph" $hasPh style="color:var(--text-secondary);font-size:.82rem;">
-    <i class="fa-solid fa-cloud-arrow-up" style="font-size:1.5rem;color:var(--gold-primary);display:block;margin-bottom:6px;"></i>
-    Click to upload image
-  </div>
-</div>
-HTML;
-}
-
-// Helper to render a JSON-config card with a textarea editor
-function settingJsonCard($key, $title, $desc, $value) {
-    $json = htmlspecialchars(json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-    echo <<<HTML
-<div class="card fade-in" style="margin-top:18px;">
-  <div class="card-header"><span class="card-title"><i class="fa-solid fa-sliders text-gold" style="margin-right:8px;"></i>$title</span><small class="text-muted">$desc</small></div>
-  <div class="card-body">
-    <textarea class="form-control" id="json_$key" rows="8" style="font-family:monospace;font-size:.8rem;">$json</textarea>
-    <button class="btn btn-gold" style="margin-top:10px;" onclick="saveJson('$key')"><i class="fa-solid fa-floppy-disk"></i> Save $title</button>
-  </div>
-</div>
-HTML;
-}
-?>
+<?php // productSelect / imgUploadBox / settingJsonCard moved to includes/settings_helpers.php (required at top) ?>
 
 <?php $bn = $site['banners'] ?? []; $promo = $bn['promo'] ?? []; ?>
 </div><!-- /contact group -->

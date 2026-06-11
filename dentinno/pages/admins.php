@@ -5,6 +5,7 @@ $page_title = 'Admin Users';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
+    if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
     // SECURITY: managing admin accounts (and assigning roles) is a super_admin-only action.
     // Without this gate any logged-in admin could escalate themselves to super_admin.
     if (!hasPermission('manage_admins')) {

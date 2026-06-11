@@ -1,22 +1,38 @@
 <?php
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/validate.php';
 $page_title = 'Coupons';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
+    if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
 
     if ($action === 'save') {
         $d = $data;
+        $code = strtoupper(trim((string)($d['code'] ?? '')));
+        $v = new Validator(['code'=>$code] + $d);
+        $v->required('code')->maxLen('code', 40)
+          ->inOpt('type', ['percent','flat'])
+          ->numericOpt('value', 0)->numericOpt('min_order', 0)->numericOpt('max_discount', 0)
+          ->numericOpt('uses_limit', 0)->dateOpt('expires_at');
+        if (($d['type'] ?? '') === 'percent' && (float)($d['value'] ?? 0) > 100) {
+            echo json_encode(['success'=>false,'message'=>'Percentage discount cannot exceed 100.']); exit;
+        }
+        if ($v->fails()) { echo json_encode(['success'=>false,'message'=>$v->firstError()]); exit; }
+        // Code uniqueness (case-insensitive, excluding self).
+        $dupe = db()->fetchOne("SELECT id FROM coupons WHERE UPPER(code)=? AND id<>?", [$code, (int)($d['id'] ?? 0)]);
+        if ($dupe) { echo json_encode(['success'=>false,'message'=>'A coupon with this code already exists.']); exit; }
+
         if (!empty($d['id'])) {
             db()->execute("UPDATE coupons SET code=?,type=?,value=?,min_order=?,max_discount=?,uses_limit=?,is_active=?,expires_at=? WHERE id=?",
-                [$d['code'],$d['type'],$d['value'],$d['min_order'],$d['max_discount']?:null,$d['uses_limit']?:null,$d['is_active'],$d['expires_at']?:null,$d['id']]);
+                [$code,$d['type'],$d['value'],$d['min_order'],$d['max_discount']?:null,$d['uses_limit']?:null,$d['is_active'],$d['expires_at']?:null,$d['id']]);
             echo json_encode(['success'=>true,'message'=>'Coupon updated']);
         } else {
             db()->insert("INSERT INTO coupons (code,type,value,min_order,max_discount,uses_limit,is_active,expires_at) VALUES (?,?,?,?,?,?,?,?)",
-                [strtoupper($d['code']),$d['type'],$d['value'],$d['min_order'],$d['max_discount']?:null,$d['uses_limit']?:null,$d['is_active'],$d['expires_at']?:null]);
+                [$code,$d['type'],$d['value'],$d['min_order'],$d['max_discount']?:null,$d['uses_limit']?:null,$d['is_active'],$d['expires_at']?:null]);
             echo json_encode(['success'=>true,'message'=>'Coupon created']);
         }
     } elseif ($action === 'delete') {

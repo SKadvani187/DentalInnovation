@@ -228,17 +228,20 @@ $orderNumber = 'SDI-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(3)))
 $pdo = $db->getConnection();
 $pdo->beginTransaction();
 try {
+    // Coupon link so the usage increment below can be reversed if the order is later
+    // cancelled/refunded (see includes/order_effects.php::reverseOrderEffects).
+    $couponId = $pricing['couponRow'] ? (int)$pricing['couponRow']['id'] : null;
     $orderId = $db->insert(
         "INSERT INTO orders
          (order_number, customer_id, status, payment_status, payment_method,
-          subtotal, discount, shipping_charge, tax, total, shipping_address)
-         VALUES (?,?, 'pending', ?, ?, ?,?,?,?,?,?)",
+          subtotal, discount, shipping_charge, tax, total, coupon_id, shipping_address)
+         VALUES (?,?, 'pending', ?, ?, ?,?,?,?,?,?,?)",
         [
             $orderNumber, $cust['id'],
             // COD is collected on delivery (unpaid); online orders stay 'pending'
             // until the payment gateway confirms capture (see payment_razorpay.php).
             $payMethod === 'cod' ? 'unpaid' : 'pending',
-            $payMethod, $subtotal, $discount, $shipping, $tax, $total,
+            $payMethod, $subtotal, $discount, $shipping, $tax, $total, $couponId,
             $address ? json_encode($address) : null,
         ]
     );

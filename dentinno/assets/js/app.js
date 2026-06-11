@@ -1,5 +1,30 @@
 /* DentInno CRM — Main JavaScript */
 
+// ── CSRF: auto-attach the per-session token to same-origin state-changing requests ──
+// Admin AJAX handlers verify this token (includes/auth.php::verifyCsrf). Patching fetch
+// here covers every inline fetch on every page without editing each one. Cross-origin
+// calls (e.g. Razorpay) are left untouched.
+(function () {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    const CSRF = meta ? meta.getAttribute('content') : '';
+    if (!CSRF || !window.fetch) return;
+    const origFetch = window.fetch.bind(window);
+    const SAFE = /^(GET|HEAD|OPTIONS)$/i;
+    window.fetch = function (input, init = {}) {
+        try {
+            const method = (init.method || (typeof input !== 'string' && input?.method) || 'GET').toUpperCase();
+            const url = typeof input === 'string' ? input : (input?.url || '');
+            const sameOrigin = !/^https?:\/\//i.test(url) || url.startsWith(window.location.origin);
+            if (!SAFE.test(method) && sameOrigin) {
+                const headers = new Headers(init.headers || (typeof input !== 'string' ? input.headers : undefined) || {});
+                if (!headers.has('X-CSRF-Token')) headers.set('X-CSRF-Token', CSRF);
+                init = { ...init, headers };
+            }
+        } catch (e) { /* never block a request on CSRF wiring */ }
+        return origFetch(input, init);
+    };
+})();
+
 // ── Sidebar Toggle ──
 const sidebar = document.getElementById('sidebar');
 const sidebarToggle = document.getElementById('sidebarToggle');

@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useCallback, useRef, useEffect } from "react";
+import { createContext, useContext, useMemo, useCallback, useEffect } from "react";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import api, { setAuthToken } from "../lib/api";
 
@@ -12,21 +12,11 @@ export function AuthProvider({ children }) {
   // Restore token into the API client on load.
   useEffect(() => { setAuthToken(token); }, [token]);
 
-  // Self-heal: if we have a user profile but no API token (e.g. the original login
-  // ran while the backend was unreachable, leaving a token-less session), silently
-  // re-acquire a token via find-or-create. Backend keys customers by mobile.
-  // One-shot per session so a downstream 401 (which clears the token) can't loop this.
-  const reSyncTried = useRef(false);
-  useEffect(() => {
-    const mobile = user?.mobile || user?.phone;
-    if (!mobile || token || reSyncTried.current) return;
-    reSyncTried.current = true;
-    api.login({ mobile, name: user?.name, email: user?.email })
-      .then((res) => {
-        if (res?.token) { setToken(res.token); setAuthToken(res.token); }
-      })
-      .catch((err) => console.warn("[auth] token re-sync failed:", err.message));
-  }, [user, token, setToken]);
+  // NOTE: a previous "self-heal" effect silently re-acquired a token via api.login()
+  // (find-or-create) whenever a profile existed without a token. The backend now requires
+  // a server-verified OTP before issuing a token (auth.php), so that path is both blocked
+  // and a security hole if it weren't — removed. A token-less session re-authenticates
+  // through the normal OTP flow instead.
 
   // Persist the customer to the backend (find-or-create) and capture the API token.
   const syncToApi = useCallback(async (mobile, profile = {}) => {

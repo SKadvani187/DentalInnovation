@@ -1,16 +1,34 @@
 <?php
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/validate.php';
 $page_title = 'Customers';
 
 // AJAX
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
+    if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
 
     if ($action === 'save') {
         $d = $data;
+        // Server-side validation — don't trust the client form.
+        $v = new Validator($d);
+        $v->required('name')->maxLen('name', 120)
+          ->emailOpt('email')->phoneOpt('phone')->pincodeOpt('pincode')
+          ->inOpt('customer_type', ['individual','clinic','hospital','distributor']);
+        if ($v->fails()) { echo json_encode(['success'=>false,'message'=>$v->firstError()]); exit; }
+
+        // Uniqueness: phone must not collide with another customer.
+        if (!empty($d['phone'])) {
+            $dupe = db()->fetchOne(
+                "SELECT id FROM customers WHERE phone=? AND id<>?",
+                [preg_replace('/\D/','',(string)$d['phone']), (int)($d['id'] ?? 0)]
+            );
+            if ($dupe) { echo json_encode(['success'=>false,'message'=>'Another customer already uses this phone number.']); exit; }
+        }
+
         if (!empty($d['id'])) {
             db()->execute("UPDATE customers SET name=?,email=?,phone=?,city=?,state=?,address=?,pincode=?,clinic_name=?,customer_type=?,notes=? WHERE id=?",
                 [$d['name'],$d['email'],$d['phone'],$d['city'],$d['state'],$d['address'],$d['pincode'],$d['clinic_name'],$d['customer_type'],$d['notes'],$d['id']]);

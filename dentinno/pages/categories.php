@@ -5,6 +5,7 @@ $page_title = 'Categories';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
+    if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
     if ($action === 'save') {
@@ -26,7 +27,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     exit;
 }
 
-$categories = db()->fetchAll("SELECT c.*, (SELECT COUNT(*) FROM products p WHERE p.category_id=c.id) as product_count FROM categories c ORDER BY c.sort_order, c.name");
+// Paginate the categories grid (was: fetch ALL rows).
+$page     = max(1, (int)($_GET['page'] ?? 1));
+$per_page = 20;
+$offset   = ($page - 1) * $per_page;
+$total    = (int)(db()->fetchOne("SELECT COUNT(*) c FROM categories")['c'] ?? 0);
+$pages    = (int)ceil($total / $per_page);
+$categories = db()->fetchAll("SELECT c.*, (SELECT COUNT(*) FROM products p WHERE p.category_id=c.id) as product_count FROM categories c ORDER BY c.sort_order, c.name LIMIT $per_page OFFSET $offset");
 include __DIR__ . '/../includes/header.php';
 ?>
 
@@ -63,6 +70,13 @@ include __DIR__ . '/../includes/header.php';
     </div>
     <?php endforeach; ?>
 </div>
+
+<?php if($pages > 1): ?>
+<div class="pagination" style="margin-top:16px;">
+    <?php for($i=1;$i<=$pages;$i++): ?><div class="page-item <?= $i==$page?'active':'' ?>" onclick="goCatsPage(<?= $i ?>)"><?= $i ?></div><?php endfor; ?>
+</div>
+<script>function goCatsPage(p){window.location.href=`categories.php?page=${p}`;}</script>
+<?php endif; ?>
 
 <!-- Modal -->
 <div class="modal-overlay" id="catModal" style="display:none;" onclick="if(event.target===this)closeModal('catModal')">

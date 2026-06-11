@@ -6,6 +6,7 @@ $page_title = 'Combos';
 // Image upload (multipart) — reuse products image folder.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['combo_image'])) {
     header('Content-Type: application/json');
+    if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
     $upload_dir = __DIR__ . '/../assets/images/products/';
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
     $file = $_FILES['combo_image'];
@@ -36,6 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['combo_image'])) {
 // AJAX JSON actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
+    if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
     // Never let a PHP warning/exception leak HTML into the JSON response (breaks res.json()).
     try {
     $d = json_decode(file_get_contents('php://input'), true);
@@ -109,7 +111,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     exit;
 }
 
-$combos = db()->fetchAll("SELECT * FROM combos ORDER BY sort_order, id");
+// Paginate the combos grid (was: fetch ALL rows).
+$page     = max(1, (int)($_GET['page'] ?? 1));
+$per_page = 20;
+$offset   = ($page - 1) * $per_page;
+$total    = (int)(db()->fetchOne("SELECT COUNT(*) c FROM combos")['c'] ?? 0);
+$pages    = (int)ceil($total / $per_page);
+$combos = db()->fetchAll("SELECT * FROM combos ORDER BY sort_order, id LIMIT $per_page OFFSET $offset");
 // Product list for the "what's inside" item picker (auto-fill name/image/mrp).
 $prodList = db()->fetchAll("SELECT slug, name, price, discount_price, JSON_EXTRACT(images,'$[0]') AS img FROM products WHERE is_active=1 ORDER BY name");
 foreach ($prodList as &$pl) { $pl['img'] = trim((string)$pl['img'], '"'); } unset($pl);
@@ -159,6 +167,13 @@ include __DIR__ . '/../includes/header.php';
     <?php endforeach; ?>
     <?php if(empty($combos)): ?><p class="text-muted">No combos yet. Click "Add Combo".</p><?php endif; ?>
 </div>
+
+<?php if($pages > 1): ?>
+<div class="pagination" style="margin-top:16px;">
+    <?php for($i=1;$i<=$pages;$i++): ?><div class="page-item <?= $i==$page?'active':'' ?>" onclick="goCombosPage(<?= $i ?>)"><?= $i ?></div><?php endfor; ?>
+</div>
+<script>function goCombosPage(p){window.location.href=`combos.php?page=${p}`;}</script>
+<?php endif; ?>
 
 <!-- Modal -->
 <div class="modal-overlay" id="comboModal" style="display:none;" onclick="if(event.target===this)closeModal('comboModal')">

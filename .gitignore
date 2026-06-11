@@ -1,0 +1,16 @@
+# Secrets — real credentials live here, never committed (see includes/config.php loader).
+dentinno/includes/config.local.php
+
+# React build output
+smart-dental-innovation/dist/
+
+# Dependencies
+node_modules/
+
+# Logs / OS / editor cruft
+*.log
+.DS_Store
+Thumbs.db
+
+# Local scratch test files
+dentinno/_t_*.php

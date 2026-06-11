@@ -5,6 +5,7 @@ $page_title = 'Events';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
+    if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
 
@@ -46,7 +47,13 @@ if ($search) { $where[] = "title LIKE ?"; $params[] = "%$search%"; }
 if ($type)   { $where[] = "event_type = ?"; $params[] = $type; }
 if ($status) { $where[] = "status = ?"; $params[] = $status; }
 $whereStr = implode(' AND ', $where);
-$events = db()->fetchAll("SELECT e.*,(SELECT COUNT(*) FROM event_registrations WHERE event_id=e.id) as reg_count FROM events e WHERE $whereStr ORDER BY e.start_date DESC", $params);
+// Paginate the events grid (was: fetch ALL rows), preserving the active filters.
+$page     = max(1, (int)($_GET['page'] ?? 1));
+$per_page = 20;
+$offset   = ($page - 1) * $per_page;
+$total    = (int)(db()->fetchOne("SELECT COUNT(*) c FROM events e WHERE $whereStr", $params)['c'] ?? 0);
+$pages    = (int)ceil($total / $per_page);
+$events = db()->fetchAll("SELECT e.*,(SELECT COUNT(*) FROM event_registrations WHERE event_id=e.id) as reg_count FROM events e WHERE $whereStr ORDER BY e.start_date DESC LIMIT $per_page OFFSET $offset", $params);
 
 include __DIR__ . '/../includes/header.php';
 ?>
@@ -148,6 +155,12 @@ include __DIR__ . '/../includes/header.php';
   </div>
   <?php endif; ?>
 </div>
+
+<?php if($pages > 1): $qs = http_build_query(array_filter(['search'=>$search,'type'=>$type,'status'=>$status])); ?>
+<div class="pagination" style="margin-top:16px;">
+    <?php for($i=1;$i<=$pages;$i++): ?><a href="?<?= $qs ? $qs.'&' : '' ?>page=<?= $i ?>" class="page-item <?= $i==$page?'active':'' ?>" style="text-decoration:none;"><?= $i ?></a><?php endfor; ?>
+</div>
+<?php endif; ?>
 
 <!-- EVENT MODAL -->
 <div class="modal-overlay" id="eventModal" style="display:none;" onclick="if(event.target===this)closeModal('eventModal')">

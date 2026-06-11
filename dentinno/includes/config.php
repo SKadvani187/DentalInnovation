@@ -18,15 +18,15 @@ function defv(string $key, $fallback): void {
     define($key, $env !== false && $env !== '' ? $env : $fallback);
 }
 
-define('DB_HOST', 'localhost');
-define('DB_USER', 'dentinno');          // Apna MySQL username
-define('DB_PASS', 'DentPro@X2026');              // Apna MySQL password
-define('DB_NAME', 'dentinno_crm');
+defv('DB_HOST', 'localhost');
+defv('DB_USER', 'root');          // dev fallback; set prod creds via env/config.local.php
+defv('DB_PASS', '');              // dev fallback; set prod creds via env/config.local.php
+defv('DB_NAME', 'dentinno_crm');
 define('DB_CHARSET', 'utf8mb4');
 
 // App Settings
 define('APP_NAME', 'DentInno CRM');
-define('APP_URL', 'https://reetzdentinnovations.com/dentinno');
+defv('APP_URL', 'http://localhost:8088');   // dev fallback; set prod URL via env/config.local.php
 define('APP_VERSION', '1.0.0');
 define('TIMEZONE', 'Asia/Kolkata');
 
@@ -49,8 +49,8 @@ function defv_bool(string $key, bool $fallback): void {
     if ($env === false || $env === '') { define($key, $fallback); return; }
     define($key, !in_array(strtolower($env), ['0','false','off','no',''], true));
 }
-defv_bool('OTP_DEV_RETURN', false);   // DEV: return OTP in API response (set false in prod)
-defv_bool('OTP_SSL_INSECURE', false); // DEV-only: skip SSL verify (local AV/proxy MITM). SET false IN PRODUCTION.
+defv_bool('OTP_DEV_RETURN', false);   // never return the OTP in API responses by default; enable in dev via env/config.local.php
+defv_bool('OTP_SSL_INSECURE', false); // verify TLS on outbound gateway/SMS calls by default; relax only in dev via env/config.local.php
 
 // ---- OTP SMS provider ----
 // The LIVE provider (Fast2SMS / 2Factor / MSG91) is chosen in Admin -> Settings -> OTP
