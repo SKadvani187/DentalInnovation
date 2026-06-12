@@ -5,6 +5,24 @@ import { useAuth } from "../../context/AuthContext";
 
 const OTP_LEN = 4;
 const RESEND_SECS = 60;
+const CUSTOMERS_API = "/dentinno-api/customers.php";
+
+async function saveCustomerToServer({ name, mobile }) {
+  try {
+    const res = await fetch(CUSTOMERS_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        phone: mobile,
+        customer_type: "individual",
+      }),
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, message: err.message || "Network error" };
+  }
+}
 
 export default function AuthModal() {
   const { modal, closeModal } = useUI();
@@ -129,11 +147,7 @@ export default function AuthModal() {
     if (data.length === OTP_LEN) setTimeout(() => autoVerify(data), 50);
   };
 
-  const autoVerify = (code) => {
-    setError("");
-    setLoading(true);
-    const res = verifyOtp({ mobile, otp: code });
-    setLoading(false);
+  const handleVerifyResult = async (res) => {
     if (!res.ok) {
       setToastType("error");
       setToast(res.error || "Invalid OTP");
@@ -145,7 +159,23 @@ export default function AuthModal() {
       setStep("profile");
       return;
     }
+    // Returning user: re-sync to server so a customer removed on the admin side
+    // (but still cached in this browser) is recreated with the correct name.
+    const syncName = res.account?.name?.trim();
+    if (syncName) {
+      setLoading(true);
+      await saveCustomerToServer({ name: syncName, mobile });
+      setLoading(false);
+    }
     closeModal();
+  };
+
+  const autoVerify = (code) => {
+    setError("");
+    setLoading(true);
+    const res = verifyOtp({ mobile, otp: code });
+    setLoading(false);
+    handleVerifyResult(res);
   };
 
   const onVerify = (e) => {
@@ -160,21 +190,10 @@ export default function AuthModal() {
     setLoading(true);
     const res = verifyOtp({ mobile, otp: code });
     setLoading(false);
-    if (!res.ok) {
-      setToastType("error");
-      setToast(res.error || "Invalid OTP");
-      setOtp(Array(OTP_LEN).fill(""));
-      otpRefs.current[0]?.focus();
-      return;
-    }
-    if (res.isNew) {
-      setStep("profile");
-      return;
-    }
-    closeModal();
+    handleVerifyResult(res);
   };
 
-  const onProfileSubmit = (e) => {
+  const onProfileSubmit = async (e) => {
     e.preventDefault();
     setError("");
     if (!name.trim()) {
@@ -186,7 +205,17 @@ export default function AuthModal() {
       setError(res.error);
       return;
     }
-    closeModal();
+    setLoading(true);
+    const api = await saveCustomerToServer({ name: name.trim(), mobile });
+    setLoading(false);
+    if (!api.success) {
+      setToastType("error");
+      setToast(api.message || "Could not save profile to server");
+      return;
+    }
+    setToastType("success");
+    setToast(api.existing ? "Welcome back!" : "Registered successfully");
+    setTimeout(() => closeModal(), 600);
   };
 
   const resend = () => {
@@ -422,10 +451,10 @@ export default function AuthModal() {
 
               <button
                 type="submit"
-                disabled={!name.trim()}
+                disabled={!name.trim() || loading}
                 className="otp-btn w-full py-3.5 rounded-lg text-white font-bold text-sm uppercase tracking-wider"
               >
-                Complete Registration
+                {loading ? "Saving..." : "Complete Registration"}
               </button>
             </form>
           )}

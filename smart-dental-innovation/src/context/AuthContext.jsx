@@ -39,7 +39,7 @@ export function AuthProvider({ children }) {
     const existing = accounts.find((a) => a.mobile === mobile);
     if (existing) {
       setUser({ ...existing });
-      return { ok: true, isNew: false };
+      return { ok: true, isNew: false, account: { ...existing } };
     }
     return { ok: true, isNew: true, mobile };
   }, [accounts, setUser]);
