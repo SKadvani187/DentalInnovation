@@ -300,8 +300,8 @@ async function viewRegistrations(id,name){
   data.registrations.map(r=>`
     <div class="reg-row">
       <div>
-        <div style="font-weight:600;font-size:.9rem;">${r.name}</div>
-        <div style="font-size:.78rem;color:var(--text-muted);">${r.email}${r.clinic_name?' · '+r.clinic_name:''}</div>
+        <div style="font-weight:600;font-size:.9rem;">${escapeHtml(r.name)}</div>
+        <div style="font-size:.78rem;color:var(--text-muted);">${escapeHtml(r.email)}${r.clinic_name?' · '+escapeHtml(r.clinic_name):''}</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
         <span class="badge badge-${r.attended?'success':'secondary'}">${r.attended?'Attended':'Registered'}</span>

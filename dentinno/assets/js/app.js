@@ -1,5 +1,19 @@
 /* DentInno CRM — Main JavaScript */
 
+// ── XSS guard: escape any customer-supplied string before injecting it into innerHTML. ──
+// Admin view-modals render storefront data (review text, names, registration fields); without
+// escaping, a malicious submission would run script in the admin's session (stored XSS).
+function escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+window.escapeHtml = escapeHtml;
+
 // ── CSRF: auto-attach the per-session token to same-origin state-changing requests ──
 // Admin AJAX handlers verify this token (includes/auth.php::verifyCsrf). Patching fetch
 // here covers every inline fetch on every page without editing each one. Cross-origin

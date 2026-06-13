@@ -15,29 +15,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     try {
 
     if ($action === 'delete') {
-        db()->execute("DELETE FROM products WHERE id = ?", [$data['id']]);
+        // Soft-delete: keep the row so order history / invoices stay intact; hide it everywhere.
+        db()->execute("UPDATE products SET is_deleted = 1, is_active = 0 WHERE id = ?", [(int)($data['id'] ?? 0)]);
         echo json_encode(['success' => true, 'message' => 'Product deleted']);
+    } elseif ($action === 'restore') {
+        db()->execute("UPDATE products SET is_deleted = 0 WHERE id = ?", [(int)($data['id'] ?? 0)]);
+        echo json_encode(['success' => true, 'message' => 'Product restored']);
     } elseif ($action === 'toggle') {
         db()->execute("UPDATE products SET is_active = NOT is_active WHERE id = ?", [$data['id']]);
         echo json_encode(['success' => true, 'message' => 'Status updated']);
     } elseif ($action === 'save') {
         $d = $data;
-        $disc_price = !empty($d['discount_price']) ? $d['discount_price'] : null;
-        $disc_pct   = ($disc_price && $d['price'] > 0) ? round((($d['price'] - $disc_price) / $d['price']) * 100, 2) : 0;
+        // --- Server-side validation (never trust the client form) ---
+        $name = trim((string)($d['name'] ?? ''));
+        if ($name === '')                                                 { echo json_encode(['success'=>false,'message'=>'Product name is required']); exit; }
+        if (!is_numeric($d['price'] ?? null) || (float)$d['price'] <= 0)   { echo json_encode(['success'=>false,'message'=>'Price must be greater than 0']); exit; }
+        if (!is_numeric($d['stock'] ?? null) || (int)$d['stock'] < 0)      { echo json_encode(['success'=>false,'message'=>'Stock must be 0 or more']); exit; }
+        $price      = (float)$d['price'];
+        $disc_price = (!empty($d['discount_price']) && is_numeric($d['discount_price'])) ? (float)$d['discount_price'] : null;
+        if ($disc_price !== null && $disc_price >= $price)                 { echo json_encode(['success'=>false,'message'=>'Discount price must be less than the price']); exit; }
+        $disc_pct   = ($disc_price && $price > 0) ? round((($price - $disc_price) / $price) * 100, 2) : 0;
+
         $features   = !empty($d['features']) ? json_encode($d['features']) : null;
         $key_specs  = !empty($d['key_specifications']) ? json_encode($d['key_specifications']) : null;
         $images_json = !empty($d['images']) ? json_encode($d['images']) : null;
         $hover_image = !empty($d['hover_image']) ? $d['hover_image'] : null;
+
+        // Variants: keep only valid {label, price, mrp}; auto-compute discount %. Stored in the
+        // exact JSON shape the storefront reads: [{label,price,mrp,discount}].
+        $variants = null;
+        if (!empty($d['variants']) && is_array($d['variants'])) {
+            $clean = [];
+            foreach ($d['variants'] as $v) {
+                $vl = trim((string)($v['label'] ?? ''));
+                $vp = (float)($v['price'] ?? 0);
+                $vm = (float)($v['mrp'] ?? 0);
+                if ($vl === '' || $vp <= 0) continue;
+                if ($vm < $vp) $vm = $vp;
+                $clean[] = ['label'=>$vl, 'price'=>$vp, 'mrp'=>$vm, 'discount'=> $vm > 0 ? (int)round((($vm - $vp) / $vm) * 100) : 0];
+            }
+            $variants = $clean ? json_encode($clean) : null;
+        }
+
+        // Slug: admin-editable, falls back to the name; guaranteed unique (UNIQUE column).
+        $selfId   = (int)($d['id'] ?? 0);
+        $slug     = generateSlug(trim((string)($d['slug'] ?? '')) !== '' ? $d['slug'] : $name) ?: 'product';
+        $slugBase = $slug; $n = 1;
+        while (db()->fetchOne("SELECT id FROM products WHERE slug=? AND id<>?", [$slug, $selfId])) { $slug = $slugBase . '-' . (++$n); }
+
+        $metaTitle = trim((string)($d['meta_title'] ?? '')) ?: null;
+        $metaDesc  = trim((string)($d['meta_description'] ?? '')) ?: null;
+        $stock     = (int)$d['stock'];
+        $minStock  = max(0, (int)($d['min_stock_alert'] ?? 5));   // low-stock alert threshold
+
         if (!empty($d['id'])) {
-            db()->execute("UPDATE products SET name=?,category_id=?,price=?,discount_price=?,discount_percent=?,stock=?,short_description=?,full_description=?,features=?,packing_info=?,key_specifications=?,directions_for_use=?,additional_information=?,warranty_info=?,key_features=?,warranty_no=?,direction_of_use=?,catalogue_url=?,images=?,hover_image=?,weight_kg=?,shipping_method_id=?,is_active=?,is_featured=?,is_new=? WHERE id=?",
-                [$d['name'],$d['category_id']?:null,$d['price'],$disc_price,$disc_pct,$d['stock'],$d['short_description'],$d['full_description'],$features,$d['packing_info'],$key_specs,$d['directions_for_use'],$d['additional_information'],$d['warranty_info'],$d['key_features']?:null,$d['warranty_no']?:null,$d['direction_of_use']?:null,$d['catalogue_url']?:null,$images_json,$hover_image,$d['weight_kg']?:null,(!empty($d['shipping_method_id'])?(int)$d['shipping_method_id']:null),$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0,$d['id']]);
+            db()->execute("UPDATE products SET name=?,slug=?,meta_title=?,meta_description=?,category_id=?,price=?,discount_price=?,discount_percent=?,stock=?,min_stock_alert=?,short_description=?,full_description=?,features=?,packing_info=?,key_specifications=?,directions_for_use=?,additional_information=?,warranty_info=?,key_features=?,warranty_no=?,direction_of_use=?,catalogue_url=?,images=?,hover_image=?,variants=?,weight_kg=?,shipping_method_id=?,is_active=?,is_featured=?,is_new=? WHERE id=?",
+                [$name,$slug,$metaTitle,$metaDesc,($d['category_id'] ?? '')?:null,$price,$disc_price,$disc_pct,$stock,$minStock,($d['short_description']??null),($d['full_description']??null),$features,($d['packing_info']??null),$key_specs,($d['directions_for_use']??null),($d['additional_information']??null),($d['warranty_info']??null),($d['key_features'] ?? '')?:null,($d['warranty_no'] ?? '')?:null,($d['direction_of_use'] ?? '')?:null,($d['catalogue_url'] ?? '')?:null,$images_json,$hover_image,$variants,($d['weight_kg'] ?? '')?:null,(!empty($d['shipping_method_id'])?(int)$d['shipping_method_id']:null),$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0,$d['id']]);
             $pid = $d['id'];
             echo json_encode(['success' => true, 'message' => 'Product updated', 'id' => $pid]);
         } else {
-            $slug = generateSlug($d['name']) . '-' . time();
-            $sku  = 'SKU-' . strtoupper(substr(md5($d['name']), 0, 6));
-            $pid = db()->insert("INSERT INTO products (name,slug,sku,category_id,price,discount_price,discount_percent,stock,short_description,full_description,features,packing_info,key_specifications,directions_for_use,additional_information,warranty_info,key_features,warranty_no,direction_of_use,catalogue_url,images,hover_image,weight_kg,shipping_method_id,is_active,is_featured,is_new) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                [$d['name'],$slug,$sku,$d['category_id']?:null,$d['price'],$disc_price,$disc_pct,$d['stock'],$d['short_description'],$d['full_description'],$features,$d['packing_info'],$key_specs,$d['directions_for_use'],$d['additional_information'],$d['warranty_info'],$d['key_features']?:null,$d['warranty_no']?:null,$d['direction_of_use']?:null,$d['catalogue_url']?:null,$images_json,$hover_image,$d['weight_kg']?:null,(!empty($d['shipping_method_id'])?(int)$d['shipping_method_id']:null),$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0]);
+            $sku  = 'SKU-' . strtoupper(substr(md5($name . microtime()), 0, 6));
+            $pid = db()->insert("INSERT INTO products (name,slug,meta_title,meta_description,sku,category_id,price,discount_price,discount_percent,stock,min_stock_alert,short_description,full_description,features,packing_info,key_specifications,directions_for_use,additional_information,warranty_info,key_features,warranty_no,direction_of_use,catalogue_url,images,hover_image,variants,weight_kg,shipping_method_id,is_active,is_featured,is_new) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                [$name,$slug,$metaTitle,$metaDesc,$sku,($d['category_id'] ?? '')?:null,$price,$disc_price,$disc_pct,$stock,$minStock,($d['short_description']??null),($d['full_description']??null),$features,($d['packing_info']??null),$key_specs,($d['directions_for_use']??null),($d['additional_information']??null),($d['warranty_info']??null),($d['key_features'] ?? '')?:null,($d['warranty_no'] ?? '')?:null,($d['direction_of_use'] ?? '')?:null,($d['catalogue_url'] ?? '')?:null,$images_json,$hover_image,$variants,($d['weight_kg'] ?? '')?:null,(!empty($d['shipping_method_id'])?(int)$d['shipping_method_id']:null),$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0]);
             echo json_encode(['success' => true, 'message' => 'Product added', 'id' => $pid]);
         }
         if (isset($d['faqs']) && $pid) {
@@ -86,6 +125,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     } elseif ($action === 'delete_review') {
         db()->execute("DELETE FROM product_reviews WHERE id=?", [$data['id']]);
         echo json_encode(['success' => true]);
+    } elseif ($action === 'bulk') {
+        $ids = array_values(array_filter(array_map('intval', (array)($data['ids'] ?? []))));
+        $op  = (string)($data['op'] ?? '');
+        if (!$ids) { echo json_encode(['success'=>false,'message'=>'No products selected']); exit; }
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        if ($op === 'activate')         { db()->execute("UPDATE products SET is_active=1 WHERE id IN ($ph)", $ids); $msg = count($ids).' product(s) activated'; }
+        elseif ($op === 'deactivate')   { db()->execute("UPDATE products SET is_active=0 WHERE id IN ($ph)", $ids); $msg = count($ids).' product(s) deactivated'; }
+        elseif ($op === 'delete')       { db()->execute("UPDATE products SET is_deleted=1, is_active=0 WHERE id IN ($ph)", $ids); $msg = count($ids).' product(s) deleted'; }
+        elseif ($op === 'restore')      { db()->execute("UPDATE products SET is_deleted=0 WHERE id IN ($ph)", $ids); $msg = count($ids).' product(s) restored'; }
+        else { echo json_encode(['success'=>false,'message'=>'Unknown bulk action']); exit; }
+        echo json_encode(['success'=>true, 'message'=>$msg]);
     }
 
     } catch (Throwable $e) {
@@ -104,11 +154,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['catalogue_pdf'])) {
     if ($f['error'] !== UPLOAD_ERR_OK) { echo json_encode(['success'=>false,'message'=>'Upload error (code '.$f['error'].')']); exit; }
     $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
     if ($ext !== 'pdf') { echo json_encode(['success'=>false,'message'=>'Only PDF files are allowed']); exit; }
+    $fi = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : false;
+    $mime = $fi ? finfo_file($fi, $f['tmp_name']) : '';
+    if ($mime && $mime !== 'application/pdf') { echo json_encode(['success'=>false,'message'=>'The file is not a valid PDF (content check failed)']); exit; }
     if ($f['size'] > 15*1024*1024) { echo json_encode(['success'=>false,'message'=>'File too large (max 15MB)']); exit; }
     $fname = 'catalogue_' . time() . '_' . rand(1000,9999) . '.pdf';
     if (move_uploaded_file($f['tmp_name'], $dir . $fname)) {
         echo json_encode(['success'=>true,'url'=> APP_URL.'/assets/catalogues/'.$fname]);
     } else { echo json_encode(['success'=>false,'message'=>'Could not save the PDF']); }
+    exit;
+}
+
+// Bulk CSV import — upsert products by SKU. Columns (header row, case-insensitive):
+// Name, Price, Stock are required; SKU, Category, Discount Price, Active are optional.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['products_csv'])) {
+    header('Content-Type: application/json');
+    if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    $f = $_FILES['products_csv'];
+    if ($f['error'] !== UPLOAD_ERR_OK) { echo json_encode(['success'=>false,'message'=>'Upload error (code '.$f['error'].')']); exit; }
+    if (strtolower(pathinfo($f['name'], PATHINFO_EXTENSION)) !== 'csv') { echo json_encode(['success'=>false,'message'=>'Please upload a .csv file']); exit; }
+    $fh = fopen($f['tmp_name'], 'r');
+    if (!$fh) { echo json_encode(['success'=>false,'message'=>'Could not read the file']); exit; }
+    $header = fgetcsv($fh);
+    if (!$header) { echo json_encode(['success'=>false,'message'=>'The CSV is empty']); exit; }
+    $idx = [];
+    foreach ($header as $i => $hcol) $idx[strtolower(trim((string)$hcol))] = $i;
+    foreach (['name','price','stock'] as $col) {
+        if (!isset($idx[$col])) { echo json_encode(['success'=>false,'message'=>"CSV is missing a required column: $col"]); exit; }
+    }
+    $catMap = [];
+    foreach (db()->fetchAll("SELECT id, LOWER(name) n FROM categories") as $c) $catMap[$c['n']] = $c['id'];
+    $get = function(array $row, ?int $i): string { return ($i !== null && isset($row[$i])) ? trim((string)$row[$i]) : ''; };
+    $created = 0; $updated = 0; $skipped = 0;
+    while (($row = fgetcsv($fh)) !== false) {
+        try {
+            $name  = $get($row, $idx['name'] ?? null);
+            $price = $get($row, $idx['price'] ?? null);
+            $stock = $get($row, $idx['stock'] ?? null);
+            if ($name === '' || !is_numeric($price) || (float)$price <= 0 || !is_numeric($stock)) { $skipped++; continue; }
+            $sku   = $get($row, $idx['sku'] ?? null);
+            $catId = $catMap[strtolower($get($row, $idx['category'] ?? null))] ?? null;
+            $discRaw = $get($row, $idx['discount price'] ?? null);
+            $disc  = (is_numeric($discRaw) && (float)$discRaw > 0 && (float)$discRaw < (float)$price) ? (float)$discRaw : null;
+            $discPct = $disc ? round((((float)$price - $disc) / (float)$price) * 100, 2) : 0;
+            $activeRaw = strtolower($get($row, $idx['active'] ?? null));
+            $active = ($activeRaw === '' ) ? 1 : (in_array($activeRaw, ['1','active','yes','true'], true) ? 1 : 0);
+            $existing = $sku !== '' ? db()->fetchOne("SELECT id FROM products WHERE sku=?", [$sku]) : null;
+            if ($existing) {
+                db()->execute("UPDATE products SET name=?,category_id=?,price=?,discount_price=?,discount_percent=?,stock=?,is_active=? WHERE id=?",
+                    [$name, $catId, (float)$price, $disc, $discPct, (int)$stock, $active, $existing['id']]);
+                $updated++;
+            } else {
+                $slug = generateSlug($name) ?: 'product'; $base = $slug; $n = 1;
+                while (db()->fetchOne("SELECT id FROM products WHERE slug=?", [$slug])) $slug = $base.'-'.(++$n);
+                $newSku = $sku !== '' ? $sku : 'SKU-'.strtoupper(substr(md5($name.microtime()), 0, 6));
+                if (db()->fetchOne("SELECT id FROM products WHERE sku=?", [$newSku])) $newSku .= '-'.rand(100,999);
+                db()->insert("INSERT INTO products (name,slug,sku,category_id,price,discount_price,discount_percent,stock,is_active) VALUES (?,?,?,?,?,?,?,?,?)",
+                    [$name, $slug, $newSku, $catId, (float)$price, $disc, $discPct, (int)$stock, $active]);
+                $created++;
+            }
+        } catch (Throwable $e) { error_log('CSV import row: '.$e->getMessage()); $skipped++; }
+    }
+    fclose($fh);
+    echo json_encode(['success'=>true, 'message'=>"Import complete — $created created, $updated updated, $skipped skipped"]);
     exit;
 }
 
@@ -135,6 +243,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['product_image'])) {
     }
     $ext  = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     if (!in_array($ext, ['jpg','jpeg','png','webp','gif'])) { echo json_encode(['success'=>false,'message'=>'Invalid file type']); exit; }
+    // Verify the actual file CONTENT, not just the extension (a .jpg could be a PHP script).
+    $fi = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : false;
+    $mime = $fi ? finfo_file($fi, $file['tmp_name']) : '';
+    if ($mime && !in_array($mime, ['image/jpeg','image/png','image/webp','image/gif'], true)) {
+        echo json_encode(['success'=>false,'message'=>'The file is not a valid image (content check failed)']); exit;
+    }
     if ($file['size'] > 5*1024*1024) { echo json_encode(['success'=>false,'message'=>'File too large (max 5MB)']); exit; }
     $fname = 'prod_' . time() . '_' . rand(1000,9999) . '.' . $ext;
     if (move_uploaded_file($file['tmp_name'], $upload_dir . $fname)) {
@@ -153,16 +267,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['product_image'])) {
 $search  = sanitize($_GET['search'] ?? '');
 $cat_id  = (int)($_GET['cat'] ?? 0);
 $status  = sanitize($_GET['status'] ?? '');
+$stockF  = sanitize($_GET['stock'] ?? '');
+$sort    = sanitize($_GET['sort'] ?? '');
 $page    = max(1,(int)($_GET['page'] ?? 1));
 $per_page = 15; $offset = ($page-1)*$per_page;
 $where = ["1=1"]; $params = [];
-if ($search) { $where[] = "p.name LIKE ?"; $params[] = "%$search%"; }
+// Search across name, SKU and short description (was: name only).
+if ($search) { $where[] = "(p.name LIKE ? OR p.sku LIKE ? OR p.short_description LIKE ?)"; $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%"; }
 if ($cat_id)  { $where[] = "p.category_id = ?"; $params[] = $cat_id; }
-if ($status !== '') { $where[] = "p.is_active = ?"; $params[] = (int)$status; }
+// Stock-status filter (in stock / low / out of stock).
+if ($stockF === 'out')      $where[] = "p.stock <= 0";
+elseif ($stockF === 'low')  $where[] = "p.stock > 0 AND p.stock <= p.min_stock_alert";
+elseif ($stockF === 'in')   $where[] = "p.stock > p.min_stock_alert";
+// Soft-delete: hide deleted products unless the "Deleted" filter is chosen.
+if ($status === 'deleted') {
+    $where[] = "p.is_deleted = 1";
+} else {
+    $where[] = "p.is_deleted = 0";
+    if ($status !== '') { $where[] = "p.is_active = ?"; $params[] = (int)$status; }
+}
 $whereStr = implode(' AND ', $where);
+// Sort — whitelist of safe ORDER BY clauses (never interpolate raw user input).
+$orderMap = [
+    'newest'      => 'p.id DESC',
+    'oldest'      => 'p.id ASC',
+    'price_asc'   => 'p.price ASC',
+    'price_desc'  => 'p.price DESC',
+    'stock_asc'   => 'p.stock ASC',
+    'stock_desc'  => 'p.stock DESC',
+    'name'        => 'p.name ASC',
+    'bestselling' => 'p.total_sales DESC, p.id DESC',
+];
+$order = $orderMap[$sort] ?? 'p.id DESC';
+
+// CSV export of the current (filtered) product list — same header the importer accepts.
+if (($_GET['export'] ?? '') === 'csv') {
+    $rows = db()->fetchAll("SELECT p.sku, p.name, c.name AS category, p.price, p.discount_price, p.stock, p.is_active, p.slug
+                              FROM products p LEFT JOIN categories c ON p.category_id=c.id WHERE $whereStr ORDER BY p.id DESC", $params);
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="products-'.date('Ymd-His').'.csv"');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['SKU','Name','Category','Price','Discount Price','Stock','Active','Slug']);
+    foreach ($rows as $r) {
+        fputcsv($out, [$r['sku'], $r['name'], $r['category'], $r['price'], $r['discount_price'], $r['stock'], $r['is_active'], $r['slug']]);
+    }
+    fclose($out); exit;
+}
+
 $total = db()->fetchOne("SELECT COUNT(*) as cnt FROM products p WHERE $whereStr", $params)['cnt'];
 $pages = ceil($total/$per_page);
-$products = db()->fetchAll("SELECT p.*,c.name as category FROM products p LEFT JOIN categories c ON p.category_id=c.id WHERE $whereStr ORDER BY p.id DESC LIMIT $per_page OFFSET $offset", $params);
+$products = db()->fetchAll("SELECT p.*,c.name as category FROM products p LEFT JOIN categories c ON p.category_id=c.id WHERE $whereStr ORDER BY $order LIMIT $per_page OFFSET $offset", $params);
 $categories = db()->fetchAll("SELECT * FROM categories WHERE is_active=1 ORDER BY name");
 // Active shipping methods power the product "Shipping Method" dropdown (Shipping Management).
 $shipMethods = db()->fetchAll("SELECT id, name, type FROM shipping_methods WHERE is_active=1 ORDER BY sort_order, name");
@@ -199,7 +353,12 @@ include __DIR__ . '/../includes/header.php';
     <h1>Products</h1>
     <p>Dental product catalog — <?= $total ?> products total</p>
   </div>
-  <button class="btn btn-gold" onclick="openProductModal()"><i class="fa-solid fa-plus"></i> Add Product</button>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <button class="btn btn-outline btn-sm" onclick="exportCsv()" title="Export the filtered list to CSV"><i class="fa-solid fa-file-csv"></i> Export</button>
+    <button class="btn btn-outline btn-sm" onclick="document.getElementById('csvImportInput').click()" title="Import/update products from a CSV"><i class="fa-solid fa-file-import"></i> Import</button>
+    <input type="file" id="csvImportInput" accept=".csv" style="display:none" onchange="importCsv(this)">
+    <button class="btn btn-gold" onclick="openProductModal()"><i class="fa-solid fa-plus"></i> Add Product</button>
+  </div>
 </div>
 
 <div class="filter-bar fade-in" style="flex-wrap:wrap;gap:8px;">
@@ -218,6 +377,18 @@ include __DIR__ . '/../includes/header.php';
     <option value="">All Status</option>
     <option value="1" <?= $status==='1'?'selected':'' ?>>Active</option>
     <option value="0" <?= $status==='0'?'selected':'' ?>>Inactive</option>
+    <option value="deleted" <?= $status==='deleted'?'selected':'' ?>>🗑 Deleted</option>
+  </select>
+  <select class="form-control" id="stockFilter" style="max-width:140px;">
+    <option value="">All Stock</option>
+    <option value="in"  <?= $stockF==='in'?'selected':'' ?>>In Stock</option>
+    <option value="low" <?= $stockF==='low'?'selected':'' ?>>Low Stock</option>
+    <option value="out" <?= $stockF==='out'?'selected':'' ?>>Out of Stock</option>
+  </select>
+  <select class="form-control" id="sortBy" style="max-width:170px;" onchange="applyFilters()">
+    <?php foreach(['newest'=>'Newest','oldest'=>'Oldest','price_asc'=>'Price: Low → High','price_desc'=>'Price: High → Low','stock_asc'=>'Stock: Low → High','stock_desc'=>'Stock: High → Low','name'=>'Name: A → Z','bestselling'=>'Best Selling'] as $sv=>$sl): ?>
+    <option value="<?= $sv ?>" <?= $sort===$sv?'selected':'' ?>>Sort: <?= $sl ?></option>
+    <?php endforeach; ?>
   </select>
   <button class="btn btn-ghost btn-sm" onclick="applyFilters()"><i class="fa-solid fa-filter"></i> Filter</button>
   <a href="products.php" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate-left"></i> Reset</a>
@@ -226,15 +397,24 @@ include __DIR__ . '/../includes/header.php';
 <div class="voice-banner" id="voiceBanner"><i class="fa-solid fa-microphone" style="color:#9B59B6;margin-right:6px;"></i><span id="voiceBannerText"></span><button onclick="document.getElementById('voiceBanner').style.display='none'" style="float:right;background:none;border:none;color:var(--text-muted);cursor:pointer;">✕</button></div>
 
 <div class="card fade-in">
+  <!-- Bulk action bar (shown when rows are selected) -->
+  <div id="bulkBar" style="display:none;padding:12px 16px;border-bottom:1px solid var(--border-color);gap:10px;align-items:center;background:var(--bg-elevated);">
+    <span id="bulkCount" style="font-size:.82rem;font-weight:600;"></span>
+    <button class="btn btn-ghost btn-sm" onclick="bulkAction('activate')"><i class="fa-solid fa-circle-check" style="color:var(--success);"></i> Activate</button>
+    <button class="btn btn-ghost btn-sm" onclick="bulkAction('deactivate')"><i class="fa-solid fa-ban" style="color:var(--warning);"></i> Deactivate</button>
+    <button class="btn btn-ghost btn-sm" onclick="bulkAction('delete')" style="color:var(--danger);"><i class="fa-solid fa-trash"></i> Delete</button>
+    <button class="btn btn-ghost btn-sm" onclick="clearBulk()">Clear</button>
+  </div>
   <div class="table-responsive">
     <table>
-      <thead><tr><th>#</th><th>Product</th><th>Category</th><th>Price</th><th>Discount</th><th>Stock</th><th>Weight</th><th>Status</th><th>★</th><th>Actions</th></tr></thead>
+      <thead><tr><th style="width:34px;"><input type="checkbox" id="selectAllProducts" onchange="toggleAllProducts(this)" style="width:15px;height:15px;accent-color:var(--gold-primary);cursor:pointer;"></th><th>#</th><th>Product</th><th>Category</th><th>Price</th><th>Discount</th><th>Stock</th><th>Weight</th><th>Status</th><th>★</th><th>Actions</th></tr></thead>
       <tbody>
         <?php foreach($products as $i => $p):
           $imgs = $p['images'] ? json_decode($p['images'],true) : null;
           $thumb = $imgs && !empty($imgs[0]) ? $imgs[0] : null;
         ?>
         <tr id="product-row-<?= $p['id'] ?>">
+          <td><input type="checkbox" class="product-check" value="<?= $p['id'] ?>" onchange="updateBulkBar()" style="width:15px;height:15px;accent-color:var(--gold-primary);cursor:pointer;"></td>
           <td class="text-muted"><?= $offset+$i+1 ?></td>
           <td>
             <div style="display:flex;align-items:center;gap:10px;">
@@ -244,7 +424,7 @@ include __DIR__ . '/../includes/header.php';
               </div>
               <div>
                 <div class="font-bold" style="font-size:.85rem;"><?= htmlspecialchars($p['name']) ?></div>
-                <div class="text-muted" style="font-size:.72rem;">SKU: <?= htmlspecialchars($p['sku']) ?></div>
+                <div class="text-muted" style="font-size:.72rem;">SKU: <?= htmlspecialchars($p['sku'] ?? '') ?></div>
               </div>
             </div>
           </td>
@@ -257,23 +437,40 @@ include __DIR__ . '/../includes/header.php';
           <td><?= $p['is_featured']?'<i class="fa-solid fa-star text-gold"></i>':'<i class="fa-regular fa-star text-muted"></i>' ?></td>
           <td>
             <div style="display:flex;gap:4px;">
-              <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick='openProductModal(<?= json_encode($p) ?>)'><i class="fa-solid fa-pen"></i></button>
+              <?php if(!empty($p['is_deleted'])): ?>
+              <button class="btn btn-ghost btn-sm" onclick="restoreProduct(<?= $p['id'] ?>)" title="Restore product"><i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i> Restore</button>
+              <?php else: ?>
+              <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick='openProductModal(<?= htmlspecialchars(json_encode($p), ENT_QUOTES, "UTF-8") ?>)'><i class="fa-solid fa-pen"></i></button>
               <button class="btn btn-ghost btn-sm btn-icon" title="FAQs" onclick="openFaqModal(<?= $p['id'] ?>)"><i class="fa-regular fa-circle-question"></i></button>
               <button class="btn btn-ghost btn-sm btn-icon" title="Reviews" onclick="openReviewsModal(<?= $p['id'] ?>,'<?= addslashes(htmlspecialchars($p['name'])) ?>')"><i class="fa-regular fa-star"></i></button>
               <button class="btn btn-ghost btn-sm btn-icon" title="Toggle" onclick="toggleProduct(<?= $p['id'] ?>)"><i class="fa-solid fa-power-off" style="color:<?= $p['is_active']?'var(--success)':'var(--text-muted)' ?>;"></i></button>
               <button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteProduct(<?= $p['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+              <?php endif; ?>
             </div>
           </td>
         </tr>
         <?php endforeach; ?>
-        <?php if(empty($products)): ?><tr><td colspan="10"><div class="empty-state"><i class="fa-solid fa-boxes-stacked"></i><p>No products found</p></div></td></tr><?php endif; ?>
+        <?php if(empty($products)): ?><tr><td colspan="11"><div class="empty-state"><i class="fa-solid fa-boxes-stacked"></i><p>No products found</p></div></td></tr><?php endif; ?>
       </tbody>
     </table>
   </div>
   <?php if($pages > 1): ?>
   <div style="padding:16px 20px;border-top:1px solid var(--border-color);">
     <div class="pagination">
-      <?php for($i=1;$i<=$pages;$i++): ?><div class="page-item <?= $i==$page?'active':'' ?>" onclick="goPage(<?= $i ?>)"><?= $i ?></div><?php endfor; ?>
+      <?php
+      // Compact pagination: first, last, and a window around the current page (… for gaps).
+      $range = 2; $shown = [];
+      for ($i = 1; $i <= $pages; $i++) {
+          if ($i == 1 || $i == $pages || ($i >= $page - $range && $i <= $page + $range)) $shown[] = $i;
+      }
+      if ($page > 1): ?><div class="page-item" onclick="goPage(<?= $page-1 ?>)">‹</div><?php endif;
+      $prev = 0;
+      foreach ($shown as $i):
+          if ($prev && $i - $prev > 1): ?><div class="page-item" style="pointer-events:none;opacity:.5;">…</div><?php endif; ?>
+          <div class="page-item <?= $i==$page?'active':'' ?>" onclick="goPage(<?= $i ?>)"><?= $i ?></div>
+          <?php $prev = $i;
+      endforeach;
+      if ($page < $pages): ?><div class="page-item" onclick="goPage(<?= $page+1 ?>)">›</div><?php endif; ?>
     </div>
   </div>
   <?php endif; ?>
@@ -287,6 +484,7 @@ include __DIR__ . '/../includes/header.php';
       <input type="hidden" id="prod_id">
       <div class="tab-nav">
         <button class="tab-btn active" onclick="switchTab('basic',this)"><i class="fa-solid fa-circle-info" style="margin-right:5px;"></i>Basic</button>
+        <button class="tab-btn" onclick="switchTab('variants_tab',this)"><i class="fa-solid fa-layer-group" style="margin-right:5px;"></i>Variants</button>
         <button class="tab-btn" onclick="switchTab('content',this)"><i class="fa-solid fa-align-left" style="margin-right:5px;"></i>Content</button>
         <button class="tab-btn" onclick="switchTab('images',this)"><i class="fa-solid fa-images" style="margin-right:5px;"></i>Images</button>
         <button class="tab-btn" onclick="switchTab('faqs_tab',this)"><i class="fa-regular fa-circle-question" style="margin-right:5px;"></i>FAQs</button>
@@ -310,11 +508,33 @@ include __DIR__ . '/../includes/header.php';
             <div class="form-group"><label class="form-label">Discount Price (₹)</label><input type="number" class="form-control" id="prod_discount" placeholder="Optional"></div>
             <div class="form-group"><label class="form-label">Stock Qty *</label><input type="number" class="form-control" id="prod_stock" placeholder="0"></div>
           </div>
+          <div class="form-group" style="max-width:280px;"><label class="form-label">Low Stock Alert <small class="text-muted">(warn when stock ≤ this; default 5)</small></label><input type="number" min="0" class="form-control" id="prod_min_stock" placeholder="5"></div>
           <div class="form-row">
             <div class="form-group"><label class="form-label">Status</label><select class="form-control" id="prod_status"><option value="1">Active</option><option value="0">Inactive</option></select></div>
             <div class="form-group"><label class="form-label">Show in Bestsellers</label><select class="form-control" id="prod_featured"><option value="0">No</option><option value="1">Yes</option></select></div>
             <div class="form-group"><label class="form-label">New Arrival</label><select class="form-control" id="prod_new"><option value="0">No</option><option value="1">Yes</option></select></div>
           </div>
+          <!-- SEO -->
+          <div style="border-top:1px solid var(--border-color);padding-top:14px;margin-top:6px;">
+            <label class="form-label" style="margin-bottom:10px;display:block;"><i class="fa-solid fa-magnifying-glass-chart" style="color:var(--gold-primary);margin-right:5px;"></i>SEO <small class="text-muted">(search engines)</small></label>
+            <div class="form-group"><label class="form-label">URL Slug <small class="text-muted">(auto from name if blank)</small></label><input type="text" class="form-control" id="prod_slug" placeholder="e.g. rf-cautery-machine-pro"></div>
+            <div class="form-group"><label class="form-label">Meta Title <small class="text-muted">(Google/browser-tab title — keep under ~60 chars)</small></label><input type="text" class="form-control" id="prod_meta_title" maxlength="255" placeholder="Defaults to the product name"></div>
+            <div class="form-group"><label class="form-label">Meta Description <small class="text-muted">(Google snippet — keep under ~155 chars)</small></label><textarea class="form-control" id="prod_meta_desc" rows="2" maxlength="320" placeholder="Short description shown in search results"></textarea></div>
+          </div>
+        </div>
+
+        <!-- VARIANTS -->
+        <div id="tab-variants_tab" class="tab-pane">
+          <label class="form-label">Product Variants <small class="text-muted">(e.g. sizes/models — each with its own MRP &amp; price)</small></label>
+          <p class="text-muted" style="font-size:.78rem;margin-bottom:10px;">
+            Add variants only if this product is sold in multiple options. The storefront shows them as
+            selectable choices with per-variant pricing. Discount % is auto-calculated. Leave empty for a single-price product.
+          </p>
+          <div style="display:flex;gap:8px;font-size:.72rem;color:var(--text-muted);padding:0 6px 4px;font-weight:600;">
+            <span style="flex:2;">LABEL</span><span style="flex:1;">MRP (₹)</span><span style="flex:1;">PRICE (₹)</span><span style="width:34px;"></span>
+          </div>
+          <div id="variants_container"></div>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="addVariantRow()" style="margin-top:8px;"><i class="fa-solid fa-plus"></i> Add Variant</button>
         </div>
 
         <!-- CONTENT -->
@@ -473,8 +693,60 @@ function switchTab(name,btn){
   document.getElementById('tab-'+name).classList.add('active');
   btn.classList.add('active');
 }
-function applyFilters(){window.location.href=`products.php?search=${encodeURIComponent(document.getElementById('searchInput').value)}&cat=${document.getElementById('catFilter').value}&status=${document.getElementById('statusFilter').value}`;}
-function goPage(p){window.location.href=`products.php?page=${p}`;}
+function buildProductQuery(extra={}){
+  const p=new URLSearchParams({
+    search:document.getElementById('searchInput')?.value||'',
+    cat:document.getElementById('catFilter')?.value||'',
+    status:document.getElementById('statusFilter')?.value||'',
+    stock:document.getElementById('stockFilter')?.value||'',
+    sort:document.getElementById('sortBy')?.value||'',
+  });
+  Object.entries(extra).forEach(([k,v])=>p.set(k,v));
+  [...p.entries()].forEach(([k,v])=>{if(!v)p.delete(k);});
+  return p.toString();
+}
+function applyFilters(){window.location.href='products.php?'+buildProductQuery();}
+function exportCsv(){window.location.href='products.php?'+buildProductQuery({export:'csv'});}
+function goPage(p){const q=new URLSearchParams(window.location.search);q.set('page',p);window.location.href='products.php?'+q.toString();}
+
+// CSV import (upsert by SKU)
+async function importCsv(input){
+  const file=input.files[0]; input.value='';
+  if(!file)return;
+  if(!confirm(`Import "${file.name}"? Existing products (matched by SKU) will be updated, new SKUs created.`))return;
+  const fd=new FormData(); fd.append('products_csv',file);
+  showToast('Importing…','info');
+  try{
+    const res=await fetch('products.php',{method:'POST',body:fd});
+    const r=await res.json();
+    showToast(r.message||(r.success?'Imported':'Import failed'), r.success?'success':'danger');
+    if(r.success) setTimeout(()=>location.reload(),1200);
+  }catch(e){ showToast('Import failed','danger'); }
+}
+
+// ---- Bulk selection ----
+function selectedProductIds(){return [...document.querySelectorAll('.product-check:checked')].map(c=>parseInt(c.value));}
+function updateBulkBar(){
+  const n=selectedProductIds().length;
+  const bar=document.getElementById('bulkBar');
+  bar.style.display=n?'flex':'none';
+  if(n)document.getElementById('bulkCount').textContent=n+' selected';
+  const all=document.getElementById('selectAllProducts');
+  const total=document.querySelectorAll('.product-check').length;
+  if(all)all.checked=n>0&&n===total;
+}
+function toggleAllProducts(cb){document.querySelectorAll('.product-check').forEach(c=>c.checked=cb.checked);updateBulkBar();}
+function clearBulk(){document.querySelectorAll('.product-check').forEach(c=>c.checked=false);const a=document.getElementById('selectAllProducts');if(a)a.checked=false;updateBulkBar();}
+async function bulkAction(op){
+  const ids=selectedProductIds();
+  if(!ids.length)return;
+  const verb={activate:'activate',deactivate:'deactivate',delete:'permanently delete'}[op];
+  if(!confirm(`${verb.charAt(0).toUpperCase()+verb.slice(1)} ${ids.length} product(s)?`))return;
+  const res=await fetch('products.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'bulk',op,ids})});
+  const r=await res.json();
+  showToast(r.message||(r.success?'Done':'Failed'), r.success?'success':'danger');
+  if(r.success)setTimeout(()=>location.reload(),800);
+}
 
 // Live search: search as the user types (debounced) instead of only on the Filter button.
 // Each search reloads the page so it queries the full catalog, not just the current 15 rows.
@@ -497,6 +769,17 @@ function addSpecRow(k='',v=''){
     <input type="text" class="form-control" placeholder="Value" value="${v.replace(/"/g,'&quot;')}" data-spec-val>
     <button type="button" class="btn btn-ghost btn-sm btn-icon" onclick="this.closest('.spec-row').remove()"><i class="fa-solid fa-minus" style="color:var(--danger);"></i></button>`;
   document.getElementById('specs_container').appendChild(d);
+}
+
+// Variant rows -> saved into the `variants` column as [{label,mrp,price,discount}]
+function addVariantRow(label='', mrp='', price=''){
+  const d=document.createElement('div');d.className='variant-row';
+  d.style.cssText='display:flex;gap:8px;margin-bottom:8px;align-items:center;';
+  d.innerHTML=`<input type="text" class="form-control" placeholder="e.g. Generic / 4 mm" value="${String(label).replace(/"/g,'&quot;')}" data-var-label style="flex:2;">
+    <input type="number" min="0" class="form-control" placeholder="MRP" value="${mrp}" data-var-mrp style="flex:1;">
+    <input type="number" min="0" class="form-control" placeholder="Price" value="${price}" data-var-price style="flex:1;">
+    <button type="button" class="btn btn-ghost btn-sm btn-icon" onclick="this.closest('.variant-row').remove()"><i class="fa-solid fa-minus" style="color:var(--danger);"></i></button>`;
+  document.getElementById('variants_container').appendChild(d);
 }
 
 // Highlight rows (Title + Text) -> saved into the `features` column as [{title,text}]
@@ -654,6 +937,7 @@ function openProductModal(p=null){
   document.getElementById('prod_price').value=p?.price||'';
   document.getElementById('prod_discount').value=p?.discount_price||'';
   document.getElementById('prod_stock').value=p?.stock||'';
+  document.getElementById('prod_min_stock').value=p?.min_stock_alert??'';
   document.getElementById('prod_status').value=p?.is_active??1;
   document.getElementById('prod_featured').value=p?.is_featured??0;
   document.getElementById('prod_new').value=p?.is_new??0;
@@ -680,6 +964,16 @@ function openProductModal(p=null){
   document.getElementById('prod_warranty_no').value=p?.warranty_no||'';
   document.getElementById('prod_direction_of_use').value=p?.direction_of_use||'';
   setCatalogueUI(p?.catalogue_url||'');
+  // SEO fields
+  document.getElementById('prod_slug').value=p?.slug||'';
+  document.getElementById('prod_meta_title').value=p?.meta_title||'';
+  document.getElementById('prod_meta_desc').value=p?.meta_description||'';
+  // Variants
+  document.getElementById('variants_container').innerHTML='';
+  try{
+    const vs=p?.variants?(typeof p.variants==='string'?JSON.parse(p.variants):p.variants):[];
+    if(Array.isArray(vs)) vs.forEach(v=>addVariantRow(v.label||'', v.mrp||'', v.price||''));
+  }catch(e){}
   document.getElementById('modalTitle').textContent=p?'Edit Product':'Add New Product';
   // Specs
   document.getElementById('specs_container').innerHTML='';
@@ -738,9 +1032,22 @@ async function saveProduct(){
     const x=row.querySelector('[data-hl-text]').value.trim();
     if(t||x)features.push({title:t,text:x});
   });
+  // Variants -> [{label, mrp, price}] (server computes discount, validates, stores JSON)
+  const variants=[];
+  document.querySelectorAll('#variants_container .variant-row').forEach(row=>{
+    const label=row.querySelector('[data-var-label]').value.trim();
+    const mrp=parseFloat(row.querySelector('[data-var-mrp]').value)||0;
+    const price=parseFloat(row.querySelector('[data-var-price]').value)||0;
+    if(label && price>0) variants.push({label, mrp: mrp||price, price});
+  });
   let images=[];try{images=JSON.parse(document.getElementById('prod_images_json').value);}catch(e){}
   const hover_image=document.getElementById('prod_hover_image').value;
   const payload={action:'save',id:document.getElementById('prod_id').value,name,price,stock,hover_image,
+    min_stock_alert:document.getElementById('prod_min_stock').value,
+    slug:document.getElementById('prod_slug').value,
+    meta_title:document.getElementById('prod_meta_title').value,
+    meta_description:document.getElementById('prod_meta_desc').value,
+    variants,
     category_id:document.getElementById('prod_category').value,
     short_description:document.getElementById('prod_short_desc').value,
     full_description:document.getElementById('prod_full_desc').value,
@@ -770,7 +1077,7 @@ async function openFaqModal(id){
   const data=await res.json();
   const body=document.getElementById('faqModalBody');
   if(!data.faqs||!data.faqs.length){body.innerHTML='<div class="empty-state"><i class="fa-regular fa-circle-question"></i><p>No FAQs yet</p></div>';}
-  else body.innerHTML=data.faqs.map((f,i)=>`<div class="faq-item"><div style="font-weight:600;color:var(--gold-primary);margin-bottom:6px;">${i+1}. ${f.question}</div><div style="color:var(--text-secondary);font-size:.85rem;">${f.answer}</div></div>`).join('');
+  else body.innerHTML=data.faqs.map((f,i)=>`<div class="faq-item"><div style="font-weight:600;color:var(--gold-primary);margin-bottom:6px;">${i+1}. ${escapeHtml(f.question)}</div><div style="color:var(--text-secondary);font-size:.85rem;">${escapeHtml(f.answer)}</div></div>`).join('');
   openModal('faqModal');
 }
 
@@ -783,7 +1090,7 @@ async function openReviewsModal(id,name){
   else body.innerHTML=data.reviews.map(r=>`
     <div class="review-card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div><div style="font-weight:600;">${r.reviewer_name}</div><div style="color:#F0D080;">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div></div>
+        <div><div style="font-weight:600;">${escapeHtml(r.reviewer_name)}</div><div style="color:#F0D080;">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div></div>
         <div style="display:flex;gap:6px;">
           <span class="badge badge-${r.is_approved?'success':'warning'}">${r.is_approved?'Approved':'Pending'}</span>
           ${r.is_verified?'<span class="badge badge-info">Verified</span>':''}
@@ -791,8 +1098,8 @@ async function openReviewsModal(id,name){
           <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteReview(${r.id})"><i class="fa-solid fa-trash" style="color:var(--danger)"></i></button>
         </div>
       </div>
-      ${r.title?`<div style="font-weight:500;margin-top:8px;">${r.title}</div>`:''}
-      <div style="color:var(--text-secondary);font-size:.85rem;margin-top:6px;">${r.review}</div>
+      ${r.title?`<div style="font-weight:500;margin-top:8px;">${escapeHtml(r.title)}</div>`:''}
+      <div style="color:var(--text-secondary);font-size:.85rem;margin-top:6px;">${escapeHtml(r.review)}</div>
       <div style="color:var(--text-muted);font-size:.72rem;margin-top:8px;">${r.created_at}</div>
     </div>`).join('');
   openModal('reviewsModal');
@@ -811,11 +1118,15 @@ function toggleProduct(id){
   .then(r=>r.json()).then(d=>{if(d.success){showToast('Status updated','success');setTimeout(()=>location.reload(),600);}});
 }
 function deleteProduct(id){
-  showConfirm('Delete Product','This will permanently delete the product. Continue?',async()=>{
+  showConfirm('Delete Product','This hides the product from the store and storefront. Order history is kept, and you can restore it anytime from the "Deleted" filter. Continue?',async()=>{
     const res=await fetch('products.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'delete',id})});
     const result=await res.json();
     if(result.success){showToast('Product deleted','success');const row=document.getElementById('product-row-'+id);if(row){row.style.opacity='0';row.style.transition='.3s';setTimeout(()=>row.remove(),300);}}
   });
+}
+function restoreProduct(id){
+  fetch('products.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'restore',id})})
+  .then(r=>r.json()).then(d=>{if(d.success){showToast('Product restored','success');setTimeout(()=>location.reload(),600);}});
 }
 
 // Voice Search

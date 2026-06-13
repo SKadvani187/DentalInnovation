@@ -52,6 +52,21 @@ function defv_bool(string $key, bool $fallback): void {
 defv_bool('OTP_DEV_RETURN', false);   // never return the OTP in API responses by default; enable in dev via env/config.local.php
 defv_bool('OTP_SSL_INSECURE', false); // verify TLS on outbound gateway/SMS calls by default; relax only in dev via env/config.local.php
 
+// ---- Error display ----
+// Leaking PHP/PDO errors to the client exposes stack traces and query/credential hints.
+// Default: debug ON only on local dev (APP_URL points at localhost), OFF everywhere else.
+// Override explicitly with APP_DEBUG via env / config.local.php.
+$__isLocal = (stripos(APP_URL, 'localhost') !== false || strpos(APP_URL, '127.0.0.1') !== false);
+defv_bool('APP_DEBUG', $__isLocal);
+if (APP_DEBUG) {
+    ini_set('display_errors', '1');
+    error_reporting(E_ALL);
+} else {
+    ini_set('display_errors', '0');
+    ini_set('log_errors', '1');
+    error_reporting(E_ALL & ~E_DEPRECATED & ~E_NOTICE);
+}
+
 // ---- OTP SMS provider ----
 // The LIVE provider (Fast2SMS / 2Factor / MSG91) is chosen in Admin -> Settings -> OTP
 // (super admin only), stored privately in site_settings.otpConfig. The constants below are
@@ -85,8 +100,9 @@ defv('ANTHROPIC_MODEL', 'claude-haiku-4-5');   // fast + cheap; ideal for short 
 // SECURITY: the values below are TEST/sandbox fallbacks. For production set the live keys via
 // env vars (RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET/RAZORPAY_WEBHOOK_SECRET) or config.local.php
 // and rotate the committed test key. Never commit a live (rzp_live_) secret to this file.
-defv('RAZORPAY_KEY_ID', 'rzp_test_Sy7B3yIhK8TdMF');        // env: RAZORPAY_KEY_ID (rzp_test_/rzp_live_)
-defv('RAZORPAY_KEY_SECRET', 'a4ytKAf1vtSLIPhoIQ55prwV');    // env: RAZORPAY_KEY_SECRET
+// SECRETS: set these via env vars or includes/config.local.php (git-ignored) — never commit real keys.
+defv('RAZORPAY_KEY_ID', '');        // env: RAZORPAY_KEY_ID (rzp_test_/rzp_live_) or config.local.php
+defv('RAZORPAY_KEY_SECRET', '');    // env: RAZORPAY_KEY_SECRET or config.local.php
 defv('RAZORPAY_WEBHOOK_SECRET', ''); // env: RAZORPAY_WEBHOOK_SECRET (after creating the webhook)
 define('RAZORPAY_CURRENCY', 'INR');
 
@@ -110,7 +126,13 @@ class Database {
                 ]
             );
         } catch (PDOException $e) {
-            die(json_encode(['error' => 'Database connection failed: ' . $e->getMessage()]));
+            // Log the real reason server-side; never leak PDO internals to the client.
+            error_log('DB connection failed: ' . $e->getMessage());
+            http_response_code(500);
+            $msg = (defined('APP_DEBUG') && APP_DEBUG)
+                ? 'Database connection failed: ' . $e->getMessage()
+                : 'Service temporarily unavailable. Please try again later.';
+            die(json_encode(['error' => $msg]));
         }
     }
 
@@ -177,7 +199,7 @@ function timeAgo($datetime) {
 
 // Helper: Sanitize input
 function sanitize($input) {
-    return htmlspecialchars(strip_tags(trim($input)));
+    return htmlspecialchars(strip_tags(trim($input ?? '')));
 }
 
 // Helper: Generate order number

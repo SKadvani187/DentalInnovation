@@ -250,8 +250,8 @@ function viewReview(id){
     <div style="margin-bottom:14px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
         <div>
-          <div style="font-weight:700;font-size:1rem;">${r.reviewer_name}</div>
-          ${r.reviewer_email?`<div style="font-size:.78rem;color:var(--text-muted);">${r.reviewer_email}</div>`:''}
+          <div style="font-weight:700;font-size:1rem;">${escapeHtml(r.reviewer_name)}</div>
+          ${r.reviewer_email?`<div style="font-size:.78rem;color:var(--text-muted);">${escapeHtml(r.reviewer_email)}</div>`:''}
         </div>
         <div style="text-align:right;">
           <div style="color:#F0D080;font-size:1rem;">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div>
@@ -259,10 +259,10 @@ function viewReview(id){
         </div>
       </div>
       <div style="font-size:.8rem;color:var(--text-muted);margin-bottom:12px;">
-        <i class="fa-solid fa-box" style="margin-right:5px;"></i>${r.product_name||'—'}
+        <i class="fa-solid fa-box" style="margin-right:5px;"></i>${escapeHtml(r.product_name||'—')}
       </div>
-      ${r.title?`<div style="font-weight:600;margin-bottom:6px;">${r.title}</div>`:''}
-      <div style="color:var(--text-secondary);font-size:.88rem;line-height:1.7;background:var(--bg-elevated);padding:14px;border-radius:var(--radius-sm);">${r.review}</div>
+      ${r.title?`<div style="font-weight:600;margin-bottom:6px;">${escapeHtml(r.title)}</div>`:''}
+      <div style="color:var(--text-secondary);font-size:.88rem;line-height:1.7;background:var(--bg-elevated);padding:14px;border-radius:var(--radius-sm);">${escapeHtml(r.review)}</div>
       <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
         <span class="badge badge-${r.is_approved?'success':'warning'}">${r.is_approved?'Approved':'Pending'}</span>
         ${r.is_verified?'<span class="badge badge-info"><i class="fa-solid fa-circle-check"></i> Verified</span>':''}

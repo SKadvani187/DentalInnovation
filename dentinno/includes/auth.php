@@ -78,6 +78,52 @@ function logoutAdmin() {
     exit;
 }
 
+// ---- Admin login brute-force throttle (per client IP) ----
+const LOGIN_MAX_ATTEMPTS = 5;    // consecutive failures before lockout
+const LOGIN_LOCK_MINUTES  = 15;  // cool-down window once locked
+const ADMIN_MIN_PASSWORD  = 8;   // minimum length for admin account passwords
+
+function clientIp(): string {
+    return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+}
+
+// Seconds remaining on an active lockout for this IP, else 0.
+function loginLockRemaining(): int {
+    try {
+        $row = db()->fetchOne("SELECT locked_until FROM admin_login_attempts WHERE ip=?", [clientIp()]);
+    } catch (Throwable $e) { return 0; } // throttle table missing → fail open, don't block logins
+    if ($row && !empty($row['locked_until'])) {
+        $remain = strtotime($row['locked_until']) - time();
+        return $remain > 0 ? $remain : 0;
+    }
+    return 0;
+}
+
+// Record one failed attempt; lock the IP once the threshold is reached.
+function loginRegisterFailure(): void {
+    $ip = clientIp();
+    try {
+        db()->execute(
+            "INSERT INTO admin_login_attempts (ip, attempts) VALUES (?, 1)
+             ON DUPLICATE KEY UPDATE attempts = attempts + 1, locked_until = NULL",
+            [$ip]
+        );
+        $row = db()->fetchOne("SELECT attempts FROM admin_login_attempts WHERE ip=?", [$ip]);
+        if ($row && (int)$row['attempts'] >= LOGIN_MAX_ATTEMPTS) {
+            db()->execute(
+                "UPDATE admin_login_attempts SET attempts=0, locked_until=DATE_ADD(NOW(), INTERVAL ? MINUTE) WHERE ip=?",
+                [LOGIN_LOCK_MINUTES, $ip]
+            );
+        }
+    } catch (Throwable $e) { /* throttle is best-effort; never break login on its failure */ }
+}
+
+// Clear the throttle for this IP after a successful login.
+function loginClearFailures(): void {
+    try { db()->execute("DELETE FROM admin_login_attempts WHERE ip=?", [clientIp()]); }
+    catch (Throwable $e) { /* ignore */ }
+}
+
 // ---- CSRF protection (per-session token) ----
 function csrfToken(): string {
     if (empty($_SESSION['csrf_token'])) {
@@ -125,12 +171,37 @@ function currentAdmin() {
     ];
 }
 
+// Permissions granted to each non-super role. super_admin implicitly has ALL permissions.
+// Sensitive money/admin actions (manage_refunds, manage_admins, manage_settings) are
+// intentionally NOT in any list here, so only super_admin can perform them.
+function rolePermissions(string $role): array {
+    switch ($role) {
+        case 'admin':
+            return ['manage_products','manage_categories','manage_orders','manage_coupons',
+                    'manage_customers','manage_combos','manage_offers','manage_reviews',
+                    'manage_content','view_reports'];
+        case 'staff':
+            return ['manage_orders','manage_reviews','manage_content'];
+        default:
+            return [];
+    }
+}
+
 // Check permission
 function hasPermission($permission) {
     $role = $_SESSION['admin_role'] ?? '';
     if ($role === 'super_admin') return true;
-    // Add granular permission logic here
-    return false;
+    return in_array($permission, rolePermissions($role), true);
+}
+
+// Hard gate for sensitive AJAX endpoints: emit a 403 JSON and stop if the current
+// admin lacks the permission. Call right after verifyCsrf() in the POST handler.
+function requirePermissionAjax(string $permission): void {
+    if (!hasPermission($permission)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'You do not have permission for this action.']);
+        exit;
+    }
 }
 
 // Lightweight sidebar/topbar badges — the ONLY stats header.php needs. Runs on every

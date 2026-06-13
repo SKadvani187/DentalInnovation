@@ -35,8 +35,14 @@ export function WishlistProvider({ children }) {
   }, [setIds, token]);
 
   const remove = useCallback((id) => {
-    setIds((prev) => prev.filter((x) => x !== id));
-  }, [setIds]);
+    setIds((prev) => {
+      const next = prev.filter((x) => x !== id);
+      // Persist the removal to the server too — otherwise the item reappears after
+      // reload/re-login because the login merge re-adds the still-saved server copy.
+      if (token) api.syncWishlist(next).catch(() => {});
+      return next;
+    });
+  }, [setIds, token]);
 
   const has = useCallback((id) => ids.includes(id), [ids]);
 

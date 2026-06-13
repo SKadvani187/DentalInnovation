@@ -17,15 +17,28 @@ export default function ProductDetailModal() {
 
   useEffect(() => {
     setQty(1);
-    setVariant(selectedProduct?.variants?.[0] || null);
+    // Catalog variants are objects ({label, price, mrp}); ignore any legacy string entries.
+    const objVariants = Array.isArray(selectedProduct?.variants)
+      ? selectedProduct.variants.filter((v) => typeof v === "object")
+      : [];
+    setVariant(objVariants[0] || null);
   }, [selectedProduct]);
 
   if (!selectedProduct) return null;
   const p = selectedProduct;
   const wished = has(p.id);
+  const variants = Array.isArray(p.variants) ? p.variants.filter((v) => typeof v === "object") : [];
+  // Price reflects the selected variant when one exists.
+  const activePrice = variant?.price ?? p.price;
+  const activeMrp = variant?.mrp ?? p.mrp;
 
   const handleAdd = () => {
-    addToCart(p, qty, variant);
+    // Match the cart's variant model: pass the variant LABEL (string) + variant pricing.
+    addToCart(
+      variant ? { ...p, price: variant.price, mrp: variant.mrp } : p,
+      qty,
+      variant ? variant.label : null
+    );
     closeModal();
   };
 
@@ -33,7 +46,7 @@ export default function ProductDetailModal() {
     <Modal open={modal === "product"} onClose={closeModal} maxWidth="max-w-4xl">
       <div className="grid grid-cols-1 md:grid-cols-2">
         <div className="bg-gray-50 aspect-square">
-          <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+          <img src={p.image} alt={p.name} width="600" height="600" className="w-full h-full object-contain" />
         </div>
         <div className="p-5 sm:p-6 flex flex-col">
           <div className="flex items-start justify-between gap-3">
@@ -46,28 +59,28 @@ export default function ProductDetailModal() {
           <div className="mt-2"><StarRating value={p.rating} reviews={p.reviews} /></div>
 
           <div className="mt-3 flex items-baseline gap-3">
-            <span className="text-2xl font-bold text-brand-ink">{fmt(p.price)}</span>
-            {p.mrp > p.price && (
+            <span className="text-2xl font-bold text-brand-ink">{fmt(activePrice)}</span>
+            {activeMrp > activePrice && (
               <>
-                <span className="text-sm text-brand-muted line-through">{fmt(p.mrp)}</span>
-                <span className="text-xs font-bold text-brand-orange">{p.discount}% OFF</span>
+                <span className="text-sm text-brand-muted line-through">{fmt(activeMrp)}</span>
+                <span className="text-xs font-bold text-brand-orange">{Math.round(((activeMrp - activePrice) / activeMrp) * 100)}% OFF</span>
               </>
             )}
           </div>
 
           <p className="mt-4 text-sm text-brand-muted leading-relaxed">{p.description}</p>
 
-          {p.variants && (
+          {variants.length > 0 && (
             <div className="mt-5">
               <p className="text-xs font-semibold uppercase tracking-wider text-brand-ink mb-2">Variant</p>
               <div className="flex gap-2 flex-wrap">
-                {p.variants.map((v) => (
+                {variants.map((v) => (
                   <button
-                    key={v}
+                    key={v.label}
                     onClick={() => setVariant(v)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-semibold border transition ${variant === v ? "bg-brand-navy text-white border-brand-navy" : "bg-white text-brand-ink border-gray-300 hover:border-brand-navy"}`}
+                    className={`px-3 py-1.5 rounded-md text-xs font-semibold border transition ${variant?.label === v.label ? "bg-brand-navy text-white border-brand-navy" : "bg-white text-brand-ink border-gray-300 hover:border-brand-navy"}`}
                   >
-                    {v}
+                    {v.label}
                   </button>
                 ))}
               </div>

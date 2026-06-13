@@ -20,24 +20,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     $role = in_array($data['role'] ?? '', $ALLOWED_ROLES, true) ? $data['role'] : 'staff';
 
     if ($action === 'save') {
+        $name     = trim((string)($data['name'] ?? ''));
+        $email    = trim((string)($data['email'] ?? ''));
+        $isActive = (int)($data['is_active'] ?? 1);
+        if ($name === '' || $email === '') { echo json_encode(['success'=>false,'message'=>'Name and email are required']); exit; }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) { echo json_encode(['success'=>false,'message'=>'Enter a valid email address']); exit; }
+        // Enforce a minimum password length whenever a password is being set.
+        if (!empty($data['password']) && strlen((string)$data['password']) < ADMIN_MIN_PASSWORD) {
+            echo json_encode(['success'=>false,'message'=>'Password must be at least '.ADMIN_MIN_PASSWORD.' characters']); exit;
+        }
         if (!empty($data['id'])) {
+            // Lockout guard: never demote/deactivate the LAST active super admin.
+            $target = db()->fetchOne("SELECT role FROM admin_users WHERE id=?", [$data['id']]);
+            if ($target && $target['role'] === 'super_admin' && ($role !== 'super_admin' || $isActive === 0)) {
+                $others = (int)(db()->fetchOne("SELECT COUNT(*) c FROM admin_users WHERE role='super_admin' AND is_active=1 AND id<>?", [$data['id']])['c'] ?? 0);
+                if ($others < 1) { echo json_encode(['success'=>false,'message'=>'Cannot demote or deactivate the last active super admin']); exit; }
+            }
+            $dupe = db()->fetchOne("SELECT id FROM admin_users WHERE email=? AND id<>?", [$email, $data['id']]);
+            if ($dupe) { echo json_encode(['success'=>false,'message'=>'Email already in use']); exit; }
             $extra = !empty($data['password']) ? ", password=?" : "";
-            $params = [$data['name'],$data['email'],$role,$data['is_active']];
+            $params = [$name,$email,$role,$isActive];
             if (!empty($data['password'])) $params[] = password_hash($data['password'], PASSWORD_DEFAULT);
             $params[] = $data['id'];
             db()->execute("UPDATE admin_users SET name=?,email=?,role=?,is_active=?$extra WHERE id=?", $params);
             echo json_encode(['success'=>true,'message'=>'Admin updated']);
         } else {
             if (empty($data['password'])) { echo json_encode(['success'=>false,'message'=>'Password is required']); exit; }
-            $exists = db()->fetchOne("SELECT id FROM admin_users WHERE email=?",[$data['email']]);
+            $exists = db()->fetchOne("SELECT id FROM admin_users WHERE email=?",[$email]);
             if ($exists) { echo json_encode(['success'=>false,'message'=>'Email already exists']); exit; }
             db()->insert("INSERT INTO admin_users (name,email,password,role,is_active) VALUES (?,?,?,?,?)",
-                [$data['name'],$data['email'],password_hash($data['password'],PASSWORD_DEFAULT),$role,$data['is_active']??1]);
+                [$name,$email,password_hash($data['password'],PASSWORD_DEFAULT),$role,$isActive]);
             echo json_encode(['success'=>true,'message'=>'Admin user created']);
         }
     } elseif ($action === 'delete') {
-        if ($data['id'] == $_SESSION['admin_id']) { echo json_encode(['success'=>false,'message'=>'Cannot delete yourself']); exit; }
-        db()->execute("DELETE FROM admin_users WHERE id=?",[$data['id']]);
+        $id = (int)($data['id'] ?? 0);
+        if ($id === (int)$_SESSION['admin_id']) { echo json_encode(['success'=>false,'message'=>'Cannot delete yourself']); exit; }
+        // Lockout guard: never delete the last active super admin.
+        $target = db()->fetchOne("SELECT role FROM admin_users WHERE id=?", [$id]);
+        if ($target && $target['role'] === 'super_admin') {
+            $others = (int)(db()->fetchOne("SELECT COUNT(*) c FROM admin_users WHERE role='super_admin' AND is_active=1 AND id<>?", [$id])['c'] ?? 0);
+            if ($others < 1) { echo json_encode(['success'=>false,'message'=>'Cannot delete the last active super admin']); exit; }
+        }
+        db()->execute("DELETE FROM admin_users WHERE id=?",[$id]);
         echo json_encode(['success'=>true,'message'=>'Admin deleted']);
     }
     exit;

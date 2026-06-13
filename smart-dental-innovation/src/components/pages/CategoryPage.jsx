@@ -7,6 +7,7 @@ import { useUI } from "../../context/UIContext";
 import { useAppNavigate } from "../../hooks/useAppNavigate";
 import { useSettings } from "../../context/SettingsContext";
 import { useProducts, useCombos, useCategories } from "../../hooks/useApiData";
+import Seo from "../Seo";
 
 // Bounds fallback only for the first render before settings resolve; admin value (DB) wins.
 const FALLBACK_BOUNDS = { min: 10, max: 500000 };
@@ -106,8 +107,15 @@ export default function CategoryPage() {
     </>
   );
 
+  const seoCatLabel = (CATEGORY_FILTERS.find((c) => c.id === selectedCat) || {}).label;
   return (
     <div className="bg-[#f6f9fc] min-h-screen">
+      <Seo
+        title={seoCatLabel ? `${seoCatLabel} — Dental Products` : "Shop Dental Products"}
+        description={seoCatLabel
+          ? `Browse ${seoCatLabel} at DentInno — quality dental products at great prices.`
+          : "Browse dental products, equipment and consumables at DentInno."}
+      />
       {/* Header */}
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-[1400px] mx-auto px-4 py-5">

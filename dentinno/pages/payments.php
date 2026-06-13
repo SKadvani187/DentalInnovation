@@ -104,7 +104,7 @@ include __DIR__ . '/../includes/header.php';
                     <td><?= htmlspecialchars($p['customer_name']) ?></td>
                     <td class="font-bold"><?= formatCurrency($p['total']) ?></td>
                     <td><?= $p['payment_method'] ? htmlspecialchars($p['payment_method']) : '<span class="text-muted">—</span>' ?></td>
-                    <td><span class="badge badge-<?= statusBadge($p['payment_status']) ?>"><?= htmlspecialchars($p['payment_status']) ?></span></td>
+                    <td><span class="badge badge-<?= statusBadge($p['payment_status']) ?>"><?= htmlspecialchars($p['payment_status'] ?? '') ?></span></td>
                     <td><?= formatDate($p['created_at']) ?></td>
                     <td><a href="orders.php?view=<?= $p['id'] ?>" class="btn btn-ghost btn-sm btn-icon"><i class="fa-solid fa-eye"></i></a></td>
                 </tr>

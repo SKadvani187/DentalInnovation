@@ -205,6 +205,19 @@ $tax      = $pricing['tax'];
 $total    = $pricing['total'];
 $payMethod = (string)($body['paymentMethod'] ?? 'cod');
 
+// Per-customer coupon cap: block a customer redeeming a code more times than per_user_limit
+// allows (NULL = unlimited). The global cap is enforced atomically at increment time below.
+if ($pricing['couponRow']) {
+    $perUser = $pricing['couponRow']['per_user_limit'] ?? 1;
+    if ($perUser !== null && $perUser !== '') {
+        $usedByCust = (int)($db->fetchOne(
+            "SELECT COUNT(*) c FROM coupon_redemptions WHERE coupon_id=? AND customer_id=?",
+            [(int)$pricing['couponRow']['id'], $cust['id']]
+        )['c'] ?? 0);
+        if ($usedByCust >= (int)$perUser) jsonErr('You have already used this coupon.', 422);
+    }
+}
+
 // COD guard: only allow Cash-on-Delivery where the delivery pincode is serviceable AND
 // has cod_available=1 (admin → Shipping → Pincode ETA). Longest-prefix match, same as
 // delivery.php. If no pincode rows exist at all, COD is left open (don't block on empty config).
@@ -277,9 +290,21 @@ try {
         }
     }
 
-    // Record coupon usage (now that the order is committed-bound).
+    // Record coupon usage atomically: the conditional UPDATE only succeeds while the global
+    // uses_limit hasn't been hit, closing the concurrent over-redemption race. Then log the
+    // per-customer redemption (drives the per_user_limit check above).
     if ($pricing['couponRow']) {
-        $db->execute("UPDATE coupons SET uses_count = uses_count + 1 WHERE id=?", [(int)$pricing['couponRow']['id']]);
+        $cpId = (int)$pricing['couponRow']['id'];
+        $bumped = $db->execute(
+            "UPDATE coupons SET uses_count = uses_count + 1
+              WHERE id=? AND (uses_limit IS NULL OR uses_count < uses_limit)",
+            [$cpId]
+        );
+        if ($bumped < 1) throw new RuntimeException('This coupon has reached its usage limit.');
+        $db->insert(
+            "INSERT INTO coupon_redemptions (coupon_id, customer_id, order_id) VALUES (?,?,?)",
+            [$cpId, $cust['id'], $orderId]
+        );
     }
 
     // bump customer aggregates

@@ -96,7 +96,8 @@ function authCustomer(): ?array {
         $token = trim((string)$_SERVER['HTTP_X_AUTH_TOKEN']);
     }
     if ($token !== '') {
-        return db()->fetchOne("SELECT * FROM customers WHERE api_token=?", [$token]) ?: null;
+        // A soft-deleted customer's token must stop working (they get logged out).
+        return db()->fetchOne("SELECT * FROM customers WHERE api_token=? AND is_deleted=0", [$token]) ?: null;
     }
     return null;
 }

@@ -182,7 +182,7 @@ include __DIR__ . '/../includes/header.php';
         <tbody>
           <?php foreach($rules as $r): ?>
           <tr>
-            <td class="font-bold" style="font-size:.85rem;"><?= htmlspecialchars($r['method_name']) ?></td>
+            <td class="font-bold" style="font-size:.85rem;"><?= htmlspecialchars($r['method_name'] ?? '') ?></td>
             <td><?= $r['zone_name'] ? htmlspecialchars($r['zone_name']) : '<span class="badge badge-secondary">All Zones</span>' ?></td>
             <td>
               <span class="ship-type-badge type-<?= ['weight'=>'weight','price'=>'price','quantity'=>'price','product'=>'product'][$r['rule_type']]??'flat' ?>">

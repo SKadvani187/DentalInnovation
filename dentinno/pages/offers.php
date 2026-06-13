@@ -26,6 +26,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['offer_image'])) {
     }
     $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     if (!in_array($ext, ['jpg','jpeg','png','webp','gif'])) { echo json_encode(['success'=>false,'message'=>'Invalid file type']); exit; }
+    // Verify the actual file CONTENT, not just the extension (a .jpg could be a PHP script).
+    $fi = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : false;
+    $mime = $fi ? finfo_file($fi, $file['tmp_name']) : '';
+    if ($mime && !in_array($mime, ['image/jpeg','image/png','image/webp','image/gif'], true)) {
+        echo json_encode(['success'=>false,'message'=>'The file is not a valid image (content check failed)']); exit;
+    }
     if ($file['size'] > 5*1024*1024) { echo json_encode(['success'=>false,'message'=>'File too large (max 5MB)']); exit; }
     $fname = 'offer_' . time() . '_' . rand(1000,9999) . '.' . $ext;
     if (move_uploaded_file($file['tmp_name'], $upload_dir . $fname)) {
@@ -167,8 +173,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         }
         echo json_encode(['success'=>true,'message'=>$msg,'you_save'=>$youSave,'total_mrp'=>$totalMrp]);
     } elseif ($action === 'delete') {
-        db()->execute("DELETE FROM offers WHERE id=?", [$d['id']]);   // offer_items cascade via FK
+        // Soft-delete: keep the row + its gift rows so an accidental delete can be restored.
+        db()->execute("UPDATE offers SET is_deleted=1, is_active=0 WHERE id=?", [(int)($d['id'] ?? 0)]);
         echo json_encode(['success'=>true,'message'=>'Offer deleted']);
+    } elseif ($action === 'restore') {
+        db()->execute("UPDATE offers SET is_deleted=0 WHERE id=?", [(int)($d['id'] ?? 0)]);
+        echo json_encode(['success'=>true,'message'=>'Offer restored']);
+    } elseif ($action === 'toggle') {
+        db()->execute("UPDATE offers SET is_active = NOT is_active WHERE id=? AND is_deleted=0", [(int)($d['id'] ?? 0)]);
+        echo json_encode(['success'=>true,'message'=>'Status updated']);
+    } elseif ($action === 'bulk') {
+        $ids = array_values(array_filter(array_map('intval', (array)($d['ids'] ?? []))));
+        $op  = (string)($d['op'] ?? '');
+        if (!$ids) { echo json_encode(['success'=>false,'message'=>'No offers selected']); exit; }
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        if ($op === 'activate')       { db()->execute("UPDATE offers SET is_active=1 WHERE id IN ($ph) AND is_deleted=0", $ids); $msg = count($ids).' offer(s) activated'; }
+        elseif ($op === 'deactivate') { db()->execute("UPDATE offers SET is_active=0 WHERE id IN ($ph) AND is_deleted=0", $ids); $msg = count($ids).' offer(s) deactivated'; }
+        elseif ($op === 'delete')     { db()->execute("UPDATE offers SET is_deleted=1, is_active=0 WHERE id IN ($ph)", $ids); $msg = count($ids).' offer(s) deleted'; }
+        elseif ($op === 'restore')    { db()->execute("UPDATE offers SET is_deleted=0 WHERE id IN ($ph)", $ids); $msg = count($ids).' offer(s) restored'; }
+        else { echo json_encode(['success'=>false,'message'=>'Unknown bulk action']); exit; }
+        echo json_encode(['success'=>true,'message'=>$msg]);
     }
     } catch (Throwable $e) {
         echo json_encode(['success'=>false,'message'=>'Server error: ' . $e->getMessage()]);
@@ -176,13 +200,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     exit;
 }
 
-// Paginate the offers grid (was: fetch ALL rows).
+// Filter + paginate the offers grid (was: fetch ALL rows).
+$search   = sanitize($_GET['search'] ?? '');
+$status   = sanitize($_GET['status'] ?? '');
 $page     = max(1, (int)($_GET['page'] ?? 1));
 $per_page = 20;
 $offset   = ($page - 1) * $per_page;
-$total    = (int)(db()->fetchOne("SELECT COUNT(*) c FROM offers")['c'] ?? 0);
+$where = ["1=1"]; $params = [];
+if ($search) { $where[] = "title LIKE ?"; $params[] = "%$search%"; }
+// Soft-delete: hide deleted offers unless the "Deleted" filter is chosen.
+if ($status === 'deleted') {
+    $where[] = "is_deleted = 1";
+} else {
+    $where[] = "is_deleted = 0";
+    // Status: active = live & not past valid_till; expired = past valid_till; inactive = toggled off.
+    if ($status === 'active')       { $where[] = "is_active=1 AND (valid_till IS NULL OR valid_till >= NOW())"; }
+    elseif ($status === 'inactive') { $where[] = "is_active=0"; }
+    elseif ($status === 'expired')  { $where[] = "valid_till IS NOT NULL AND valid_till < NOW()"; }
+}
+$whereStr = implode(' AND ', $where);
+$total    = (int)(db()->fetchOne("SELECT COUNT(*) c FROM offers WHERE $whereStr", $params)['c'] ?? 0);
 $pages    = (int)ceil($total / $per_page);
-$offers = db()->fetchAll("SELECT * FROM offers ORDER BY sort_order, id LIMIT $per_page OFFSET $offset");
+$offers = db()->fetchAll("SELECT * FROM offers WHERE $whereStr ORDER BY sort_order, id LIMIT $per_page OFFSET $offset", $params);
 // Real "bought today" count per product slug (same source as storefront API).
 $soldRows = db()->fetchAll(
     "SELECT oi.product_slug AS slug, COUNT(DISTINCT oi.order_id) AS cnt
@@ -213,6 +252,37 @@ include __DIR__ . '/../includes/header.php';
     <button class="btn btn-gold" onclick="openOfferModal()"><i class="fa-solid fa-plus"></i> Add Offer</button>
 </div>
 
+<div class="filter-bar fade-in" style="flex-wrap:wrap;gap:8px;">
+    <div class="search-wrapper" style="flex:1;min-width:180px;max-width:300px;">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" class="search-input" id="searchInput" placeholder="Search offers by title..." value="<?= htmlspecialchars($search) ?>" onkeydown="if(event.key==='Enter')applyFilters()">
+    </div>
+    <select class="form-control" id="statusFilter" style="max-width:150px;">
+        <option value="">All Status</option>
+        <option value="active"   <?= $status==='active'?'selected':'' ?>>Active</option>
+        <option value="inactive" <?= $status==='inactive'?'selected':'' ?>>Inactive</option>
+        <option value="expired"  <?= $status==='expired'?'selected':'' ?>>Expired</option>
+        <option value="deleted"  <?= $status==='deleted'?'selected':'' ?>>🗑 Deleted</option>
+    </select>
+    <button class="btn btn-ghost btn-sm" onclick="applyFilters()"><i class="fa-solid fa-filter"></i> Filter</button>
+    <a href="offers.php" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate-left"></i> Reset</a>
+    <label style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--text-secondary);cursor:pointer;margin-left:auto;">
+        <input type="checkbox" id="selectAllOffers" onchange="toggleAllOffers(this)" style="width:15px;height:15px;accent-color:var(--gold-primary);cursor:pointer;"> Select all
+    </label>
+</div>
+
+<div id="bulkBar" style="display:none;padding:10px 16px;margin-bottom:12px;border:1px solid var(--border-color);border-radius:10px;gap:10px;align-items:center;background:var(--bg-elevated);flex-wrap:wrap;">
+    <span id="bulkCount" style="font-size:.82rem;font-weight:600;"></span>
+    <?php if($status === 'deleted'): ?>
+    <button class="btn btn-ghost btn-sm" onclick="bulkAction('restore')"><i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i> Restore</button>
+    <?php else: ?>
+    <button class="btn btn-ghost btn-sm" onclick="bulkAction('activate')"><i class="fa-solid fa-circle-check" style="color:var(--success);"></i> Activate</button>
+    <button class="btn btn-ghost btn-sm" onclick="bulkAction('deactivate')"><i class="fa-solid fa-ban" style="color:var(--warning);"></i> Deactivate</button>
+    <button class="btn btn-ghost btn-sm" onclick="bulkAction('delete')" style="color:var(--danger);"><i class="fa-solid fa-trash"></i> Delete</button>
+    <?php endif; ?>
+    <button class="btn btn-ghost btn-sm" onclick="clearBulk()" style="margin-left:auto;">Clear</button>
+</div>
+
 <div class="grid-3 fade-in">
     <?php foreach($offers as $o):
         $mp = json_decode($o['main_product'] ?? 'null', true);
@@ -229,6 +299,7 @@ include __DIR__ . '/../includes/header.php';
     <div class="card" id="offer-card-<?= $o['id'] ?>" style="transition:all .2s;">
         <div class="card-body">
             <div style="display:flex;gap:12px;">
+                <input type="checkbox" class="offer-check" value="<?= $o['id'] ?>" onchange="updateBulkBar()" style="width:15px;height:15px;accent-color:var(--gold-primary);cursor:pointer;flex-shrink:0;margin-top:2px;">
                 <img src="<?= htmlspecialchars($mp['image'] ?? '') ?>" style="width:60px;height:60px;object-fit:cover;border-radius:8px;background:#fff;border:1px solid var(--border-color);flex-shrink:0;" onerror="this.style.opacity=.2">
                 <div style="flex:1;min-width:0;">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
@@ -242,7 +313,7 @@ include __DIR__ . '/../includes/header.php';
                         <span style="color:var(--success);font-size:.72rem;margin-left:4px;">save ₹<?= number_format($cardSave,0) ?></span>
                     </div>
                     <div class="text-muted" style="font-size:.7rem;margin-top:3px;">
-                        <?= count($fi) ?> free item(s) · till <?= $o['valid_till'] ?: '—' ?>
+                        <?= count($fi) ?> free item(s) · till <?= $o['valid_till'] ? date('d M Y', strtotime($o['valid_till'])) : '—' ?>
                         <?php if($expired): ?><span class="badge badge-warning" style="margin-left:4px;">Expired</span><?php endif; ?>
                     </div>
                     <div style="font-size:.7rem;margin-top:3px;color:var(--text-secondary);">
@@ -252,20 +323,51 @@ include __DIR__ . '/../includes/header.php';
                 </div>
             </div>
             <div style="margin-top:12px;display:flex;justify-content:flex-end;gap:6px;">
-                <button class="btn btn-ghost btn-sm btn-icon" onclick="openOfferModal(<?= htmlspecialchars(json_encode($o), ENT_QUOTES) ?>)"><i class="fa-solid fa-pen"></i></button>
-                <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteOffer(<?= $o['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+                <?php if(!empty($o['is_deleted'])): ?>
+                <button class="btn btn-ghost btn-sm" onclick="restoreOffer(<?= $o['id'] ?>)" title="Restore offer"><i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i> Restore</button>
+                <?php else: ?>
+                <button class="btn btn-ghost btn-sm btn-icon" title="Activate/Deactivate" onclick="toggleOffer(<?= $o['id'] ?>)"><i class="fa-solid fa-power-off" style="color:<?= $o['is_active']?'var(--success)':'var(--text-muted)' ?>;"></i></button>
+                <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick="openOfferModal(<?= htmlspecialchars(json_encode($o), ENT_QUOTES) ?>)"><i class="fa-solid fa-pen"></i></button>
+                <button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteOffer(<?= $o['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+                <?php endif; ?>
             </div>
         </div>
     </div>
     <?php endforeach; ?>
-    <?php if(empty($offers)): ?><p class="text-muted">No offers yet. Click "Add Offer".</p><?php endif; ?>
 </div>
+<?php if(empty($offers)): ?>
+<div class="card fade-in" style="text-align:center;padding:48px 20px;">
+    <i class="fa-solid fa-tags" style="font-size:2.6rem;color:var(--border-active);margin-bottom:12px;"></i>
+    <?php if($search !== '' || $status !== ''): ?>
+    <h3 style="font-size:1rem;margin-bottom:4px;">No offers match your filters</h3>
+    <p class="text-muted" style="font-size:.85rem;margin-bottom:14px;">Try a different search or status — or reset to see all offers.</p>
+    <a href="offers.php" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate-left"></i> Reset filters</a>
+    <?php else: ?>
+    <h3 style="font-size:1rem;margin-bottom:4px;">No offers yet</h3>
+    <p class="text-muted" style="font-size:.85rem;margin-bottom:14px;">Create a special-price deal with free gift items to feature in the storefront Offer Zone.</p>
+    <button class="btn btn-gold btn-sm" onclick="openOfferModal()"><i class="fa-solid fa-plus"></i> Add your first offer</button>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
 
 <?php if($pages > 1): ?>
 <div class="pagination" style="margin-top:16px;">
-    <?php for($i=1;$i<=$pages;$i++): ?><div class="page-item <?= $i==$page?'active':'' ?>" onclick="goOffersPage(<?= $i ?>)"><?= $i ?></div><?php endfor; ?>
+    <?php
+    // Compact pagination: first, last, and a window around the current page (… for gaps).
+    $range = 2; $shown = [];
+    for ($i = 1; $i <= $pages; $i++) {
+        if ($i == 1 || $i == $pages || ($i >= $page - $range && $i <= $page + $range)) $shown[] = $i;
+    }
+    if ($page > 1): ?><div class="page-item" onclick="goOffersPage(<?= $page-1 ?>)">‹</div><?php endif;
+    $prev = 0;
+    foreach ($shown as $i):
+        if ($prev && $i - $prev > 1): ?><div class="page-item" style="pointer-events:none;opacity:.5;">…</div><?php endif; ?>
+        <div class="page-item <?= $i==$page?'active':'' ?>" onclick="goOffersPage(<?= $i ?>)"><?= $i ?></div>
+        <?php $prev = $i;
+    endforeach;
+    if ($page < $pages): ?><div class="page-item" onclick="goOffersPage(<?= $page+1 ?>)">›</div><?php endif; ?>
 </div>
-<script>function goOffersPage(p){window.location.href=`offers.php?page=${p}`;}</script>
+<script>function goOffersPage(p){const q=new URLSearchParams(window.location.search);q.set('page',p);window.location.href='offers.php?'+q.toString();}</script>
 <?php endif; ?>
 
 <!-- Modal -->
@@ -325,7 +427,7 @@ include __DIR__ . '/../includes/header.php';
             <div class="form-row" style="display:flex;gap:10px;">
                 <div class="form-group" style="flex:1;"><label class="form-label">Theme color</label>
                     <select class="form-control" id="offer_theme">
-                        <option value="orange">Orange</option><option value="blue">Blue</option><option value="pink">Pink</option>
+                        <option value="orange">Orange</option><option value="blue">Blue</option><option value="green">Green</option><option value="pink">Pink</option>
                         <option value="purple">Purple</option><option value="yellow">Yellow</option><option value="maroon">Maroon</option>
                     </select>
                 </div>
@@ -542,8 +644,41 @@ async function saveOffer() {
     if(r.success){ showToast(r.message,'success'); closeModal('offerModal'); setTimeout(()=>location.reload(),800); }
     else showToast(r.message,'danger');
 }
+function applyFilters(){
+    const p=new URLSearchParams({search:document.getElementById('searchInput')?.value||'',status:document.getElementById('statusFilter')?.value||''});
+    [...p.entries()].forEach(([k,v])=>{if(!v)p.delete(k);});
+    window.location.href='offers.php?'+p.toString();
+}
+// ---- Bulk selection ----
+function selectedOfferIds(){return [...document.querySelectorAll('.offer-check:checked')].map(c=>parseInt(c.value));}
+function updateBulkBar(){
+    const n=selectedOfferIds().length;
+    const bar=document.getElementById('bulkBar');
+    bar.style.display=n?'flex':'none';
+    if(n)document.getElementById('bulkCount').textContent=n+' selected';
+    const all=document.getElementById('selectAllOffers'); const total=document.querySelectorAll('.offer-check').length;
+    if(all)all.checked=n>0&&n===total;
+}
+function toggleAllOffers(cb){document.querySelectorAll('.offer-check').forEach(c=>c.checked=cb.checked);updateBulkBar();}
+function clearBulk(){document.querySelectorAll('.offer-check').forEach(c=>c.checked=false);const a=document.getElementById('selectAllOffers');if(a)a.checked=false;updateBulkBar();}
+async function bulkAction(op){
+    const ids=selectedOfferIds(); if(!ids.length)return;
+    if(!confirm(`${op.charAt(0).toUpperCase()+op.slice(1)} ${ids.length} offer(s)?`))return;
+    const res=await fetch('offers.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'bulk',op,ids})});
+    const r=await res.json();
+    showToast(r.message||(r.success?'Done':'Failed'), r.success?'success':'danger');
+    if(r.success)setTimeout(()=>location.reload(),800);
+}
+function toggleOffer(id){
+    fetch('offers.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'toggle',id})})
+    .then(r=>r.json()).then(d=>{if(d.success){showToast('Status updated','success');setTimeout(()=>location.reload(),600);}});
+}
+function restoreOffer(id){
+    fetch('offers.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'restore',id})})
+    .then(r=>r.json()).then(d=>{if(d.success){showToast('Offer restored','success');setTimeout(()=>location.reload(),600);}});
+}
 function deleteOffer(id) {
-    showConfirm('Delete Offer','This offer will be removed from the storefront.', async () => {
+    showConfirm('Delete Offer','This hides the offer from the storefront. You can restore it from the "Deleted" filter. Continue?', async () => {
         const res = await fetch('offers.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'delete',id})});
         const r = await res.json();
         if(r.success){ showToast('Offer deleted','success'); const el=document.getElementById(`offer-card-${id}`); if(el){el.style.opacity='0';setTimeout(()=>el.remove(),300);} }

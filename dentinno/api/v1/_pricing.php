@@ -175,8 +175,9 @@ function couponEvaluate(string $code, float $subtotal): array {
     $no = fn($m) => ['valid'=>false, 'message'=>$m, 'discount'=>0.0, 'coupon'=>null];
     if ($code === '') return $no('Coupon code required');
 
-    $c = db()->fetchOne("SELECT * FROM coupons WHERE code=? AND is_active=1", [$code]);
+    $c = db()->fetchOne("SELECT * FROM coupons WHERE code=? AND is_active=1 AND is_deleted=0", [$code]);
     if (!$c) return $no('Invalid coupon code');
+    if (!empty($c['start_date']) && strtotime($c['start_date']) > strtotime(date('Y-m-d'))) return $no('This coupon is not active yet');
     if (!empty($c['expires_at']) && strtotime($c['expires_at']) < strtotime(date('Y-m-d'))) return $no('Coupon expired');
     if ($c['uses_limit'] !== null && (int)$c['uses_count'] >= (int)$c['uses_limit'])       return $no('Coupon usage limit reached');
     if ($subtotal < (float)$c['min_order']) return $no('Minimum order ₹' . number_format((float)$c['min_order'], 0) . ' required');

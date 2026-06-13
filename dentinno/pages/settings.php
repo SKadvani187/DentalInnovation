@@ -138,12 +138,12 @@ include __DIR__ . '/../includes/header.php';
             <!-- Avatar -->
             <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;padding:16px;background:var(--bg-elevated);border-radius:10px;">
                 <div style="width:64px;height:64px;border-radius:50%;background:var(--gold-gradient);color:var(--bg-base);font-size:1.5rem;font-weight:700;display:grid;place-items:center;border:3px solid rgba(201,168,76,0.3);">
-                    <?= strtoupper(substr($current_admin['name'], 0, 1)) ?>
+                    <?= strtoupper(substr($current_admin['name'] ?? '', 0, 1)) ?>
                 </div>
                 <div>
-                    <div class="font-bold" style="font-size:1rem;"><?= htmlspecialchars($current_admin['name']) ?></div>
+                    <div class="font-bold" style="font-size:1rem;"><?= htmlspecialchars($current_admin['name'] ?? '') ?></div>
                     <div class="text-muted"><?= $current_admin['email'] ?></div>
-                    <span class="badge badge-warning" style="margin-top:6px;"><?= ucfirst(str_replace('_',' ',$current_admin['role'])) ?></span>
+                    <span class="badge badge-warning" style="margin-top:6px;"><?= ucfirst(str_replace('_',' ',$current_admin['role'] ?? '')) ?></span>
                 </div>
             </div>
 
@@ -152,15 +152,15 @@ include __DIR__ . '/../includes/header.php';
                 <?= csrfField() ?>
                 <div class="form-group">
                     <label class="form-label">Full Name</label>
-                    <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($current_admin['name']) ?>" required>
+                    <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($current_admin['name'] ?? '') ?>" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Email Address</label>
-                    <input type="email" name="email" class="form-control" value="<?= htmlspecialchars($current_admin['email']) ?>" required>
+                    <input type="email" name="email" class="form-control" value="<?= htmlspecialchars($current_admin['email'] ?? '') ?>" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Role</label>
-                    <input type="text" class="form-control" value="<?= ucfirst(str_replace('_',' ',$current_admin['role'])) ?>" disabled style="opacity:0.6;">
+                    <input type="text" class="form-control" value="<?= ucfirst(str_replace('_',' ',$current_admin['role'] ?? '')) ?>" disabled style="opacity:0.6;">
                     <small class="text-muted" style="font-size:0.73rem;">Role can only be changed by a Super Admin</small>
                 </div>
                 <button type="submit" class="btn btn-gold">

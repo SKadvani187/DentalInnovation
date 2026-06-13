@@ -50,7 +50,7 @@ function productSelect($id, $value, $extra = '') {
 
 // Image upload box: clickable dropzone + preview, hidden URL input (id holds the value).
 function imgUploadBox($id, $url, $onclick) {
-    $u = htmlspecialchars($url);
+    $u = htmlspecialchars($url ?? '');
     $hasImg = $url ? '' : 'style="display:none;"';
     $hasPh  = $url ? 'style="display:none;"' : '';
     return <<<HTML

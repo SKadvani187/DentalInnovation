@@ -39,6 +39,7 @@ function rzpRefund(string $paymentId, float $amount): array {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    requirePermissionAjax('manage_refunds'); // real-money payouts: super_admin only
     $data   = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
     $rid    = (int)($data['id'] ?? 0);
@@ -177,9 +178,9 @@ function refundBadge($s) {
                     <td><a href="orders.php?view=<?= $r['order_id'] ?>" class="text-gold font-bold"><?= htmlspecialchars($r['order_number']) ?></a></td>
                     <td>
                         <div class="font-bold" style="font-size:0.84rem;"><?= htmlspecialchars($r['customer_name']) ?></div>
-                        <div class="text-muted" style="font-size:0.73rem;"><?= htmlspecialchars($r['customer_phone']) ?></div>
+                        <div class="text-muted" style="font-size:0.73rem;"><?= htmlspecialchars($r['customer_phone'] ?? '') ?></div>
                     </td>
-                    <td style="max-width:260px;"><?= htmlspecialchars($r['reason']) ?>
+                    <td style="max-width:260px;"><?= htmlspecialchars($r['reason'] ?? '') ?>
                         <?php if($r['admin_note']): ?><div class="text-muted" style="font-size:0.72rem;">Note: <?= htmlspecialchars($r['admin_note']) ?></div><?php endif; ?>
                     </td>
                     <td class="font-bold"><?= formatCurrency($r['refund_amount']) ?></td>

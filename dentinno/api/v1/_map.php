@@ -98,6 +98,8 @@ function mapCombo(array $r): array {
         'stock'    => isset($r['stock']) ? (int)$r['stock'] : null,
         'inStock'  => isset($r['stock']) ? ((int)$r['stock'] > 0) : (bool)$r['in_stock'],
         'description' => $r['description'],
+        'metaTitle'        => $r['meta_title'] ?? null,
+        'metaDescription'  => $r['meta_description'] ?? null,
         'items'    => $items,
         'variants' => [],
     ];

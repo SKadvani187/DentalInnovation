@@ -1,0 +1,12 @@
+# DentInno storefront — crawl rules
+User-agent: *
+Allow: /
+
+# Private / account-only routes (no SEO value, keep out of the index)
+Disallow: /account
+Disallow: /orders
+Disallow: /order/
+Disallow: /address
+Disallow: /wishlist
+
+Sitemap: https://www.reetzdentinnovations.com/sitemap.xml

@@ -197,10 +197,10 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
 
     <div class="sidebar-footer">
         <div class="admin-info">
-            <div class="admin-avatar"><?= strtoupper(substr($admin['name'], 0, 1)) ?></div>
+            <div class="admin-avatar"><?= strtoupper(substr($admin['name'] ?? '', 0, 1)) ?></div>
             <div class="admin-details">
-                <span class="admin-name"><?= htmlspecialchars($admin['name']) ?></span>
-                <span class="admin-role"><?= ucfirst(str_replace('_', ' ', $admin['role'])) ?></span>
+                <span class="admin-name"><?= htmlspecialchars($admin['name'] ?? '') ?></span>
+                <span class="admin-role"><?= ucfirst(str_replace('_', ' ', $admin['role'] ?? '')) ?></span>
             </div>
         </div>
         <a href="<?= APP_URL ?>/logout.php" class="logout-btn" title="Logout">
@@ -266,8 +266,8 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
 
             <!-- Admin -->
             <div class="admin-chip">
-                <div class="admin-chip-avatar"><?= strtoupper(substr($admin['name'], 0, 1)) ?></div>
-                <span><?= htmlspecialchars(explode(' ', $admin['name'])[0]) ?></span>
+                <div class="admin-chip-avatar"><?= strtoupper(substr($admin['name'] ?? '', 0, 1)) ?></div>
+                <span><?= htmlspecialchars(explode(' ', $admin['name'] ?? '')[0]) ?></span>
             </div>
         </div>
     </header>

@@ -11,6 +11,7 @@ import { useProducts, useCombos, useEvents, useCategories, useReviews, useFaqs, 
 import api from "../../lib/api";
 import { useSettings } from "../../context/SettingsContext";
 import { discountPct } from "../../lib/pricing";
+import Seo from "../Seo";
 
 const fmt = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 
@@ -170,8 +171,35 @@ export default function ProductDetailPage() {
     );
   }
 
+  const seoDesc = (resolvedProduct.description || `Buy ${resolvedProduct.name} online at DentInno.`)
+    .toString().replace(/\s+/g, " ").trim().slice(0, 160);
+  const inStock = resolvedProduct.stock > 0 || resolvedProduct.inStock !== false;
+  const productJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: resolvedProduct.name,
+    ...(resolvedProduct.image ? { image: resolvedProduct.image } : {}),
+    description: seoDesc,
+    ...(resolvedProduct.brand ? { brand: { "@type": "Brand", name: resolvedProduct.brand } } : {}),
+    offers: {
+      "@type": "Offer",
+      price: Number(resolvedProduct.price) || 0,
+      priceCurrency: "INR",
+      availability: inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+    },
+    ...(resolvedProduct.rating
+      ? { aggregateRating: { "@type": "AggregateRating", ratingValue: resolvedProduct.rating, reviewCount: resolvedProduct.reviews || 1 } }
+      : {}),
+  };
+
   return (
     <div className="max-w-[1400px] mx-auto px-4 py-5">
+      <Seo
+        title={resolvedProduct.name}
+        description={seoDesc}
+        image={resolvedProduct.image}
+        jsonLd={productJsonLd}
+      />
       <div className="flex items-center justify-between flex-wrap gap-2 mb-4 text-sm">
         <nav className="flex items-center gap-2 text-brand-muted relative">
           <button onClick={() => navigate("home")} className="hover:text-[#3684bf]">Home</button>

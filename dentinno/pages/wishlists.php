@@ -36,7 +36,7 @@ include __DIR__ . '/../includes/header.php';
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                     <div>
                         <span class="font-bold"><?= htmlspecialchars($cd['name']) ?></span>
-                        <span class="text-muted" style="font-size:0.75rem;margin-left:8px;"><?= $cd['phone'] ?></span>
+                        <span class="text-muted" style="font-size:0.75rem;margin-left:8px;"><?= htmlspecialchars($cd['phone'] ?? '') ?></span>
                     </div>
                     <span class="badge badge-info"><?= count($cd['items']) ?> items</span>
                 </div>

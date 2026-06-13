@@ -73,6 +73,8 @@ function reverseOrderEffects(int $orderId): bool {
                 "UPDATE coupons SET uses_count = GREATEST(0, uses_count - 1) WHERE id = ?",
                 [(int)$order['coupon_id']]
             );
+            // Free the customer's per-customer redemption slot so they can use it again.
+            $db->execute("DELETE FROM coupon_redemptions WHERE order_id = ?", [(int)$order['id']]);
         }
 
         if ($ownTxn) $pdo->commit();

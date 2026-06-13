@@ -26,6 +26,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['combo_image'])) {
     }
     $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     if (!in_array($ext, ['jpg','jpeg','png','webp','gif'])) { echo json_encode(['success'=>false,'message'=>'Invalid file type']); exit; }
+    // Verify the actual file CONTENT, not just the extension (a .jpg could be a PHP script).
+    $fi = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : false;
+    $mime = $fi ? finfo_file($fi, $file['tmp_name']) : '';
+    if ($mime && !in_array($mime, ['image/jpeg','image/png','image/webp','image/gif'], true)) {
+        echo json_encode(['success'=>false,'message'=>'The file is not a valid image (content check failed)']); exit;
+    }
     if ($file['size'] > 5*1024*1024) { echo json_encode(['success'=>false,'message'=>'File too large (max 5MB)']); exit; }
     $fname = 'combo_' . time() . '_' . rand(1000,9999) . '.' . $ext;
     if (move_uploaded_file($file['tmp_name'], $upload_dir . $fname)) {
@@ -84,26 +90,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $items_json  = json_encode($cleanItems);
         $stock     = max(0, (int)($d['stock'] ?? 0));
         $inStock   = $stock > 0 ? 1 : 0;
+        $metaTitle = trim((string)($d['meta_title'] ?? '')) ?: null;
+        $metaDesc  = trim((string)($d['meta_description'] ?? '')) ?: null;
+        $selfId    = (int)($d['id'] ?? 0);
+        // Slug: admin-editable, falls back to the name; kept UNIQUE (auto-suffixed on collision).
+        $slug = generateSlug(trim((string)($d['slug'] ?? '')) !== '' ? $d['slug'] : $name) ?: 'combo';
+        $slugBase = $slug; $n = 1;
+        while (db()->fetchOne("SELECT id FROM combos WHERE slug=? AND id<>?", [$slug, $selfId])) { $slug = $slugBase . '-' . (++$n); }
         if (!empty($d['id'])) {
             db()->execute(
-                "UPDATE combos SET name=?,description=?,mrp=?,price=?,discount_percent=?,image=?,images=?,items=?,stock=?,in_stock=?,is_active=? WHERE id=?",
-                [$name,$d['description']??'',$mrp,$price,$disc,$d['image']?:null,$images_json,$items_json,$stock,$inStock,$d['is_active']??1,$d['id']]
+                "UPDATE combos SET slug=?,name=?,description=?,meta_title=?,meta_description=?,mrp=?,price=?,discount_percent=?,image=?,images=?,items=?,stock=?,in_stock=?,is_active=? WHERE id=?",
+                [$slug,$name,$d['description']??'',$metaTitle,$metaDesc,$mrp,$price,$disc,($d['image'] ?? null)?:null,$images_json,$items_json,$stock,$inStock,$d['is_active']??1,$d['id']]
             );
             echo json_encode(['success'=>true,'message'=>'Combo updated']);
         } else {
-            $slug = generateSlug($name) . '-' . substr((string)time(), -5);
             db()->insert(
-                "INSERT INTO combos (slug,name,description,mrp,price,discount_percent,image,images,items,stock,in_stock,is_active) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                [$slug,$name,$d['description']??'',$mrp,$price,$disc,$d['image']?:null,$images_json,$items_json,$stock,$inStock,$d['is_active']??1]
+                "INSERT INTO combos (slug,name,description,meta_title,meta_description,mrp,price,discount_percent,image,images,items,stock,in_stock,is_active) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                [$slug,$name,$d['description']??'',$metaTitle,$metaDesc,$mrp,$price,$disc,($d['image'] ?? null)?:null,$images_json,$items_json,$stock,$inStock,$d['is_active']??1]
             );
             echo json_encode(['success'=>true,'message'=>'Combo added']);
         }
     } elseif ($action === 'delete') {
-        db()->execute("DELETE FROM combos WHERE id=?", [$d['id']]);
+        // Soft-delete: keep the row so order history referencing the combo stays intact.
+        db()->execute("UPDATE combos SET is_deleted=1, is_active=0 WHERE id=?", [(int)($d['id'] ?? 0)]);
         echo json_encode(['success'=>true,'message'=>'Combo deleted']);
+    } elseif ($action === 'restore') {
+        db()->execute("UPDATE combos SET is_deleted=0 WHERE id=?", [(int)($d['id'] ?? 0)]);
+        echo json_encode(['success'=>true,'message'=>'Combo restored']);
     } elseif ($action === 'toggle') {
-        db()->execute("UPDATE combos SET is_active=? WHERE id=?", [$d['is_active'],$d['id']]);
-        echo json_encode(['success'=>true]);
+        db()->execute("UPDATE combos SET is_active = NOT is_active WHERE id=? AND is_deleted=0", [(int)($d['id'] ?? 0)]);
+        echo json_encode(['success'=>true,'message'=>'Status updated']);
+    } elseif ($action === 'bulk') {
+        $ids = array_values(array_filter(array_map('intval', (array)($d['ids'] ?? []))));
+        $op  = (string)($d['op'] ?? '');
+        if (!$ids) { echo json_encode(['success'=>false,'message'=>'No combos selected']); exit; }
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        if ($op === 'activate')       { db()->execute("UPDATE combos SET is_active=1 WHERE id IN ($ph) AND is_deleted=0", $ids); $msg = count($ids).' combo(s) activated'; }
+        elseif ($op === 'deactivate') { db()->execute("UPDATE combos SET is_active=0 WHERE id IN ($ph) AND is_deleted=0", $ids); $msg = count($ids).' combo(s) deactivated'; }
+        elseif ($op === 'delete')     { db()->execute("UPDATE combos SET is_deleted=1, is_active=0 WHERE id IN ($ph)", $ids); $msg = count($ids).' combo(s) deleted'; }
+        elseif ($op === 'restore')    { db()->execute("UPDATE combos SET is_deleted=0 WHERE id IN ($ph)", $ids); $msg = count($ids).' combo(s) restored'; }
+        else { echo json_encode(['success'=>false,'message'=>'Unknown bulk action']); exit; }
+        echo json_encode(['success'=>true,'message'=>$msg]);
     }
     } catch (Throwable $e) {
         echo json_encode(['success'=>false,'message'=>'Server error: ' . $e->getMessage()]);
@@ -111,13 +138,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     exit;
 }
 
-// Paginate the combos grid (was: fetch ALL rows).
+// Filters + paginate the combos grid.
+$search   = sanitize($_GET['search'] ?? '');
+$status   = sanitize($_GET['status'] ?? '');
 $page     = max(1, (int)($_GET['page'] ?? 1));
 $per_page = 20;
 $offset   = ($page - 1) * $per_page;
-$total    = (int)(db()->fetchOne("SELECT COUNT(*) c FROM combos")['c'] ?? 0);
+$where = ["1=1"]; $params = [];
+if ($search) { $where[] = "name LIKE ?"; $params[] = "%$search%"; }
+// Soft-delete: hide deleted combos unless the "Deleted" filter is chosen.
+if ($status === 'deleted') {
+    $where[] = "is_deleted = 1";
+} else {
+    $where[] = "is_deleted = 0";
+    if ($status !== '') { $where[] = "is_active = ?"; $params[] = (int)$status; }
+}
+$whereStr = implode(' AND ', $where);
+$total    = (int)(db()->fetchOne("SELECT COUNT(*) c FROM combos WHERE $whereStr", $params)['c'] ?? 0);
 $pages    = (int)ceil($total / $per_page);
-$combos = db()->fetchAll("SELECT * FROM combos ORDER BY sort_order, id LIMIT $per_page OFFSET $offset");
+$combos = db()->fetchAll("SELECT * FROM combos WHERE $whereStr ORDER BY sort_order, id LIMIT $per_page OFFSET $offset", $params);
 // Product list for the "what's inside" item picker (auto-fill name/image/mrp).
 $prodList = db()->fetchAll("SELECT slug, name, price, discount_price, JSON_EXTRACT(images,'$[0]') AS img FROM products WHERE is_active=1 ORDER BY name");
 foreach ($prodList as &$pl) { $pl['img'] = trim((string)$pl['img'], '"'); } unset($pl);
@@ -133,11 +172,42 @@ include __DIR__ . '/../includes/header.php';
     <button class="btn btn-gold" onclick="openComboModal()"><i class="fa-solid fa-plus"></i> Add Combo</button>
 </div>
 
+<div class="filter-bar fade-in" style="flex-wrap:wrap;gap:8px;">
+    <div class="search-wrapper" style="flex:1;min-width:180px;max-width:300px;">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" class="search-input" id="searchInput" placeholder="Search combos..." value="<?= htmlspecialchars($search) ?>">
+    </div>
+    <select class="form-control" id="statusFilter" style="max-width:140px;">
+        <option value="">All Status</option>
+        <option value="1" <?= $status==='1'?'selected':'' ?>>Active</option>
+        <option value="0" <?= $status==='0'?'selected':'' ?>>Inactive</option>
+        <option value="deleted" <?= $status==='deleted'?'selected':'' ?>>🗑 Deleted</option>
+    </select>
+    <button class="btn btn-ghost btn-sm" onclick="applyFilters()"><i class="fa-solid fa-filter"></i> Filter</button>
+    <a href="combos.php" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate-left"></i> Reset</a>
+    <label style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--text-secondary);cursor:pointer;margin-left:auto;">
+        <input type="checkbox" id="selectAllCombos" onchange="toggleAllCombos(this)" style="width:15px;height:15px;accent-color:var(--gold-primary);cursor:pointer;"> Select all
+    </label>
+</div>
+
+<div id="bulkBar" style="display:none;padding:10px 16px;margin-bottom:12px;border:1px solid var(--border-color);border-radius:10px;gap:10px;align-items:center;background:var(--bg-elevated);flex-wrap:wrap;">
+    <span id="bulkCount" style="font-size:.82rem;font-weight:600;"></span>
+    <?php if($status === 'deleted'): ?>
+    <button class="btn btn-ghost btn-sm" onclick="bulkAction('restore')"><i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i> Restore</button>
+    <?php else: ?>
+    <button class="btn btn-ghost btn-sm" onclick="bulkAction('activate')"><i class="fa-solid fa-circle-check" style="color:var(--success);"></i> Activate</button>
+    <button class="btn btn-ghost btn-sm" onclick="bulkAction('deactivate')"><i class="fa-solid fa-ban" style="color:var(--warning);"></i> Deactivate</button>
+    <button class="btn btn-ghost btn-sm" onclick="bulkAction('delete')" style="color:var(--danger);"><i class="fa-solid fa-trash"></i> Delete</button>
+    <?php endif; ?>
+    <button class="btn btn-ghost btn-sm" onclick="clearBulk()" style="margin-left:auto;">Clear</button>
+</div>
+
 <div class="grid-3 fade-in">
     <?php foreach($combos as $c): ?>
     <div class="card" id="combo-card-<?= $c['id'] ?>" style="transition:all .2s;">
         <div class="card-body">
             <div style="display:flex;gap:12px;">
+                <input type="checkbox" class="combo-check" value="<?= $c['id'] ?>" onchange="updateBulkBar()" style="width:15px;height:15px;accent-color:var(--gold-primary);cursor:pointer;flex-shrink:0;margin-top:2px;">
                 <img src="<?= htmlspecialchars($c['image'] ?: '') ?>" style="width:64px;height:64px;object-fit:cover;border-radius:8px;background:#fff;border:1px solid var(--border-color);flex-shrink:0;" onerror="this.style.opacity=.2">
                 <div style="flex:1;min-width:0;">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
@@ -159,20 +229,51 @@ include __DIR__ . '/../includes/header.php';
                 </div>
             </div>
             <div style="margin-top:14px;display:flex;justify-content:flex-end;gap:6px;">
-                <button class="btn btn-ghost btn-sm btn-icon" onclick="openComboModal(<?= htmlspecialchars(json_encode($c), ENT_QUOTES) ?>)"><i class="fa-solid fa-pen"></i></button>
-                <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteCombo(<?= $c['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+                <?php if(!empty($c['is_deleted'])): ?>
+                <button class="btn btn-ghost btn-sm" onclick="restoreCombo(<?= $c['id'] ?>)" title="Restore combo"><i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i> Restore</button>
+                <?php else: ?>
+                <button class="btn btn-ghost btn-sm btn-icon" title="Activate/Deactivate" onclick="toggleCombo(<?= $c['id'] ?>)"><i class="fa-solid fa-power-off" style="color:<?= $c['is_active']?'var(--success)':'var(--text-muted)' ?>;"></i></button>
+                <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick="openComboModal(<?= htmlspecialchars(json_encode($c), ENT_QUOTES) ?>)"><i class="fa-solid fa-pen"></i></button>
+                <button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteCombo(<?= $c['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+                <?php endif; ?>
             </div>
         </div>
     </div>
     <?php endforeach; ?>
-    <?php if(empty($combos)): ?><p class="text-muted">No combos yet. Click "Add Combo".</p><?php endif; ?>
 </div>
+<?php if(empty($combos)): ?>
+<div class="card fade-in" style="text-align:center;padding:48px 20px;">
+    <i class="fa-solid fa-layer-group" style="font-size:2.6rem;color:var(--border-active);margin-bottom:12px;"></i>
+    <?php if($search !== '' || $status !== ''): ?>
+    <h3 style="font-size:1rem;margin-bottom:4px;">No combos match your filters</h3>
+    <p class="text-muted" style="font-size:.85rem;margin-bottom:14px;">Try a different search or status — or reset to see all combos.</p>
+    <a href="combos.php" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate-left"></i> Reset filters</a>
+    <?php else: ?>
+    <h3 style="font-size:1rem;margin-bottom:4px;">No combos yet</h3>
+    <p class="text-muted" style="font-size:.85rem;margin-bottom:14px;">Bundle 2+ products into a deal that beats buying them separately.</p>
+    <button class="btn btn-gold btn-sm" onclick="openComboModal()"><i class="fa-solid fa-plus"></i> Add your first combo</button>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
 
 <?php if($pages > 1): ?>
 <div class="pagination" style="margin-top:16px;">
-    <?php for($i=1;$i<=$pages;$i++): ?><div class="page-item <?= $i==$page?'active':'' ?>" onclick="goCombosPage(<?= $i ?>)"><?= $i ?></div><?php endfor; ?>
+    <?php
+    // Compact pagination: first, last, and a window around the current page (… for gaps).
+    $range = 2; $shown = [];
+    for ($i = 1; $i <= $pages; $i++) {
+        if ($i == 1 || $i == $pages || ($i >= $page - $range && $i <= $page + $range)) $shown[] = $i;
+    }
+    if ($page > 1): ?><div class="page-item" onclick="goCombosPage(<?= $page-1 ?>)">‹</div><?php endif;
+    $prev = 0;
+    foreach ($shown as $i):
+        if ($prev && $i - $prev > 1): ?><div class="page-item" style="pointer-events:none;opacity:.5;">…</div><?php endif; ?>
+        <div class="page-item <?= $i==$page?'active':'' ?>" onclick="goCombosPage(<?= $i ?>)"><?= $i ?></div>
+        <?php $prev = $i;
+    endforeach;
+    if ($page < $pages): ?><div class="page-item" onclick="goCombosPage(<?= $page+1 ?>)">›</div><?php endif; ?>
 </div>
-<script>function goCombosPage(p){window.location.href=`combos.php?page=${p}`;}</script>
+<script>function goCombosPage(p){const q=new URLSearchParams(window.location.search);q.set('page',p);window.location.href='combos.php?'+q.toString();}</script>
 <?php endif; ?>
 
 <!-- Modal -->
@@ -234,6 +335,23 @@ include __DIR__ . '/../includes/header.php';
                     <select class="form-control" id="combo_status"><option value="1">Active</option><option value="0">Inactive</option></select>
                 </div>
             </div>
+
+            <!-- SEO (optional) — collapsed by default to keep the form short -->
+            <details style="margin-top:6px;border-top:1px dashed var(--border-color);padding-top:10px;">
+                <summary style="cursor:pointer;font-weight:700;font-size:.85rem;color:var(--text-secondary);"><i class="fa-solid fa-magnifying-glass-chart"></i> SEO &amp; URL <small class="text-muted">(optional)</small></summary>
+                <div class="form-group" style="margin-top:10px;">
+                    <label class="form-label">URL Slug <small class="text-muted">(auto from name if blank)</small></label>
+                    <input type="text" class="form-control" id="combo_slug" placeholder="e.g. scaler-mask-combo">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Meta Title <small class="text-muted">(Google/tab title — keep under ~60 chars)</small></label>
+                    <input type="text" class="form-control" id="combo_meta_title" maxlength="255" placeholder="Defaults to the combo name">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Meta Description <small class="text-muted">(search snippet — ~155 chars)</small></label>
+                    <textarea class="form-control" id="combo_meta_desc" rows="2" maxlength="500" placeholder="Short, benefit-led summary of the deal"></textarea>
+                </div>
+            </details>
         </div>
         <div style="padding:14px 22px;border-top:1px solid var(--border-color);display:flex;justify-content:flex-end;gap:10px;">
             <button class="btn btn-ghost" onclick="closeModal('comboModal')">Cancel</button>
@@ -297,6 +415,9 @@ function openComboModal(c = null) {
     document.getElementById('combo_image').value  = c?.image || '';
     document.getElementById('combo_stock').value  = (c && c.stock != null) ? c.stock : 50;
     document.getElementById('combo_status').value = c?.is_active ?? 1;
+    document.getElementById('combo_slug').value       = c?.slug || '';
+    document.getElementById('combo_meta_title').value = c?.meta_title || '';
+    document.getElementById('combo_meta_desc').value  = c?.meta_description || '';
     document.getElementById('comboModalTitle').textContent = c ? 'Edit Combo' : 'Add Combo';
     renderComboImg();
     // items first (drives MRP + name)
@@ -364,14 +485,50 @@ async function saveCombo() {
         description:document.getElementById('combo_desc').value, mrp, price,
         image, items,
         stock:document.getElementById('combo_stock').value,
-        is_active:document.getElementById('combo_status').value };
+        is_active:document.getElementById('combo_status').value,
+        slug:document.getElementById('combo_slug').value,
+        meta_title:document.getElementById('combo_meta_title').value,
+        meta_description:document.getElementById('combo_meta_desc').value };
     const res = await fetch('combos.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(data)});
     const r = await res.json();
     if(r.success){ showToast(r.message,'success'); closeModal('comboModal'); setTimeout(()=>location.reload(),800); }
     else showToast(r.message,'danger');
 }
+function applyFilters(){
+    const p=new URLSearchParams({search:document.getElementById('searchInput')?.value||'',status:document.getElementById('statusFilter')?.value||''});
+    [...p.entries()].forEach(([k,v])=>{if(!v)p.delete(k);});
+    window.location.href='combos.php?'+p.toString();
+}
+// ---- Bulk selection ----
+function selectedComboIds(){return [...document.querySelectorAll('.combo-check:checked')].map(c=>parseInt(c.value));}
+function updateBulkBar(){
+    const n=selectedComboIds().length;
+    const bar=document.getElementById('bulkBar');
+    bar.style.display=n?'flex':'none';
+    if(n)document.getElementById('bulkCount').textContent=n+' selected';
+    const all=document.getElementById('selectAllCombos'); const total=document.querySelectorAll('.combo-check').length;
+    if(all)all.checked=n>0&&n===total;
+}
+function toggleAllCombos(cb){document.querySelectorAll('.combo-check').forEach(c=>c.checked=cb.checked);updateBulkBar();}
+function clearBulk(){document.querySelectorAll('.combo-check').forEach(c=>c.checked=false);const a=document.getElementById('selectAllCombos');if(a)a.checked=false;updateBulkBar();}
+async function bulkAction(op){
+    const ids=selectedComboIds(); if(!ids.length)return;
+    if(!confirm(`${op.charAt(0).toUpperCase()+op.slice(1)} ${ids.length} combo(s)?`))return;
+    const res=await fetch('combos.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'bulk',op,ids})});
+    const r=await res.json();
+    showToast(r.message||(r.success?'Done':'Failed'), r.success?'success':'danger');
+    if(r.success)setTimeout(()=>location.reload(),800);
+}
+function toggleCombo(id){
+    fetch('combos.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'toggle',id})})
+    .then(r=>r.json()).then(d=>{if(d.success){showToast('Status updated','success');setTimeout(()=>location.reload(),600);}});
+}
+function restoreCombo(id){
+    fetch('combos.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'restore',id})})
+    .then(r=>r.json()).then(d=>{if(d.success){showToast('Combo restored','success');setTimeout(()=>location.reload(),600);}});
+}
 function deleteCombo(id) {
-    showConfirm('Delete Combo','This combo will be removed from the storefront.', async () => {
+    showConfirm('Delete Combo','This hides the combo from the storefront. Order history is kept, and you can restore it from the "Deleted" filter. Continue?', async () => {
         const res = await fetch('combos.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'delete',id})});
         const r = await res.json();
         if(r.success){ showToast('Combo deleted','success'); const el=document.getElementById(`combo-card-${id}`); if(el){el.style.opacity='0';setTimeout(()=>el.remove(),300);} }
