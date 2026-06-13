@@ -28,29 +28,90 @@ foreach ($statuses as $s) $orderStatusData[ucfirst($s['status'])] = (int)$s['cnt
     </div>
 </div>
 
+<!-- Today snapshot + Needs Attention (operational cockpit) -->
+<div class="grid-2 fade-in" style="margin-bottom:24px;align-items:stretch;">
+    <div class="card" style="padding:18px 20px;">
+        <div style="font-size:.78rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px;"><i class="fa-solid fa-bolt text-gold"></i> Today</div>
+        <div style="display:flex;gap:28px;flex-wrap:wrap;">
+            <div><div class="stat-label">Orders</div><div style="font-size:1.5rem;font-weight:700;"><?= (int)$stats['today_orders'] ?></div></div>
+            <div><div class="stat-label">Revenue</div><div style="font-size:1.5rem;font-weight:700;color:var(--gold-primary);"><?= formatCurrency($stats['today_revenue']) ?></div></div>
+            <div><div class="stat-label">New Customers</div><div style="font-size:1.5rem;font-weight:700;"><?= (int)$stats['today_customers'] ?></div></div>
+        </div>
+    </div>
+    <div class="card" style="padding:18px 20px;">
+        <div style="font-size:.78rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px;"><i class="fa-solid fa-bell text-gold"></i> Needs Attention</div>
+        <?php
+        $pa = [
+            ['Pending Orders',      (int)$stats['pa_orders'],    'pages/orders.php?status=pending',   'cart-shopping',        '#3498DB'],
+            ['Refund Requests',     (int)$stats['pa_refunds'],   'pages/refunds.php?status=pending',  'rotate-left',          '#E74C3C'],
+            ['Reviews to Moderate', (int)$stats['pa_reviews'],   'pages/reviews.php?approved=0',      'star',                 '#C9A84C'],
+            ['Unread Messages',     (int)$stats['pa_messages'],  'pages/messages.php?status=unread',  'envelope',             '#9B59B6'],
+            ['New Bulk Quotes',     (int)$stats['pa_quotes'],    'pages/bulk_quotes.php?status=unread','file-invoice-dollar', '#2ECC71'],
+            ['Unanswered Q&A',      (int)$stats['pa_questions'], 'pages/questions.php?status=pending','circle-question',      '#F39C12'],
+        ];
+        $anyPending = false; foreach($pa as $x){ if($x[1] > 0){ $anyPending = true; break; } }
+        ?>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <?php foreach($pa as $item): if($item[1] <= 0) continue; ?>
+            <a href="<?= APP_URL ?>/<?= $item[2] ?>" class="pa-chip" style="text-decoration:none;display:flex;align-items:center;gap:8px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:99px;padding:7px 14px;">
+                <i class="fa-solid fa-<?= $item[3] ?>" style="color:<?= $item[4] ?>;"></i>
+                <span style="font-size:.82rem;color:var(--text-secondary);"><?= $item[0] ?></span>
+                <span class="badge badge-danger" style="font-weight:700;"><?= $item[1] ?></span>
+            </a>
+            <?php endforeach; ?>
+            <?php if(!$anyPending): ?><div class="text-muted" style="font-size:.85rem;"><i class="fa-solid fa-circle-check" style="color:var(--success);"></i> All caught up — nothing pending 🎉</div><?php endif; ?>
+        </div>
+    </div>
+</div>
+
+<?php if(!empty($stats['low_stock_list'])): ?>
+<!-- Low-stock alert list (actionable) -->
+<div class="card fade-in" style="margin-bottom:24px;border-left:3px solid var(--danger);">
+    <div class="card-header">
+        <span class="card-title"><i class="fa-solid fa-triangle-exclamation" style="color:var(--danger);margin-right:8px;"></i>Low Stock — Restock Soon (<?= count($stats['low_stock_list']) ?>)</span>
+        <a href="pages/products.php?stock=restock" class="btn btn-ghost btn-sm">View All</a>
+    </div>
+    <div class="table-responsive">
+        <table>
+            <thead><tr><th>Product</th><th>SKU</th><th>In Stock</th><th>Alert At</th></tr></thead>
+            <tbody>
+                <?php foreach($stats['low_stock_list'] as $ls): ?>
+                <tr>
+                    <td class="font-bold" style="font-size:0.84rem;"><?= htmlspecialchars($ls['name']) ?></td>
+                    <td class="text-muted" style="font-size:0.78rem;"><?= htmlspecialchars($ls['sku'] ?? '') ?></td>
+                    <td><span class="badge badge-<?= (int)$ls['stock'] === 0 ? 'danger' : 'warning' ?>"><?= (int)$ls['stock'] ?><?= (int)$ls['stock']===0?' — OUT':'' ?></span></td>
+                    <td class="text-muted" style="font-size:0.8rem;">≤ <?= (int)$ls['min_stock_alert'] ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+<?php endif; ?>
+
 <!-- Stats Grid -->
 <div class="stats-grid fade-in">
-    <div class="stat-card">
+    <div class="stat-card" style="cursor:pointer;" onclick="location.href='<?= APP_URL ?>/pages/reports.php'">
         <div class="stat-card-icon stat-icon-gold">
             <i class="fa-solid fa-indian-rupee-sign"></i>
         </div>
         <div class="stat-label">Total Revenue</div>
         <div class="stat-value" data-count="<?= $stats['total_revenue'] ?>" data-type="amount">₹0</div>
-        <div class="stat-change up"><i class="fa-solid fa-arrow-trend-up"></i> All time</div>
+        <div class="stat-change neutral"><i class="fa-solid fa-infinity"></i> All time (paid)</div>
     </div>
 
-    <div class="stat-card">
+    <div class="stat-card" style="cursor:pointer;" onclick="location.href='<?= APP_URL ?>/pages/orders.php'">
         <div class="stat-card-icon stat-icon-blue">
             <i class="fa-solid fa-cart-shopping"></i>
         </div>
         <div class="stat-label">Total Orders</div>
         <div class="stat-value" data-count="<?= $stats['total_orders'] ?>">0</div>
-        <div class="stat-change <?= $stats['pending_orders'] > 0 ? 'down' : 'up' ?>">
-            <i class="fa-solid fa-clock"></i> <?= $stats['pending_orders'] ?> pending
+        <div class="stat-change neutral">
+            <i class="fa-solid fa-calendar"></i> <?= (int)($stats['orders_this_month'] ?? 0) ?> this month
         </div>
     </div>
 
-    <div class="stat-card">
+    <div class="stat-card" style="cursor:pointer;" onclick="location.href='<?= APP_URL ?>/pages/customers.php'">
         <div class="stat-card-icon stat-icon-green">
             <i class="fa-solid fa-user-group"></i>
         </div>
@@ -59,7 +120,7 @@ foreach ($statuses as $s) $orderStatusData[ucfirst($s['status'])] = (int)$s['cnt
         <div class="stat-change up"><i class="fa-solid fa-arrow-trend-up"></i> +<?= $stats['new_customers_month'] ?> this month</div>
     </div>
 
-    <div class="stat-card">
+    <div class="stat-card" style="cursor:pointer;" onclick="location.href='<?= APP_URL ?>/pages/products.php'">
         <div class="stat-card-icon stat-icon-purple">
             <i class="fa-solid fa-boxes-stacked"></i>
         </div>
@@ -71,26 +132,23 @@ foreach ($statuses as $s) $orderStatusData[ucfirst($s['status'])] = (int)$s['cnt
         </div>
     </div>
 
-    <div class="stat-card">
+    <div class="stat-card" style="cursor:pointer;" onclick="location.href='<?= APP_URL ?>/pages/reports.php'">
         <div class="stat-card-icon stat-icon-orange">
             <i class="fa-solid fa-calendar-check"></i>
         </div>
         <div class="stat-label">Monthly Revenue</div>
         <div class="stat-value" data-count="<?= $stats['monthly_revenue'] ?>" data-type="amount">₹0</div>
-        <div class="stat-change neutral"><i class="fa-solid fa-calendar"></i> This month</div>
+        <?php
+        // Real month-over-month delta (not a decorative arrow).
+        $rlm = (float)($stats['revenue_last_month'] ?? 0);
+        $rtm = (float)$stats['monthly_revenue'];
+        $delta = $rlm > 0 ? (int)round((($rtm - $rlm) / $rlm) * 100) : ($rtm > 0 ? 100 : 0);
+        $dir   = $delta > 0 ? 'up' : ($delta < 0 ? 'down' : 'neutral');
+        $arrow = $delta > 0 ? 'arrow-trend-up' : ($delta < 0 ? 'arrow-trend-down' : 'minus');
+        ?>
+        <div class="stat-change <?= $dir ?>"><i class="fa-solid fa-<?= $arrow ?>"></i> <?= ($delta>0?'+':'').$delta ?>% vs last month</div>
     </div>
 
-    <div class="stat-card">
-        <div class="stat-card-icon stat-icon-red">
-            <i class="fa-solid fa-triangle-exclamation"></i>
-        </div>
-        <div class="stat-label">Low Stock Items</div>
-        <div class="stat-value <?= $stats['low_stock'] > 0 ? 'text-danger' : '' ?>" data-count="<?= $stats['low_stock'] ?>">0</div>
-        <div class="stat-change <?= $stats['low_stock'] > 0 ? 'down' : 'up' ?>">
-            <i class="fa-solid fa-boxes-stacked"></i>
-            <?= $stats['low_stock'] > 0 ? 'Needs restocking' : 'All good' ?>
-        </div>
-    </div>
 </div>
 
 <!-- New Modules Quick Stats -->
@@ -123,10 +181,10 @@ foreach ($statuses as $s) $orderStatusData[ucfirst($s['status'])] = (int)$s['cnt
         <div class="stat-card-icon" style="background:rgba(201,168,76,.12);color:var(--gold-primary);width:42px;height:42px;border-radius:10px;display:grid;place-items:center;font-size:1.1rem;margin-bottom:12px;">
             <i class="fa-regular fa-star"></i>
         </div>
-        <div class="stat-value <?= ($stats['pending_reviews'] ?? 0) > 0 ? '' : '' ?>"><?= $stats['avg_rating'] ?? '—' ?></div>
+        <div class="stat-value"><?= $stats['avg_rating'] ?: '—' ?></div>
         <div class="stat-label">Avg Rating</div>
-        <div class="stat-change <?= ($stats['pending_reviews'] ?? 0) > 0 ? 'down' : 'up' ?>" style="margin-top:5px;">
-            <i class="fa-solid fa-clock"></i> <?= $stats['pending_reviews'] ?? 0 ?> pending review<?= ($stats['pending_reviews'] ?? 0) !== 1 ? 's' : '' ?>
+        <div class="stat-change up" style="margin-top:5px;">
+            <i class="fa-solid fa-star"></i> from <?= number_format((int)($stats['rating_count'] ?? 0)) ?> review<?= ((int)($stats['rating_count'] ?? 0)) !== 1 ? 's' : '' ?>
         </div>
     </div></a>
 
@@ -236,6 +294,29 @@ foreach ($statuses as $s) $orderStatusData[ucfirst($s['status'])] = (int)$s['cnt
                 </tbody>
             </table>
         </div>
+    </div>
+</div>
+
+<!-- Recent Customers -->
+<div class="card fade-in" style="margin-top:24px;">
+    <div class="card-header">
+        <span class="card-title">Recent Customers</span>
+        <a href="pages/customers.php" class="btn btn-ghost btn-sm">View All</a>
+    </div>
+    <div class="table-responsive">
+        <table>
+            <thead><tr><th>Customer</th><th>Clinic / Type</th><th>Joined</th></tr></thead>
+            <tbody>
+                <?php foreach($stats['recent_customers'] as $rc): ?>
+                <tr>
+                    <td class="font-bold" style="font-size:0.84rem;"><?= htmlspecialchars($rc['name']) ?></td>
+                    <td class="text-muted" style="font-size:0.8rem;"><?= htmlspecialchars($rc['clinic_name'] ?: ucfirst($rc['customer_type'] ?? '')) ?></td>
+                    <td class="text-muted" style="font-size:0.78rem;"><?= formatDate($rc['created_at'],'d M Y') ?></td>
+                </tr>
+                <?php endforeach; ?>
+                <?php if(empty($stats['recent_customers'])): ?><tr><td colspan="3" class="text-center text-muted">No customers yet</td></tr><?php endif; ?>
+            </tbody>
+        </table>
     </div>
 </div>
 

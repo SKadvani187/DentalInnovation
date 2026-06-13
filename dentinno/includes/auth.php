@@ -227,6 +227,16 @@ function getSidebarBadges() {
 
 // Dashboard Stats (full — dashboard/index.php only). Superset of getSidebarBadges().
 function getDashboardStats() {
+    // Short-TTL cache: the dashboard fires ~25 aggregate queries. Serving them from a 30s file
+    // cache keeps repeated loads cheap while staying fresh enough for an ops view. Degrades
+    // gracefully — any cache read/write failure just falls through to a live recompute.
+    $cacheFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'dentinno_dashboard_stats.cache';
+    $ttl = 30;
+    if (is_readable($cacheFile) && (time() - (int)@filemtime($cacheFile)) < $ttl) {
+        $cached = @unserialize((string)@file_get_contents($cacheFile));
+        if (is_array($cached) && !empty($cached)) return $cached;
+    }
+
     $stats = [];
 
     $stats['total_revenue'] = db()->fetchOne(
@@ -270,15 +280,16 @@ function getDashboardStats() {
          ORDER BY o.created_at DESC LIMIT 8"
     );
 
-    // Monthly revenue chart (last 6 months)
+    // Monthly revenue chart (last 6 months). Must match the headline "Total Revenue" logic —
+    // only PAID orders count, else the chart inflates with unpaid/cancelled order totals.
     $stats['revenue_chart'] = db()->fetchAll(
-        "SELECT DATE_FORMAT(created_at, '%b %Y') as month, 
+        "SELECT DATE_FORMAT(created_at, '%b %Y') as month,
                 COALESCE(SUM(total), 0) as revenue,
                 COUNT(*) as orders
-         FROM orders 
-         WHERE created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+         FROM orders
+         WHERE payment_status = 'paid' AND created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
          GROUP BY YEAR(created_at), MONTH(created_at)
-         ORDER BY created_at ASC"
+         ORDER BY MIN(created_at) ASC"
     );
 
     // Top products
@@ -307,21 +318,62 @@ function getDashboardStats() {
     try {
         $stats['pending_reviews'] = db()->fetchOne("SELECT COUNT(*) as val FROM product_reviews WHERE is_approved=0 AND is_deleted=0")['val'] ?? 0;
         $stats['avg_rating']      = db()->fetchOne("SELECT ROUND(AVG(rating),1) as val FROM product_reviews WHERE is_approved=1 AND is_deleted=0")['val'] ?? 0;
-    } catch(Exception $e) { $stats['pending_reviews']=$stats['avg_rating']=0; }
+        $stats['rating_count']    = db()->fetchOne("SELECT COUNT(*) as val FROM product_reviews WHERE is_approved=1 AND is_deleted=0")['val'] ?? 0;
+    } catch(Exception $e) { $stats['pending_reviews']=$stats['avg_rating']=$stats['rating_count']=0; }
 
     // Shipping methods
     try {
         $stats['active_shipping_methods'] = db()->fetchOne("SELECT COUNT(*) as val FROM shipping_methods WHERE is_active=1")['val'] ?? 0;
     } catch(Exception $e) { $stats['active_shipping_methods']=0; }
 
-    // Unread notifications
-    $stats['notifications'] = db()->fetchAll(
-        "SELECT * FROM notifications WHERE is_read = 0 ORDER BY created_at DESC LIMIT 10"
+    // --- Period comparisons (REAL deltas, not decorative arrows) ---
+    // Last full calendar month, paid revenue — to compute month-over-month % vs this month.
+    $stats['revenue_last_month'] = db()->fetchOne(
+        "SELECT COALESCE(SUM(total),0) as val FROM orders
+         WHERE payment_status='paid'
+           AND created_at >= DATE_FORMAT(NOW() - INTERVAL 1 MONTH, '%Y-%m-01')
+           AND created_at <  DATE_FORMAT(NOW(), '%Y-%m-01')"
+    )['val'];
+    $stats['orders_this_month'] = db()->fetchOne(
+        "SELECT COUNT(*) as val FROM orders WHERE MONTH(created_at)=MONTH(NOW()) AND YEAR(created_at)=YEAR(NOW())"
+    )['val'];
+    $stats['orders_last_month'] = db()->fetchOne(
+        "SELECT COUNT(*) as val FROM orders
+         WHERE created_at >= DATE_FORMAT(NOW() - INTERVAL 1 MONTH, '%Y-%m-01')
+           AND created_at <  DATE_FORMAT(NOW(), '%Y-%m-01')"
+    )['val'];
+
+    // --- Today snapshot (the #1 glance metric on Shopify/Amazon) ---
+    $stats['today_orders']  = db()->fetchOne("SELECT COUNT(*) as val FROM orders WHERE DATE(created_at)=CURDATE()")['val'];
+    $stats['today_revenue'] = db()->fetchOne("SELECT COALESCE(SUM(total),0) as val FROM orders WHERE payment_status='paid' AND DATE(created_at)=CURDATE()")['val'];
+    $stats['today_customers']= db()->fetchOne("SELECT COUNT(*) as val FROM customers WHERE DATE(created_at)=CURDATE()")['val'];
+
+    // --- Pending actions (the "needs attention" hub) — each links to its page ---
+    $stats['pa_orders']  = (int)($stats['pending_orders'] ?? 0);
+    $stats['pa_reviews'] = (int)($stats['pending_reviews'] ?? 0);
+    try { $stats['pa_refunds']   = (int)(db()->fetchOne("SELECT COUNT(*) as val FROM refund_requests WHERE status='pending'")['val'] ?? 0); } catch(Throwable $e){ $stats['pa_refunds']=0; }
+    try { $stats['pa_messages']  = (int)(db()->fetchOne("SELECT COUNT(*) as val FROM contact_messages WHERE is_read=0 AND is_deleted=0")['val'] ?? 0); } catch(Throwable $e){ $stats['pa_messages']=0; }
+    try { $stats['pa_quotes']    = (int)(db()->fetchOne("SELECT COUNT(*) as val FROM bulk_quotes WHERE is_read=0 AND is_deleted=0")['val'] ?? 0); } catch(Throwable $e){ $stats['pa_quotes']=0; }
+    try { $stats['pa_questions'] = (int)(db()->fetchOne("SELECT COUNT(*) as val FROM product_questions WHERE is_answered=0 AND is_deleted=0")['val'] ?? 0); } catch(Throwable $e){ $stats['pa_questions']=0; }
+
+    // --- Recent customers (new signups) ---
+    $stats['recent_customers'] = db()->fetchAll(
+        "SELECT name, clinic_name, customer_type, created_at FROM customers WHERE is_active=1 ORDER BY created_at DESC LIMIT 6"
     );
+
+    // --- Low-stock product list (actionable — not just a count) ---
+    $stats['low_stock_list'] = db()->fetchAll(
+        "SELECT name, sku, stock, min_stock_alert FROM products WHERE stock <= min_stock_alert AND is_active=1 ORDER BY stock ASC LIMIT 8"
+    );
+
+    // Unread notifications (guarded — table may be absent on an un-migrated DB).
+    try {
+        $stats['notifications'] = db()->fetchAll("SELECT * FROM notifications WHERE is_read = 0 ORDER BY created_at DESC LIMIT 10");
+    } catch(Throwable $e) { $stats['notifications'] = []; }
     $stats['notif_count'] = count($stats['notifications']);
 
-    // Add pending reviews to notif count
-    $stats['notif_count'] += ($stats['pending_reviews'] ?? 0);
+    // Persist to the short-TTL cache (atomic-ish; failure is non-fatal).
+    @file_put_contents($cacheFile, serialize($stats), LOCK_EX);
 
     return $stats;
 }

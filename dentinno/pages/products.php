@@ -276,9 +276,12 @@ $where = ["1=1"]; $params = [];
 if ($search) { $where[] = "(p.name LIKE ? OR p.sku LIKE ? OR p.short_description LIKE ?)"; $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%"; }
 if ($cat_id)  { $where[] = "p.category_id = ?"; $params[] = $cat_id; }
 // Stock-status filter (in stock / low / out of stock).
-if ($stockF === 'out')      $where[] = "p.stock <= 0";
-elseif ($stockF === 'low')  $where[] = "p.stock > 0 AND p.stock <= p.min_stock_alert";
-elseif ($stockF === 'in')   $where[] = "p.stock > p.min_stock_alert";
+if ($stockF === 'out')          $where[] = "p.stock <= 0";
+elseif ($stockF === 'low')      $where[] = "p.stock > 0 AND p.stock <= p.min_stock_alert";
+elseif ($stockF === 'in')       $where[] = "p.stock > p.min_stock_alert";
+// "restock" = everything at/under the alert threshold (low OR out) — matches the dashboard's
+// "Low Stock — Restock Soon" definition so its links land on the right rows.
+elseif ($stockF === 'restock')  $where[] = "p.stock <= p.min_stock_alert";
 // Soft-delete: hide deleted products unless the "Deleted" filter is chosen.
 if ($status === 'deleted') {
     $where[] = "p.is_deleted = 1";
@@ -381,8 +384,9 @@ include __DIR__ . '/../includes/header.php';
   </select>
   <select class="form-control" id="stockFilter" style="max-width:140px;">
     <option value="">All Stock</option>
+    <option value="restock" <?= $stockF==='restock'?'selected':'' ?>>⚠ Low / Out (restock)</option>
     <option value="in"  <?= $stockF==='in'?'selected':'' ?>>In Stock</option>
-    <option value="low" <?= $stockF==='low'?'selected':'' ?>>Low Stock</option>
+    <option value="low" <?= $stockF==='low'?'selected':'' ?>>Low Stock (in stock)</option>
     <option value="out" <?= $stockF==='out'?'selected':'' ?>>Out of Stock</option>
   </select>
   <select class="form-control" id="sortBy" style="max-width:170px;" onchange="applyFilters()">

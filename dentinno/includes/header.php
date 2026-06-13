@@ -227,7 +227,8 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
             <!-- Search -->
             <div class="topbar-search">
                 <i class="fa-solid fa-magnifying-glass"></i>
-                <input type="text" placeholder="Search products, orders..." id="globalSearch">
+                <input type="text" placeholder="Search products, orders… (Enter)" id="globalSearch"
+                    onkeydown="if(event.key==='Enter'){var q=this.value.trim(); if(!q)return; var base='<?= APP_URL ?>/pages/'; var dest=/^(#|ord|sdi|inv)/i.test(q)?'orders.php?search=':'products.php?search='; window.location.href=base+dest+encodeURIComponent(q.replace(/^#/,''));}">
             </div>
 
             <!-- Notifications -->
@@ -241,10 +242,10 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
                 <div class="notif-dropdown" id="notifDropdown">
                     <div class="notif-header">
                         <span>Notifications</span>
-                        <a href="#">Mark all read</a>
+                        <a href="#" onclick="markAllNotifs(event)">Mark all read</a>
                     </div>
                     <?php foreach($navBadges['notifications'] as $notif): ?>
-                    <div class="notif-item notif-<?= $notif['type'] ?>">
+                    <div class="notif-item notif-<?= $notif['type'] ?>" data-nid="<?= (int)$notif['id'] ?>" onclick="markNotif(this)" style="cursor:pointer;">
                         <div class="notif-icon">
                             <?php
                             $icons = ['order'=>'cart-shopping','payment'=>'indian-rupee-sign','stock'=>'boxes-stacked','customer'=>'user','system'=>'gear'];
@@ -263,6 +264,31 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
                     <?php endif; ?>
                 </div>
             </div>
+            <script>
+            (function(){
+              const tok = document.querySelector('meta[name="csrf-token"]')?.content || '';
+              async function post(body){
+                try { const r = await fetch('<?= APP_URL ?>/pages/notifications.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest','X-CSRF-Token':tok},body:JSON.stringify(body)}); return r.json(); }
+                catch(e){ return {success:false}; }
+              }
+              function bumpDot(setTo){
+                const dot=document.querySelector('.notif-dot');
+                if(!dot) return;
+                if(setTo!==undefined){ if(setTo<=0) dot.remove(); else dot.textContent=setTo; return; }
+                const v=Math.max(0,(parseInt(dot.textContent)||0)-1); if(v<=0) dot.remove(); else dot.textContent=v;
+              }
+              window.markNotif = async function(el){
+                const id=el.getAttribute('data-nid'); if(!id||el.dataset.done) return;
+                const r=await post({action:'read',id:parseInt(id)});
+                if(r.success){ el.dataset.done='1'; el.style.opacity='.45'; el.style.pointerEvents='none'; bumpDot(); }
+              };
+              window.markAllNotifs = async function(e){
+                e.preventDefault();
+                const r=await post({action:'read_all'});
+                if(r.success){ document.querySelectorAll('.notif-item').forEach(n=>{n.dataset.done='1';n.style.opacity='.45';n.style.pointerEvents='none';}); bumpDot(0); }
+              };
+            })();
+            </script>
 
             <!-- Admin -->
             <div class="admin-chip">
