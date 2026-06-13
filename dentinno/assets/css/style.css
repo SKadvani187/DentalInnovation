@@ -672,10 +672,12 @@ textarea.form-control { resize: vertical; min-height: 90px; }
     font-size: 0.85rem;
     outline: none;
     transition: all var(--transition);
-    width: 240px;
-    position: relative;
+    width: 100%;
+    box-sizing: border-box;
 }
-.search-wrapper { position: relative; }
+/* Fill the wrapper (which controls width via flex/min/max) so the input never overflows
+   its container and overlaps the Voice / Image Search buttons sitting next to it. */
+.search-wrapper { position: relative; flex: 1; min-width: 180px; max-width: 300px; }
 .search-wrapper i {
     position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
     color: var(--text-muted); font-size: 0.85rem; pointer-events: none;

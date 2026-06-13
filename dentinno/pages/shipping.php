@@ -6,57 +6,84 @@ $page_title = 'Shipping';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    // Never let a PHP warning/exception leak HTML into the JSON response (breaks res.json()).
+    try {
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
 
     if ($action === 'save_method') {
         $d = $data;
+        $name = trim((string)($d['name'] ?? ''));
+        if ($name === '') { echo json_encode(['success'=>false,'message'=>'Method name is required']); exit; }
+        $type = in_array($d['type'] ?? '', ['flat','free','weight','price','product','flexible'], true) ? $d['type'] : 'flat';
+        $desc = (string)($d['description'] ?? '');
+        $base = max(0, (float)($d['base_cost'] ?? 0));
+        $active = !empty($d['is_active']) ? 1 : 0;
         if (!empty($d['id'])) {
             db()->execute("UPDATE shipping_methods SET name=?,description=?,type=?,base_cost=?,is_active=? WHERE id=?",
-                [$d['name'],$d['description'],$d['type'],$d['base_cost'],$d['is_active'],$d['id']]);
+                [$name,$desc,$type,$base,$active,(int)$d['id']]);
             echo json_encode(['success'=>true,'message'=>'Shipping method updated']);
         } else {
             db()->insert("INSERT INTO shipping_methods (name,description,type,base_cost,is_active) VALUES (?,?,?,?,?)",
-                [$d['name'],$d['description'],$d['type'],$d['base_cost'],$d['is_active']??1]);
+                [$name,$desc,$type,$base,$active]);
             echo json_encode(['success'=>true,'message'=>'Shipping method created']);
         }
     } elseif ($action === 'delete_method') {
-        db()->execute("DELETE FROM shipping_methods WHERE id=?",[$data['id']]);
+        // Deleting a method CASCADE-deletes its rules — warn first so the admin knows what goes.
+        $mid = (int)($data['id'] ?? 0);
+        $ruleCount = (int)(db()->fetchOne("SELECT COUNT(*) c FROM shipping_rules WHERE method_id=?", [$mid])['c'] ?? 0);
+        if ($ruleCount > 0 && empty($data['force'])) {
+            echo json_encode(['success'=>false,'needsConfirm'=>true,'ruleCount'=>$ruleCount,
+                'message'=>"This method has $ruleCount shipping rule(s) that will be deleted with it."]); exit;
+        }
+        db()->execute("DELETE FROM shipping_methods WHERE id=?",[$mid]);
         echo json_encode(['success'=>true,'message'=>'Method deleted']);
     } elseif ($action === 'toggle_method') {
-        db()->execute("UPDATE shipping_methods SET is_active=NOT is_active WHERE id=?",[$data['id']]);
+        db()->execute("UPDATE shipping_methods SET is_active=NOT is_active WHERE id=?",[(int)($data['id'] ?? 0)]);
         echo json_encode(['success'=>true]);
     } elseif ($action === 'save_zone') {
         $d = $data;
-        $states_json = json_encode(array_filter(array_map('trim', explode(',', $d['states'] ?? ''))));
+        $name = trim((string)($d['name'] ?? ''));
+        if ($name === '') { echo json_encode(['success'=>false,'message'=>'Zone name is required']); exit; }
+        $states_json = json_encode(array_values(array_filter(array_map('trim', explode(',', $d['states'] ?? '')))));
         // Pincode prefixes drive zone resolution at checkout (resolveShippingZone reads this).
         $pincodes_json = json_encode(array_values(array_filter(array_map(
             fn($p) => preg_replace('/\D/', '', trim($p)),
             explode(',', $d['pincodes'] ?? '')
         ))));
+        $active = isset($d['is_active']) ? (!empty($d['is_active']) ? 1 : 0) : 1;
         if (!empty($d['id'])) {
-            db()->execute("UPDATE shipping_zones SET name=?,states=?,pincodes=?,is_active=? WHERE id=?",[$d['name'],$states_json,$pincodes_json,$d['is_active'],$d['id']]);
+            db()->execute("UPDATE shipping_zones SET name=?,states=?,pincodes=?,is_active=? WHERE id=?",[$name,$states_json,$pincodes_json,$active,(int)$d['id']]);
         } else {
-            db()->insert("INSERT INTO shipping_zones (name,states,pincodes,is_active) VALUES (?,?,?,?)",[$d['name'],$states_json,$pincodes_json,1]);
+            db()->insert("INSERT INTO shipping_zones (name,states,pincodes,is_active) VALUES (?,?,?,?)",[$name,$states_json,$pincodes_json,1]);
         }
         echo json_encode(['success'=>true,'message'=>'Zone saved']);
     } elseif ($action === 'delete_zone') {
-        db()->execute("DELETE FROM shipping_zones WHERE id=?",[$data['id']]);
+        db()->execute("DELETE FROM shipping_zones WHERE id=?",[(int)($data['id'] ?? 0)]);
         echo json_encode(['success'=>true]);
     } elseif ($action === 'save_rule') {
         $d = $data;
+        $methodId = (int)($d['method_id'] ?? 0);
+        if ($methodId <= 0) { echo json_encode(['success'=>false,'message'=>'A shipping method is required']); exit; }
+        $ruleType = in_array($d['rule_type'] ?? '', ['weight','price','quantity','product'], true) ? $d['rule_type'] : 'weight';
+        $zoneId   = !empty($d['zone_id']) ? (int)$d['zone_id'] : null;
         // Product-class rules ignore min/max and target a shipping class instead.
-        $pclass = ($d['rule_type'] ?? '') === 'product' ? ($d['product_class'] ?: null) : null;
+        $pclass   = $ruleType === 'product' ? (($d['product_class'] ?? '') ?: null) : null;
+        $minV     = max(0, (float)($d['min_value'] ?? 0));
+        $maxV     = ($d['max_value'] ?? '') !== '' ? max(0, (float)$d['max_value']) : null;
+        $isFree   = !empty($d['is_free']) ? 1 : 0;
+        $cost     = $isFree ? 0 : max(0, (float)($d['cost'] ?? 0));
+        $active   = isset($d['is_active']) ? (!empty($d['is_active']) ? 1 : 0) : 1;
         if (!empty($d['id'])) {
             db()->execute("UPDATE shipping_rules SET method_id=?,zone_id=?,rule_type=?,min_value=?,max_value=?,product_class=?,cost=?,is_free=?,is_active=? WHERE id=?",
-                [$d['method_id'],$d['zone_id']?:null,$d['rule_type'],$d['min_value'],$d['max_value']?:null,$pclass,$d['cost'],$d['is_free']??0,$d['is_active']??1,$d['id']]);
+                [$methodId,$zoneId,$ruleType,$minV,$maxV,$pclass,$cost,$isFree,$active,(int)$d['id']]);
         } else {
             db()->insert("INSERT INTO shipping_rules (method_id,zone_id,rule_type,min_value,max_value,product_class,cost,is_free,is_active) VALUES (?,?,?,?,?,?,?,?,?)",
-                [$d['method_id'],$d['zone_id']?:null,$d['rule_type'],$d['min_value'],$d['max_value']?:null,$pclass,$d['cost'],$d['is_free']??0,1]);
+                [$methodId,$zoneId,$ruleType,$minV,$maxV,$pclass,$cost,$isFree,1]);
         }
         echo json_encode(['success'=>true,'message'=>'Rule saved']);
     } elseif ($action === 'delete_rule') {
-        db()->execute("DELETE FROM shipping_rules WHERE id=?",[$data['id']]);
+        db()->execute("DELETE FROM shipping_rules WHERE id=?",[(int)($data['id'] ?? 0)]);
         echo json_encode(['success'=>true]);
     } elseif ($action === 'save_pincode') {
         $d = $data;
@@ -64,10 +91,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         if ($pfx === '') { echo json_encode(['success'=>false,'message'=>'Pincode / prefix required']); exit; }
         $days = max(0, (int)($d['delivery_days'] ?? 5));
         $cod  = !empty($d['cod_available']) ? 1 : 0;
-        $act  = isset($d['is_active']) ? (int)$d['is_active'] : 1;
+        $act  = isset($d['is_active']) ? (!empty($d['is_active']) ? 1 : 0) : 1;
         if (!empty($d['id'])) {
             db()->execute("UPDATE delivery_pincodes SET pincode_prefix=?,label=?,delivery_days=?,cod_available=?,is_active=? WHERE id=?",
-                [$pfx,$d['label']??null,$days,$cod,$act,$d['id']]);
+                [$pfx,$d['label']??null,$days,$cod,$act,(int)$d['id']]);
         } else {
             db()->execute("INSERT INTO delivery_pincodes (pincode_prefix,label,delivery_days,cod_available,is_active) VALUES (?,?,?,?,1)
                 ON DUPLICATE KEY UPDATE label=VALUES(label),delivery_days=VALUES(delivery_days),cod_available=VALUES(cod_available),is_active=1",
@@ -75,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         }
         echo json_encode(['success'=>true,'message'=>'Pincode saved']);
     } elseif ($action === 'delete_pincode') {
-        db()->execute("DELETE FROM delivery_pincodes WHERE id=?",[$data['id']]);
+        db()->execute("DELETE FROM delivery_pincodes WHERE id=?",[(int)($data['id'] ?? 0)]);
         echo json_encode(['success'=>true,'message'=>'Pincode deleted']);
     } elseif ($action === 'calc') {
         // Shipping Cost Calculator — runs the SAME engine the storefront cart/checkout use,
@@ -96,6 +123,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                           'cost'=>$r['cost'] ?? null, 'free'=>$r['free'] ?? false];
         }
         echo json_encode(['success'=>true, 'actual'=>$actual, 'methods'=>$methods]);
+    }
+    } catch (Throwable $e) {
+        echo json_encode(['success'=>false,'message'=>'Server error: ' . $e->getMessage()]);
     }
     exit;
 }
@@ -472,10 +502,18 @@ function toggleMethod(id){
   .then(r=>r.json()).then(d=>{if(d.success)setTimeout(()=>location.reload(),300);});
 }
 function deleteMethod(id){
-  showConfirm('Delete Method','Remove this shipping method?',async()=>{
-    await fetch('shipping.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'delete_method',id})});
-    showToast('Method deleted','success');setTimeout(()=>location.reload(),700);
-  });
+  showConfirm('Delete Method','Remove this shipping method?', ()=>attemptDeleteMethod(id,false));
+}
+async function attemptDeleteMethod(id,force){
+  const res=await fetch('shipping.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'delete_method',id,force})});
+  const r=await res.json();
+  if(r.needsConfirm){
+    // Method still has rules — confirm the cascade before forcing the delete.
+    showConfirm('Method has rules', r.message+' Delete the method and its rules?', ()=>attemptDeleteMethod(id,true));
+    return;
+  }
+  if(r.success){showToast('Method deleted','success');setTimeout(()=>location.reload(),700);}
+  else showToast(r.message||'Failed','danger');
 }
 
 // Rules

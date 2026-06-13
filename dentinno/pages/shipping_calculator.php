@@ -6,6 +6,8 @@ $page_title = 'Shipping Calculator';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    // Never let a PHP warning/exception leak HTML into the JSON response (breaks res.json()).
+    try {
     $data   = json_decode(file_get_contents('php://input'), true);
     $price  = (float)($data['price'] ?? 0);
     $weight = (float)($data['weight'] ?? 0);
@@ -76,6 +78,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         'actual'   => $actual,                 // the real charged amount (engine)
         'inputs'   => ['price'=>$price,'weight'=>$weight,'qty'=>$qty],
     ]);
+    } catch (Throwable $e) {
+        echo json_encode(['success'=>false,'message'=>'Server error: ' . $e->getMessage()]);
+    }
     exit;
 }
 
@@ -209,11 +214,11 @@ function renderResults(results, inputs, actual){
           <i class="fa-solid fa-${typeIcons[r.type]||'truck'}" style="color:${typeColors[r.type]||'#666'};"></i>
         </div>
         <div>
-          <div style="font-weight:600;font-size:.9rem;">${r.name}</div>
-          ${r.description?`<div style="font-size:.75rem;color:var(--text-muted);">${r.description}</div>`:''}
+          <div style="font-weight:600;font-size:.9rem;">${escapeHtml(r.name||'')}</div>
+          ${r.description?`<div style="font-size:.75rem;color:var(--text-muted);">${escapeHtml(r.description)}</div>`:''}
           <div style="display:flex;gap:5px;margin-top:3px;">
-            <span class="ship-type-badge type-${r.type}" style="font-size:.65rem;">${r.type}</span>
-            ${r.rule_type?`<span style="font-size:.65rem;color:var(--text-muted);">via ${r.rule_type} rule</span>`:''}
+            <span class="ship-type-badge type-${escapeHtml(r.type||'')}" style="font-size:.65rem;">${escapeHtml(r.type||'')}</span>
+            ${r.rule_type?`<span style="font-size:.65rem;color:var(--text-muted);">via ${escapeHtml(r.rule_type)} rule</span>`:''}
           </div>
         </div>
       </div>

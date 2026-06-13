@@ -219,7 +219,7 @@ function getSidebarBadges() {
         "SELECT * FROM notifications WHERE is_read = 0 ORDER BY created_at DESC LIMIT 10"
     );
     try {
-        $pendingReviews = db()->fetchOne("SELECT COUNT(*) as val FROM product_reviews WHERE is_approved=0")['val'] ?? 0;
+        $pendingReviews = db()->fetchOne("SELECT COUNT(*) as val FROM product_reviews WHERE is_approved=0 AND is_deleted=0")['val'] ?? 0;
     } catch (Throwable $e) { $pendingReviews = 0; }
     $s['notif_count'] = count($s['notifications']) + (int)$pendingReviews;
     return $s;
@@ -305,8 +305,8 @@ function getDashboardStats() {
 
     // Reviews stats
     try {
-        $stats['pending_reviews'] = db()->fetchOne("SELECT COUNT(*) as val FROM product_reviews WHERE is_approved=0")['val'] ?? 0;
-        $stats['avg_rating']      = db()->fetchOne("SELECT ROUND(AVG(rating),1) as val FROM product_reviews WHERE is_approved=1")['val'] ?? 0;
+        $stats['pending_reviews'] = db()->fetchOne("SELECT COUNT(*) as val FROM product_reviews WHERE is_approved=0 AND is_deleted=0")['val'] ?? 0;
+        $stats['avg_rating']      = db()->fetchOne("SELECT ROUND(AVG(rating),1) as val FROM product_reviews WHERE is_approved=1 AND is_deleted=0")['val'] ?? 0;
     } catch(Exception $e) { $stats['pending_reviews']=$stats['avg_rating']=0; }
 
     // Shipping methods

@@ -3,7 +3,20 @@ require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Wishlists';
 
-$wishlists = db()->fetchAll("SELECT w.*, c.name as customer_name, c.phone, p.name as product_name, p.price, p.sku FROM wishlists w JOIN customers c ON w.customer_id=c.id JOIN products p ON w.product_id=p.id ORDER BY w.created_at DESC");
+$wishlists = db()->fetchAll("SELECT w.*, c.name as customer_name, c.phone, c.email, p.name as product_name, p.price, p.sku FROM wishlists w JOIN customers c ON w.customer_id=c.id JOIN products p ON w.product_id=p.id ORDER BY w.created_at DESC");
+
+// --- CSV export (remarketing / outreach) — before any HTML output ---
+if (isset($_GET['export'])) {
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="wishlists-' . date('Y-m-d') . '.csv"');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['Customer','Phone','Email','Product','SKU','Price','Added']);
+    foreach ($wishlists as $w) {
+        fputcsv($out, [$w['customer_name'],$w['phone'],$w['email'],$w['product_name'],$w['sku'],$w['price'],$w['created_at']]);
+    }
+    fclose($out);
+    exit;
+}
 
 // Group by customer
 $by_customer = [];
@@ -24,6 +37,9 @@ include __DIR__ . '/../includes/header.php';
         <h1>Wishlists</h1>
         <p>Track customer wishlist data — <?= count($wishlists) ?> total items across <?= count($by_customer) ?> customers</p>
     </div>
+    <?php if(!empty($wishlists)): ?>
+    <a href="wishlists.php?export=csv" class="btn btn-ghost btn-sm"><i class="fa-solid fa-file-csv"></i> Export CSV</a>
+    <?php endif; ?>
 </div>
 
 <div class="grid-2 fade-in">

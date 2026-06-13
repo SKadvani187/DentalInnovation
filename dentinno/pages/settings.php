@@ -13,6 +13,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['banner_image'])) {
     $file = $_FILES['banner_image'];
     $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     if (!in_array($ext, ['jpg','jpeg','png','webp','gif'])) { echo json_encode(['success'=>false,'message'=>'Invalid file type']); exit; }
+    // Verify the actual file CONTENT, not just the extension (a .jpg could be a PHP script).
+    $fi = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : false;
+    $mime = $fi ? finfo_file($fi, $file['tmp_name']) : '';
+    if ($mime && !in_array($mime, ['image/jpeg','image/png','image/webp','image/gif'], true)) {
+        echo json_encode(['success'=>false,'message'=>'The file is not a valid image (content check failed)']); exit;
+    }
     if ($file['size'] > 5*1024*1024) { echo json_encode(['success'=>false,'message'=>'File too large']); exit; }
     $fname = 'banner_' . time() . '_' . rand(1000,9999) . '.' . $ext;
     if (move_uploaded_file($file['tmp_name'], $upload_dir . $fname)) {
@@ -25,10 +31,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['banner_image'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    // Never let a PHP warning/exception leak HTML into the JSON response (breaks res.json()).
+    try {
     $d = json_decode(file_get_contents('php://input'), true);
     if (($d['action'] ?? '') === 'save_setting') {
         $key = preg_replace('/[^a-zA-Z]/', '', $d['key'] ?? '');
         $val = $d['value'] ?? null;
+        // Only known storefront-config keys may be written — reject anything else so a bug or a
+        // crafted request can't pollute site_settings with arbitrary rows.
+        $ALLOWED_KEYS = [
+            'aboutConfig','aboutSections','banners','branding','bulkRule','combosPage','company',
+            'contactConfig','contactSections','coupons','fbtItems','featured','footerConfig','freeGifts',
+            'gvpPage','gvpThreshold','heroSlides','homeSections','lowStockThreshold','navMenu','offerZoneHero',
+            'otpConfig','paymentOptions','payments','policies','premiumCategories','priceBounds','pricePresets',
+            'productBenefits','productContent','productDefaults','rfSection','sampleReviews','sectionToCategory',
+            'shippingConfig','shopByPricePage','socials','sortOptions','stats','taxConfig','tierOffers',
+            'trustBadges','whatsappConfig',
+        ];
+        if (!in_array($key, $ALLOWED_KEYS, true)) {
+            echo json_encode(['success'=>false,'message'=>'Unknown setting key']); exit;
+        }
         // Protected keys (secrets / admin-only) may only be written by a super_admin.
         $PROTECTED = ['otpConfig', 'whatsappConfig'];
         if (in_array($key, $PROTECTED, true) && ($_SESSION['admin_role'] ?? '') !== 'super_admin') {
@@ -36,12 +58,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             echo json_encode(['success' => false, 'message' => 'Forbidden: super admin only']);
             exit;
         }
-        if ($key) {
-            db()->query("INSERT INTO site_settings (skey, svalue) VALUES (?,?) ON DUPLICATE KEY UPDATE svalue=VALUES(svalue)",
-                [$key, json_encode($val)]);
-            echo json_encode(['success'=>true,'message'=>'Saved']);
-        } else { echo json_encode(['success'=>false,'message'=>'Invalid key']); }
+        // Guard against an oversized payload bloating the row (256 KB is far above any real config).
+        $encoded = json_encode($val);
+        if ($encoded !== false && strlen($encoded) > 262144) {
+            echo json_encode(['success'=>false,'message'=>'Setting value too large (max 256 KB)']); exit;
+        }
+        db()->query("INSERT INTO site_settings (skey, svalue) VALUES (?,?) ON DUPLICATE KEY UPDATE svalue=VALUES(svalue)",
+            [$key, $encoded]);
+        echo json_encode(['success'=>true,'message'=>'Saved']);
     } else { echo json_encode(['success'=>false,'message'=>'Unknown action']); }
+    } catch (Throwable $e) {
+        echo json_encode(['success'=>false,'message'=>'Server error: ' . $e->getMessage()]);
+    }
     exit;
 }
 
@@ -119,12 +147,12 @@ include __DIR__ . '/../includes/header.php';
 
 <?php if ($success_msg): ?>
 <div style="background:rgba(46,204,113,0.1);border:1px solid rgba(46,204,113,0.3);color:var(--success);padding:12px 16px;border-radius:10px;margin-bottom:20px;display:flex;align-items:center;gap:10px;" class="flash-msg">
-    <i class="fa-solid fa-circle-check"></i> <?= $success_msg ?>
+    <i class="fa-solid fa-circle-check"></i> <?= htmlspecialchars($success_msg) ?>
 </div>
 <?php endif; ?>
 <?php if ($error_msg): ?>
 <div style="background:rgba(231,76,60,0.1);border:1px solid rgba(231,76,60,0.3);color:var(--danger);padding:12px 16px;border-radius:10px;margin-bottom:20px;display:flex;align-items:center;gap:10px;" class="flash-msg">
-    <i class="fa-solid fa-circle-exclamation"></i> <?= $error_msg ?>
+    <i class="fa-solid fa-circle-exclamation"></i> <?= htmlspecialchars($error_msg) ?>
 </div>
 <?php endif; ?>
 
@@ -557,13 +585,14 @@ async function saveSetting(key, value, label, silent) {
   <div class="card-body">
     <?php
     $slots = [
-      ['left','Left (large)','leftImg','leftImgM','leftId'],
-      ['tr','Top Right','topRightImg','topRightImgM','topRightId'],
-      ['br','Bottom Right','bottomRightImg','bottomRightImgM','bottomRightId'],
+      ['left','Left (large)','leftImg','leftImgM','leftId','Large tile — recommended ~800×800 (1:1 square)'],
+      ['tr','Top Right','topRightImg','topRightImgM','topRightId','Wide tile — recommended ~800×400 (2:1 landscape)'],
+      ['br','Bottom Right','bottomRightImg','bottomRightImgM','bottomRightId','Wide tile — recommended ~800×400 (2:1 landscape)'],
     ];
     foreach ($slots as $sl): ?>
     <div style="border:1px solid var(--border-color);border-radius:10px;padding:12px;margin-bottom:12px;">
-      <div class="font-bold" style="margin-bottom:10px;"><?= $sl[1] ?></div>
+      <div class="font-bold" style="margin-bottom:2px;"><?= $sl[1] ?></div>
+      <div class="text-muted" style="font-size:.72rem;margin-bottom:10px;"><i class="fa-solid fa-circle-info"></i> <?= $sl[5] ?> · JPG/PNG/WebP · upload both desktop &amp; mobile for best results</div>
       <div class="grid-2" style="gap:14px;">
         <div>
           <label class="form-label">Desktop Image</label>
@@ -2005,6 +2034,16 @@ function savePromo(){
     leftImg: v('pm_left_d'), topRightImg: v('pm_tr_d'), bottomRightImg: v('pm_br_d'),
     leftImgM: v('pm_left_m'), topRightImgM: v('pm_tr_m'), bottomRightImgM: v('pm_br_m'),
   };
+  // Soft-warn (don't block) on incomplete slots: a link with no image won't render a banner,
+  // and a desktop image without a mobile one falls back awkwardly on phones.
+  const slots = [['Left','pm_left_id','pm_left_d','pm_left_m'],['Top Right','pm_tr_id','pm_tr_d','pm_tr_m'],['Bottom Right','pm_br_id','pm_br_d','pm_br_m']];
+  const issues = [];
+  slots.forEach(([label,idF,dF,mF]) => {
+    const hasId=!!v(idF), hasD=!!v(dF), hasM=!!v(mF);
+    if (hasId && !hasD) issues.push(`${label}: has a product link but no desktop image (won't show)`);
+    else if (hasD && !hasM) issues.push(`${label}: desktop image set but no mobile image`);
+  });
+  if (issues.length && !confirm('Some promo slots look incomplete:\n\n• ' + issues.join('\n• ') + '\n\nSave anyway?')) return;
   const banners = <?= json_encode($site['banners'] ?? [], JSON_UNESCAPED_SLASHES) ?> || {};
   banners.promo = promo;
   saveSetting('banners', banners, 'Promo banners');

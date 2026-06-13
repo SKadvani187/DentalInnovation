@@ -188,13 +188,13 @@ foreach ($statuses as $s) $orderStatusData[ucfirst($s['status'])] = (int)$s['cnt
                 <tbody>
                     <?php foreach($stats['recent_orders'] as $order): ?>
                     <tr>
-                        <td><a href="pages/orders.php?view=<?= $order['id'] ?>" class="text-gold font-bold"><?= $order['order_number'] ?></a></td>
+                        <td><a href="pages/orders.php?view=<?= (int)$order['id'] ?>" class="text-gold font-bold"><?= htmlspecialchars($order['order_number']) ?></a></td>
                         <td>
                             <div><?= htmlspecialchars($order['customer_name']) ?></div>
-                            <div class="text-muted" style="font-size:0.75rem;"><?= $order['phone'] ?></div>
+                            <div class="text-muted" style="font-size:0.75rem;"><?= htmlspecialchars($order['phone'] ?? '') ?></div>
                         </td>
                         <td class="font-bold"><?= formatCurrency($order['total']) ?></td>
-                        <td><span class="badge badge-<?= statusBadge($order['status']) ?>"><?= $order['status'] ?></span></td>
+                        <td><span class="badge badge-<?= statusBadge($order['status']) ?>"><?= htmlspecialchars($order['status']) ?></span></td>
                     </tr>
                     <?php endforeach; ?>
                     <?php if(empty($stats['recent_orders'])): ?>
@@ -226,7 +226,7 @@ foreach ($statuses as $s) $orderStatusData[ucfirst($s['status'])] = (int)$s['cnt
                     <tr>
                         <td>
                             <div class="font-bold" style="font-size:0.84rem;"><?= htmlspecialchars($p['name']) ?></div>
-                            <div class="text-muted" style="font-size:0.73rem;"><?= $p['category'] ?></div>
+                            <div class="text-muted" style="font-size:0.73rem;"><?= htmlspecialchars($p['category'] ?? '') ?></div>
                         </td>
                         <td><?= formatCurrency($p['price']) ?></td>
                         <td class="<?= $p['stock'] <= 5 ? 'stock-low' : 'stock-ok' ?>"><?= $p['stock'] ?></td>

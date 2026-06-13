@@ -3,9 +3,11 @@ require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Analytics & Reports';
 
-// Date range
+// Date range — validate the format, fall back to sane defaults on anything unexpected.
 $from = sanitize($_GET['from'] ?? date('Y-m-01'));
 $to   = sanitize($_GET['to']   ?? date('Y-m-d'));
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) $from = date('Y-m-01');
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $to))   $to   = date('Y-m-d');
 
 // Summary stats for range
 $range_revenue  = db()->fetchOne("SELECT COALESCE(SUM(total),0) as v FROM orders WHERE payment_status='paid' AND DATE(created_at) BETWEEN ? AND ?", [$from,$to])['v'];
@@ -31,6 +33,36 @@ $by_category = db()->fetchAll("SELECT cat.name, COUNT(DISTINCT o.id) as orders, 
 // Payment methods
 $pay_methods = db()->fetchAll("SELECT payment_method, COUNT(*) as cnt, COALESCE(SUM(total),0) as total FROM orders WHERE payment_status='paid' AND payment_method IS NOT NULL GROUP BY payment_method ORDER BY total DESC");
 
+// --- CSV export (finance) — one workbook-style file with each section, before any HTML output ---
+if (isset($_GET['export'])) {
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="reports-' . $from . '_to_' . $to . '.csv"');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['Report Period', $from . ' to ' . $to]);
+    fputcsv($out, ['Revenue (period)', $range_revenue]);
+    fputcsv($out, ['Orders (period)', $range_orders]);
+    fputcsv($out, ['New Customers (period)', $range_customers]);
+    fputcsv($out, ['Avg Order Value', round($avg_order_val, 2)]);
+    fputcsv($out, []);
+    fputcsv($out, ['Revenue by Category (all-time, paid)']);
+    fputcsv($out, ['Category','Orders','Revenue']);
+    foreach ($by_category as $r) fputcsv($out, [$r['name'],$r['orders'],$r['revenue']]);
+    fputcsv($out, []);
+    fputcsv($out, ['Top Products']);
+    fputcsv($out, ['Product','SKU','Category','Price','Total Sales']);
+    foreach ($top_products as $r) fputcsv($out, [$r['name'],$r['sku'],$r['category'],$r['price'],$r['total_sales']]);
+    fputcsv($out, []);
+    fputcsv($out, ['Top Customers']);
+    fputcsv($out, ['Customer','Clinic / Type','Orders','Total Spent']);
+    foreach ($top_customers as $r) fputcsv($out, [$r['name'],($r['clinic_name'] ?: $r['customer_type']),$r['total_orders'],$r['total_spent']]);
+    fputcsv($out, []);
+    fputcsv($out, ['Payment Methods (paid)']);
+    fputcsv($out, ['Method','Transactions','Total']);
+    foreach ($pay_methods as $r) fputcsv($out, [$r['payment_method'],$r['cnt'],$r['total']]);
+    fclose($out);
+    exit;
+}
+
 include __DIR__ . '/../includes/header.php';
 ?>
 
@@ -41,10 +73,11 @@ include __DIR__ . '/../includes/header.php';
     </div>
     <!-- Date Filter -->
     <div style="display:flex;gap:10px;align-items:center;">
-        <input type="date" class="form-control" id="fromDate" value="<?= $from ?>" style="max-width:140px;">
+        <input type="date" class="form-control" id="fromDate" value="<?= htmlspecialchars($from) ?>" style="max-width:140px;">
         <span class="text-muted">to</span>
-        <input type="date" class="form-control" id="toDate" value="<?= $to ?>" style="max-width:140px;">
+        <input type="date" class="form-control" id="toDate" value="<?= htmlspecialchars($to) ?>" style="max-width:140px;">
         <button class="btn btn-gold btn-sm" onclick="applyDateFilter()"><i class="fa-solid fa-chart-line"></i> Apply</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportCsv()"><i class="fa-solid fa-file-csv"></i> Export</button>
     </div>
 </div>
 
@@ -113,7 +146,7 @@ include __DIR__ . '/../includes/header.php';
             <?php foreach($pay_methods as $pm): ?>
             <div style="margin-bottom:14px;">
                 <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-                    <span style="font-size:0.84rem;font-weight:600;"><?= $pm['payment_method'] ?></span>
+                    <span style="font-size:0.84rem;font-weight:600;"><?= htmlspecialchars($pm['payment_method']) ?></span>
                     <span class="text-gold font-bold"><?= formatCurrency($pm['total']) ?></span>
                 </div>
                 <div style="background:var(--bg-elevated);border-radius:99px;height:5px;">
@@ -141,9 +174,9 @@ include __DIR__ . '/../includes/header.php';
                         <td class="text-muted"><?= $i+1 ?></td>
                         <td>
                             <div class="font-bold" style="font-size:0.82rem;"><?= htmlspecialchars($p['name']) ?></div>
-                            <div class="text-muted" style="font-size:0.7rem;"><?= $p['sku'] ?></div>
+                            <div class="text-muted" style="font-size:0.7rem;"><?= htmlspecialchars($p['sku'] ?? '') ?></div>
                         </td>
-                        <td><?= $p['category'] ?? '—' ?></td>
+                        <td><?= htmlspecialchars($p['category'] ?? '—') ?></td>
                         <td><?= formatCurrency($p['price']) ?></td>
                         <td class="text-gold font-bold"><?= $p['total_sales'] ?></td>
                     </tr>
@@ -166,7 +199,7 @@ include __DIR__ . '/../includes/header.php';
                         <td class="text-muted"><?= $i+1 ?></td>
                         <td>
                             <div class="font-bold" style="font-size:0.82rem;"><?= htmlspecialchars($c['name']) ?></div>
-                            <div class="text-muted" style="font-size:0.7rem;"><?= $c['clinic_name'] ?: ucfirst($c['customer_type']) ?></div>
+                            <div class="text-muted" style="font-size:0.7rem;"><?= htmlspecialchars($c['clinic_name'] ?: ucfirst($c['customer_type'] ?? '')) ?></div>
                         </td>
                         <td><?= $c['total_orders'] ?></td>
                         <td class="text-gold font-bold"><?= formatCurrency($c['total_spent']) ?></td>
@@ -184,6 +217,11 @@ function applyDateFilter() {
     const from = document.getElementById('fromDate').value;
     const to   = document.getElementById('toDate').value;
     window.location.href = `reports.php?from=${from}&to=${to}`;
+}
+function exportCsv() {
+    const from = document.getElementById('fromDate').value;
+    const to   = document.getElementById('toDate').value;
+    window.location.href = `reports.php?from=${from}&to=${to}&export=csv`;
 }
 
 // Monthly chart
