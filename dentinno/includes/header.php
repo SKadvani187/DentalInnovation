@@ -88,8 +88,8 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
             <a href="<?= APP_URL ?>/pages/refunds.php" class="nav-item <?= $current_page === 'refunds' ? 'active' : '' ?>">
                 <i class="fa-solid fa-rotate-left"></i>
                 <span>Refunds</span>
-                <?php $rfc = db()->fetchOne("SELECT COUNT(*) c FROM refund_requests WHERE status='pending'")['c'] ?? 0; if($rfc > 0): ?>
-                <span class="nav-badge"><?= $rfc ?></span>
+                <?php if(($navBadges['pending_refunds'] ?? 0) > 0): ?>
+                <span class="nav-badge"><?= (int)$navBadges['pending_refunds'] ?></span>
                 <?php endif; ?>
             </a>
             <a href="<?= APP_URL ?>/pages/customers.php" class="nav-item <?= $current_page === 'customers' ? 'active' : '' ?>">
@@ -103,10 +103,16 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
             <a href="<?= APP_URL ?>/pages/messages.php" class="nav-item <?= $current_page === 'messages' ? 'active' : '' ?>">
                 <i class="fa-solid fa-envelope"></i>
                 <span>Messages</span>
+                <?php if(($navBadges['unread_messages'] ?? 0) > 0): ?>
+                <span class="nav-badge"><?= (int)$navBadges['unread_messages'] ?></span>
+                <?php endif; ?>
             </a>
             <a href="<?= APP_URL ?>/pages/bulk_quotes.php" class="nav-item <?= $current_page === 'bulk_quotes' ? 'active' : '' ?>">
                 <i class="fa-solid fa-file-invoice-dollar"></i>
                 <span>Bulk Quotes</span>
+                <?php if(($navBadges['new_quotes'] ?? 0) > 0): ?>
+                <span class="nav-badge"><?= (int)$navBadges['new_quotes'] ?></span>
+                <?php endif; ?>
             </a>
         </div>
 
@@ -119,10 +125,16 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
             <a href="<?= APP_URL ?>/pages/reviews.php" class="nav-item <?= $current_page === 'reviews' ? 'active' : '' ?>">
                 <i class="fa-regular fa-star"></i>
                 <span>Reviews</span>
+                <?php if(($navBadges['pending_reviews'] ?? 0) > 0): ?>
+                <span class="nav-badge warn"><?= (int)$navBadges['pending_reviews'] ?></span>
+                <?php endif; ?>
             </a>
             <a href="<?= APP_URL ?>/pages/questions.php" class="nav-item <?= $current_page === 'questions' ? 'active' : '' ?>">
                 <i class="fa-regular fa-circle-question"></i>
                 <span>Q&amp;A</span>
+                <?php if(($navBadges['unanswered_questions'] ?? 0) > 0): ?>
+                <span class="nav-badge"><?= (int)$navBadges['unanswered_questions'] ?></span>
+                <?php endif; ?>
             </a>
             <a href="<?= APP_URL ?>/pages/wishlists.php" class="nav-item <?= $current_page === 'wishlists' ? 'active' : '' ?>">
                 <i class="fa-solid fa-heart"></i>
@@ -184,10 +196,12 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
 
         <div class="nav-section">
             <span class="nav-section-label">SYSTEM</span>
+            <?php if(hasPermission('manage_admins')): // super admin only — hide the link for others ?>
             <a href="<?= APP_URL ?>/pages/admins.php" class="nav-item <?= $current_page === 'admins' ? 'active' : '' ?>">
                 <i class="fa-solid fa-shield-halved"></i>
                 <span>Admin Users</span>
             </a>
+            <?php endif; ?>
             <a href="<?= APP_URL ?>/pages/settings.php" class="nav-item <?= ($current_page === 'settings' && !isset($_GET['page'])) ? 'active' : '' ?>">
                 <i class="fa-solid fa-gear"></i>
                 <span>Settings</span>

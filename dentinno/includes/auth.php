@@ -221,7 +221,15 @@ function getSidebarBadges() {
     try {
         $pendingReviews = db()->fetchOne("SELECT COUNT(*) as val FROM product_reviews WHERE is_approved=0 AND is_deleted=0")['val'] ?? 0;
     } catch (Throwable $e) { $pendingReviews = 0; }
+    $s['pending_reviews'] = (int)$pendingReviews;
     $s['notif_count'] = count($s['notifications']) + (int)$pendingReviews;
+
+    // Actionable badges for the sidebar — kept cheap (single COUNTs), each guarded so a missing
+    // table/column never breaks the header on an un-migrated DB.
+    try { $s['pending_refunds']      = (int)(db()->fetchOne("SELECT COUNT(*) as val FROM refund_requests WHERE status='pending'")['val'] ?? 0); } catch (Throwable $e) { $s['pending_refunds'] = 0; }
+    try { $s['unread_messages']      = (int)(db()->fetchOne("SELECT COUNT(*) as val FROM contact_messages WHERE is_read=0 AND is_deleted=0")['val'] ?? 0); } catch (Throwable $e) { $s['unread_messages'] = 0; }
+    try { $s['new_quotes']           = (int)(db()->fetchOne("SELECT COUNT(*) as val FROM bulk_quotes WHERE is_read=0 AND is_deleted=0")['val'] ?? 0); } catch (Throwable $e) { $s['new_quotes'] = 0; }
+    try { $s['unanswered_questions'] = (int)(db()->fetchOne("SELECT COUNT(*) as val FROM product_questions WHERE is_answered=0 AND is_deleted=0")['val'] ?? 0); } catch (Throwable $e) { $s['unanswered_questions'] = 0; }
     return $s;
 }
 
@@ -355,6 +363,11 @@ function getDashboardStats() {
     try { $stats['pa_messages']  = (int)(db()->fetchOne("SELECT COUNT(*) as val FROM contact_messages WHERE is_read=0 AND is_deleted=0")['val'] ?? 0); } catch(Throwable $e){ $stats['pa_messages']=0; }
     try { $stats['pa_quotes']    = (int)(db()->fetchOne("SELECT COUNT(*) as val FROM bulk_quotes WHERE is_read=0 AND is_deleted=0")['val'] ?? 0); } catch(Throwable $e){ $stats['pa_quotes']=0; }
     try { $stats['pa_questions'] = (int)(db()->fetchOne("SELECT COUNT(*) as val FROM product_questions WHERE is_answered=0 AND is_deleted=0")['val'] ?? 0); } catch(Throwable $e){ $stats['pa_questions']=0; }
+    // Sidebar-badge aliases (header reads these key names on every page — keep them in sync).
+    $stats['pending_refunds']      = $stats['pa_refunds'];
+    $stats['unread_messages']      = $stats['pa_messages'];
+    $stats['new_quotes']           = $stats['pa_quotes'];
+    $stats['unanswered_questions'] = $stats['pa_questions'];
 
     // --- Recent customers (new signups) ---
     $stats['recent_customers'] = db()->fetchAll(
