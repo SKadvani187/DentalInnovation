@@ -148,10 +148,6 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
                 <i class="fa-solid fa-truck"></i>
                 <span>Shipping</span>
             </a>
-            <a href="<?= APP_URL ?>/pages/shipping_calculator.php" class="nav-item <?= $current_page === 'shipping_calculator' ? 'active' : '' ?>">
-                <i class="fa-solid fa-calculator"></i>
-                <span>Calc</span>
-            </a>
         </div>
 
         <div class="nav-section">

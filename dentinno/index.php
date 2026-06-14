@@ -196,7 +196,7 @@ foreach ($statuses as $s) $orderStatusData[ucfirst($s['status'])] = (int)$s['cnt
         </div>
         <div class="stat-value" data-count="<?= $stats['active_shipping_methods'] ?? 0 ?>">0</div>
         <div class="stat-label">Shipping Methods</div>
-        <div class="stat-change up" style="margin-top:5px;"><i class="fa-solid fa-sliders"></i> <a href="<?= APP_URL ?>/pages/shipping_calculator.php" style="color:inherit;">Open Calculator</a></div>
+        <div class="stat-change up" style="margin-top:5px;"><i class="fa-solid fa-sliders"></i> <a href="<?= APP_URL ?>/pages/shipping.php#calculator" style="color:inherit;">Open Calculator</a></div>
     </div></a>
 </div>
 

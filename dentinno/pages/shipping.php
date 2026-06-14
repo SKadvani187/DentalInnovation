@@ -113,16 +113,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $qty    = max(1, (int)($data['qty'] ?? 1));
         $zoneId = !empty($data['zone_id']) ? (int)$data['zone_id'] : null;
         $line   = [['product_id'=>null, 'qty'=>$qty, 'price'=>$price, 'line_type'=>'product']];
+        // Authoritative amount the customer is actually charged (auto-cheapest, zone-aware).
         $actual = computeShipping($line, $price, $weight, $qty, $zoneId);
 
-        // Per-method breakdown (informational).
-        $methods = [];
+        // Per-method breakdown via the SAME engine — only the methods that apply, sorted best-first.
+        $results = [];
         foreach (db()->fetchAll("SELECT * FROM shipping_methods WHERE is_active=1 ORDER BY sort_order") as $m) {
             $r = methodShippingCost($m, $price, $weight, $qty, $zoneId, []);
-            $methods[] = ['name'=>$m['name'], 'type'=>$m['type'], 'applicable'=>$r!==null,
-                          'cost'=>$r['cost'] ?? null, 'free'=>$r['free'] ?? false];
+            if ($r === null) continue;
+            $isFree = !empty($r['free']);
+            $cost   = $isFree ? 0.0 : (float)($r['cost'] ?? 0);
+            $results[] = [
+                'name'        => $m['name'],
+                'description' => $m['description'],
+                'type'        => $m['type'],
+                'cost'        => $cost,
+                'is_free'     => $isFree,
+                'formatted'   => $isFree ? 'FREE' : '₹' . number_format($cost, 2),
+            ];
         }
-        echo json_encode(['success'=>true, 'actual'=>$actual, 'methods'=>$methods]);
+        usort($results, fn($a, $b) => ($b['is_free'] <=> $a['is_free']) ?: ($a['cost'] <=> $b['cost']));
+        echo json_encode(['success'=>true, 'results'=>$results, 'actual'=>$actual, 'inputs'=>['price'=>$price,'weight'=>$weight,'qty'=>$qty]]);
     }
     } catch (Throwable $e) {
         echo json_encode(['success'=>false,'message'=>'Server error: ' . $e->getMessage()]);
@@ -134,6 +145,8 @@ $methods = db()->fetchAll("SELECT * FROM shipping_methods ORDER BY sort_order,id
 $zones   = db()->fetchAll("SELECT * FROM shipping_zones ORDER BY id");
 $rules   = db()->fetchAll("SELECT r.*,m.name as method_name,z.name as zone_name FROM shipping_rules r LEFT JOIN shipping_methods m ON r.method_id=m.id LEFT JOIN shipping_zones z ON r.zone_id=z.id ORDER BY r.method_id,r.rule_type,r.min_value");
 $pincodes = db()->fetchAll("SELECT * FROM delivery_pincodes ORDER BY CHAR_LENGTH(pincode_prefix) DESC, pincode_prefix");
+// Products for the calculator's "quick fill" dropdown (auto-fills price + weight).
+$calcProducts = db()->fetchAll("SELECT id,name,price,weight_kg FROM products WHERE is_active=1 ORDER BY name LIMIT 200");
 
 include __DIR__ . '/../includes/header.php';
 ?>
@@ -150,6 +163,10 @@ include __DIR__ . '/../includes/header.php';
 .ship-tab.active{background:var(--bg-card);color:var(--gold-primary);box-shadow:0 2px 8px rgba(0,0,0,.3);}
 .ship-section{display:none;} .ship-section.active{display:block;}
 .rule-type-icon{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;font-size:.85rem;}
+.calc-result-item{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:var(--bg-elevated);border-radius:var(--radius);margin-bottom:8px;border:1px solid var(--border-color);transition:.2s;}
+.calc-result-item.cheapest{border-color:var(--gold-primary);background:rgba(201,168,76,.06);}
+.calc-result-item.free-ship{border-color:var(--success);background:rgba(46,204,113,.06);}
+.calc-type-icon{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;font-size:.9rem;flex-shrink:0;}
 </style>
 
 <div class="page-header fade-in">
@@ -324,22 +341,48 @@ include __DIR__ . '/../includes/header.php';
 <!-- CALCULATOR -->
 <div id="ship-calculator" class="ship-section fade-in">
   <h3 style="font-family:'Playfair Display',serif;margin-bottom:20px;">Shipping Cost Calculator</h3>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:800px;">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;max-width:920px;">
+    <!-- Inputs -->
     <div class="card" style="padding:24px;">
       <h4 style="margin-bottom:16px;color:var(--gold-primary);">Order Details</h4>
-      <div class="form-group"><label class="form-label">Order Total (₹)</label><input type="number" class="form-control" id="calc_price" placeholder="e.g. 15000" oninput="calcShipping()"></div>
-      <div class="form-group"><label class="form-label">Total Weight (kg)</label><input type="number" step="0.1" class="form-control" id="calc_weight" placeholder="e.g. 3.5" oninput="calcShipping()"></div>
+      <div class="form-group">
+        <label class="form-label">Quick Fill from Product</label>
+        <select class="form-control" id="calcQuickProduct" onchange="calcQuickFill(this)">
+          <option value="">— Select a product to auto-fill —</option>
+          <?php foreach($calcProducts as $p): ?>
+          <option value="<?= $p['id'] ?>" data-price="<?= $p['price'] ?>" data-weight="<?= $p['weight_kg'] ?>"><?= htmlspecialchars($p['name']) ?> — <?= formatCurrency($p['price']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div style="height:1px;background:var(--border-color);margin:16px 0;"></div>
+      <div class="form-group"><label class="form-label">Order Total (₹)</label><input type="number" class="form-control" id="calc_price" placeholder="e.g. 15000" oninput="calcDebounce()"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Total Weight (kg)</label><input type="number" step="0.1" class="form-control" id="calc_weight" placeholder="e.g. 2.5" oninput="calcDebounce()"></div>
+        <div class="form-group"><label class="form-label">Qty / Items</label><input type="number" min="1" class="form-control" id="calc_qty" value="1" oninput="calcDebounce()"></div>
+      </div>
       <div class="form-group"><label class="form-label">Destination Zone</label>
-        <select class="form-control" id="calc_zone" onchange="calcShipping()">
-          <option value="">All Zones</option>
+        <select class="form-control" id="calc_zone" onchange="calcDebounce()">
+          <option value="">All Zones (Default)</option>
           <?php foreach($zones as $z): ?><option value="<?= $z['id'] ?>"><?= htmlspecialchars($z['name']) ?></option><?php endforeach; ?>
         </select>
       </div>
+      <button class="btn btn-gold" style="width:100%;" onclick="calcRun()"><i class="fa-solid fa-calculator"></i> Calculate Shipping</button>
     </div>
-    <div class="card" style="padding:24px;" id="calcResults">
-      <h4 style="margin-bottom:16px;color:var(--gold-primary);">Applicable Methods</h4>
-      <div id="calcOutput" style="color:var(--text-muted);text-align:center;padding:20px 0;"><i class="fa-solid fa-calculator" style="font-size:2rem;opacity:.3;"></i><br>Enter order details</div>
+    <!-- Results -->
+    <div class="card" style="padding:24px;">
+      <h4 style="margin-bottom:16px;color:var(--gold-primary);">Available Shipping Options</h4>
+      <div id="calcResults">
+        <div style="text-align:center;padding:40px 0;color:var(--text-muted);">
+          <i class="fa-solid fa-truck" style="font-size:2.5rem;opacity:.2;display:block;margin-bottom:12px;"></i>
+          Enter order details to see applicable shipping methods
+        </div>
+      </div>
     </div>
+  </div>
+  <!-- Summary -->
+  <div class="card fade-in" style="margin-top:20px;padding:20px;display:none;" id="calcSummaryCard">
+    <h4 style="font-family:'Playfair Display',serif;margin-bottom:14px;">Shipping Cost Summary</h4>
+    <div id="calcSummaryContent"></div>
   </div>
 </div>
 
@@ -609,31 +652,81 @@ function deletePin(id){
 }
 
 // Calculator — runs the real server engine (same as cart/checkout) so the preview matches.
-let calcTimer;
-function calcShipping(){
-  const price=parseFloat(document.getElementById('calc_price').value)||0;
-  const weight=parseFloat(document.getElementById('calc_weight').value)||0;
-  const zone=document.getElementById('calc_zone').value;
-  const out=document.getElementById('calcOutput');
-  if(!price&&!weight){out.innerHTML='<i class="fa-solid fa-calculator" style="font-size:2rem;opacity:.3;"></i><br><span style="color:var(--text-muted)">Enter order details</span>';return;}
-  clearTimeout(calcTimer);
-  calcTimer=setTimeout(async()=>{
-    const res=await fetch('shipping.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'calc',price,weight,qty:1,zone_id:zone||0})});
-    const d=await res.json();
-    if(!d.success){out.innerHTML='<span style="color:var(--text-muted)">Could not calculate</span>';return;}
-    const actual=d.actual;
-    let html=`<div style="display:flex;justify-content:space-between;align-items:center;padding:14px;margin-bottom:14px;background:rgba(46,204,113,.08);border:1px solid var(--success);border-radius:8px;">
-      <div><div style="font-weight:700;">Customer pays</div><div style="font-size:.72rem;color:var(--text-muted);">Auto-picked by the live engine</div></div>
-      <div style="font-size:1.25rem;font-weight:800;color:${actual<=0?'var(--success)':'var(--gold-primary)'};">${actual<=0?'FREE':'₹'+Number(actual).toLocaleString('en-IN')}</div>
-    </div>`;
-    const apl=(d.methods||[]).filter(m=>m.applicable);
-    if(apl.length){html+='<div style="font-size:.72rem;color:var(--text-muted);margin-bottom:8px;">All applicable methods:</div>'+apl.map(m=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bg-elevated);border-radius:8px;margin-bottom:6px;">
-        <div><div style="font-weight:600;font-size:.88rem;">${m.name}</div><div style="font-size:.72rem;color:var(--text-muted);">${m.type}</div></div>
-        <div style="font-weight:700;color:${m.free?'var(--success)':'var(--gold-primary)'};">${m.free?'FREE':'₹'+Number(m.cost).toLocaleString('en-IN')}</div>
-      </div>`).join('');}
-    out.innerHTML=html;
-  },350);
+const calcTypeIcons = {flat:'truck',free:'gift',weight:'weight-scale',price:'tag',product:'box',flexible:'sliders'};
+const calcTypeColors= {flat:'#3498DB',free:'#2ECC71',weight:'#9B59B6',price:'#F39C12',product:'#C9A84C',flexible:'#E74C3C'};
+
+function calcQuickFill(sel){
+  const opt=sel.selectedOptions[0];
+  if(!opt.value)return;
+  document.getElementById('calc_price').value=opt.dataset.price||'';
+  document.getElementById('calc_weight').value=opt.dataset.weight||'';
+  document.getElementById('calc_qty').value=1;
+  calcRun();
 }
+
+let calcTimer;
+function calcDebounce(){ clearTimeout(calcTimer); calcTimer=setTimeout(calcRun, 450); }
+
+async function calcRun(){
+  const price=document.getElementById('calc_price').value;
+  const weight=document.getElementById('calc_weight').value;
+  if(!price&&!weight){return;}
+  const payload={action:'calc',price:parseFloat(price)||0,weight:parseFloat(weight)||0,qty:parseInt(document.getElementById('calc_qty').value)||1,zone_id:document.getElementById('calc_zone').value||0};
+  const res=await fetch('shipping.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(payload)});
+  const data=await res.json();
+  if(!data.success)return;
+  calcRender(data.results||[], data.inputs, data.actual);
+}
+
+function calcRender(results, inputs, actual){
+  const div=document.getElementById('calcResults');
+  if(!results.length){
+    div.innerHTML='<div style="text-align:center;padding:30px;color:var(--text-muted);">No shipping methods match these order details</div>';
+    document.getElementById('calcSummaryCard').style.display='none';
+    return;
+  }
+  // Authoritative amount the customer is actually charged (same engine as checkout).
+  const actualHtml = (actual!==undefined && actual!==null) ? `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;margin-bottom:14px;background:rgba(46,204,113,.08);border:1px solid var(--success);border-radius:var(--radius);">
+      <div><div style="font-weight:700;">Actual charge at checkout</div><div style="font-size:.72rem;color:var(--text-muted);">Auto-picked by the live shipping engine</div></div>
+      <div style="font-size:1.25rem;font-weight:800;color:${actual<=0?'var(--success)':'var(--gold-primary)'};">${actual<=0?'FREE':('₹'+Number(actual).toLocaleString('en-IN'))}</div>
+    </div>` : '';
+  div.innerHTML = actualHtml + results.map((r,i)=>`
+    <div class="calc-result-item ${r.is_free?'free-ship':i===0&&!r.is_free?'cheapest':''}">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="calc-type-icon" style="background:${calcTypeColors[r.type]||'#666'}20;">
+          <i class="fa-solid fa-${calcTypeIcons[r.type]||'truck'}" style="color:${calcTypeColors[r.type]||'#666'};"></i>
+        </div>
+        <div>
+          <div style="font-weight:600;font-size:.9rem;">${escapeHtml(r.name||'')}</div>
+          ${r.description?`<div style="font-size:.75rem;color:var(--text-muted);">${escapeHtml(r.description)}</div>`:''}
+          <div style="display:flex;gap:5px;margin-top:3px;"><span class="ship-type-badge type-${escapeHtml(r.type||'')}" style="font-size:.65rem;">${escapeHtml(r.type||'')}</span></div>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:1.1rem;font-weight:700;color:${r.is_free?'var(--success)':'var(--gold-primary)'};">${r.formatted}</div>
+        ${i===0&&!r.is_free?'<div style="font-size:.68rem;color:var(--gold-primary);font-weight:600;">BEST RATE</div>':''}
+        ${r.is_free?'<div style="font-size:.68rem;color:var(--success);font-weight:600;">FREE</div>':''}
+      </div>
+    </div>`).join('');
+
+  const cheapest=results[0];
+  document.getElementById('calcSummaryCard').style.display='block';
+  document.getElementById('calcSummaryContent').innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;">
+      <div style="background:var(--bg-elevated);padding:14px;border-radius:var(--radius);"><div class="stat-label">Order Value</div><div style="font-size:1.1rem;font-weight:700;">₹${Number(inputs.price).toLocaleString('en-IN')}</div></div>
+      <div style="background:var(--bg-elevated);padding:14px;border-radius:var(--radius);"><div class="stat-label">Total Weight</div><div style="font-size:1.1rem;font-weight:700;">${inputs.weight} kg</div></div>
+      <div style="background:var(--bg-elevated);padding:14px;border-radius:var(--radius);"><div class="stat-label">Methods Available</div><div style="font-size:1.1rem;font-weight:700;color:var(--gold-primary);">${results.length}</div></div>
+      <div style="background:var(--bg-elevated);padding:14px;border-radius:var(--radius);"><div class="stat-label">Cheapest Option</div><div style="font-size:1.1rem;font-weight:700;color:${cheapest.is_free?'var(--success)':'var(--gold-primary)'};">${cheapest.formatted}</div></div>
+    </div>`;
+}
+
+// Open a tab directly from the URL hash (e.g. shipping.php#calculator from the sidebar/dashboard).
+(function(){
+  const h=(location.hash||'').replace('#','');
+  if(!h) return;
+  const btn=[...document.querySelectorAll('.ship-tab')].find(b=>(b.getAttribute('onclick')||'').includes("'"+h+"'"));
+  if(btn) btn.click();
+})();
 </script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
