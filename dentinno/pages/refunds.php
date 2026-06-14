@@ -67,9 +67,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     }
 
     if ($action === 'approve') {
-        $orderId   = (int)$rr['order_id'];
-        $amount    = (float)$rr['refund_amount'];
-        $rzpRefId  = null;
+        $orderId    = (int)$rr['order_id'];
+        $orderTotal = (float)$rr['total'];
+        // Admin may adjust the payout (partial refund) — defaults to the requested amount.
+        $amount = (isset($data['amount']) && $data['amount'] !== '') ? (float)$data['amount'] : (float)$rr['refund_amount'];
+        $rzpRefId   = null;
+        $isFull     = false;
+        if ($amount <= 0) { echo json_encode(['success'=>false,'message'=>'Refund amount must be greater than 0']); exit; }
+        // Cumulative refunds on this order can never exceed the order total.
+        $alreadyRefunded = (float)(db()->fetchOne(
+            "SELECT COALESCE(SUM(refund_amount),0) v FROM refund_requests WHERE order_id=? AND status='completed' AND id<>?",
+            [$orderId, $rid])['v'] ?? 0);
+        $balance = $orderTotal - $alreadyRefunded;
+        if ($amount > $balance + 0.01) {
+            echo json_encode(['success'=>false,'message'=>'Amount exceeds the refundable balance (₹'.number_format($balance,2).' left of ₹'.number_format($orderTotal,2).')']); exit;
+        }
 
         // SECURITY (double-refund prevention): atomically claim this request BEFORE calling the
         // gateway. Only the row-update that transitions pending/approved -> processing proceeds;
@@ -111,22 +123,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $pdo = db()->getConnection();
         $pdo->beginTransaction();
         try {
+            // Persist the (possibly adjusted) amount so the cumulative total stays accurate.
             db()->execute(
-                "UPDATE refund_requests SET status='completed', admin_note=?, razorpay_refund_id=?, actioned_by=?, actioned_at=NOW(), completed_at=NOW() WHERE id=?",
-                [$note, $rzpRefId, $actedBy, $rid]
+                "UPDATE refund_requests SET status='completed', refund_amount=?, admin_note=?, razorpay_refund_id=?, actioned_by=?, actioned_at=NOW(), completed_at=NOW() WHERE id=?",
+                [$amount, $note, $rzpRefId, $actedBy, $rid]
             );
-            db()->execute("UPDATE orders SET status='refunded', payment_status='refunded' WHERE id=?", [$orderId]);
-            db()->execute("UPDATE payments SET status='refunded' WHERE order_id=? AND status='completed'", [$orderId]);
-            // Undo the order's inventory + aggregate effects (restock, decrement sales/LTV/coupon),
-            // once. Runs inside this open transaction so it commits/rolls back atomically with the refund.
-            reverseOrderEffects($orderId);
+            // Is the order now FULLY refunded (all completed refunds cover the order total)?
+            $totRefunded = (float)(db()->fetchOne("SELECT COALESCE(SUM(refund_amount),0) v FROM refund_requests WHERE order_id=? AND status='completed'", [$orderId])['v'] ?? 0);
+            $isFull = $totRefunded >= ($orderTotal - 0.01);
+            if ($isFull) {
+                db()->execute("UPDATE orders SET status='refunded', payment_status='refunded' WHERE id=?", [$orderId]);
+                db()->execute("UPDATE payments SET status='refunded' WHERE order_id=? AND status='completed'", [$orderId]);
+                // Full restock + aggregate reversal — ONLY on a full refund (atomic with this txn).
+                reverseOrderEffects($orderId);
+            } else {
+                // Partial refund: mark the payment partial. No auto-restock — an amount-based partial
+                // refund doesn't tell us which items came back; adjust stock manually if goods returned.
+                db()->execute("UPDATE orders SET payment_status='partial' WHERE id=?", [$orderId]);
+            }
             $pdo->commit();
         } catch (Throwable $e) {
             $pdo->rollBack();
             echo json_encode(['success' => false, 'message' => 'DB error: ' . $e->getMessage()]); exit;
         }
 
-        echo json_encode(['success' => true, 'message' => $rzpRefId ? 'Refunded via gateway (' . $rzpRefId . ')' : 'Marked refunded (manual)']); exit;
+        $kind = $isFull ? 'Full refund' : 'Partial refund';
+        echo json_encode(['success' => true, 'message' => $kind . ' of ₹' . number_format($amount,2) . ($rzpRefId ? ' via gateway (' . $rzpRefId . ')' : ' (manual)')]); exit;
     }
 
     echo json_encode(['success' => false, 'message' => 'Unknown action']); exit;
@@ -257,7 +279,7 @@ function refundBadge($s) {
                     </td>
                     <td>
                         <?php if (in_array($r['status'], ['pending','approved'], true)): ?>
-                        <button class="btn btn-gold btn-sm" onclick="actOnRefund(<?= $r['id'] ?>, 'approve')"><i class="fa-solid fa-check"></i> Approve &amp; Refund</button>
+                        <button class="btn btn-gold btn-sm" onclick="openApprove(<?= $r['id'] ?>, <?= (float)$r['refund_amount'] ?>, <?= (float)$r['order_total'] ?>)"><i class="fa-solid fa-check"></i> Approve &amp; Refund</button>
                         <button class="btn btn-ghost btn-sm" onclick="actOnRefund(<?= $r['id'] ?>, 'reject')"><i class="fa-solid fa-xmark"></i> Reject</button>
                         <?php else: ?>
                         <span class="text-muted">—<?= $r['razorpay_refund_id'] ? ' ' . htmlspecialchars($r['razorpay_refund_id']) : '' ?></span>
@@ -323,6 +345,32 @@ function refundBadge($s) {
     </div>
 </div>
 
+<!-- Approve / Refund Modal — supports partial (amount-editable) refunds -->
+<div class="modal-overlay" id="approveModal" style="display:none;" onclick="if(event.target===this)closeModal('approveModal')">
+    <div class="modal-box" style="max-width:460px;">
+        <div class="modal-head"><h2>Approve &amp; Refund</h2><button class="close-btn" onclick="closeModal('approveModal')"><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="modal-body">
+            <input type="hidden" id="approve_id">
+            <div class="form-group">
+                <label class="form-label">Refund Amount (₹) *</label>
+                <input type="number" step="0.01" min="0" class="form-control" id="approve_amount">
+                <small class="text-muted" style="font-size:.72rem;" id="approve_hint"></small>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Admin note <small class="text-muted">(optional, internal)</small></label>
+                <input type="text" class="form-control" id="approve_note" placeholder="e.g. Item returned — partial restock done">
+            </div>
+            <div style="background:rgba(231,76,60,.08);border:1px solid rgba(231,76,60,.3);color:var(--danger);padding:9px 12px;border-radius:8px;font-size:.78rem;">
+                <i class="fa-solid fa-triangle-exclamation"></i> Online orders fire a <b>REAL Razorpay refund</b> (cannot be undone). Refunding <b>less than the order total = partial refund</b> — order stays open, no auto-restock.
+            </div>
+        </div>
+        <div class="modal-foot">
+            <button class="btn btn-ghost" onclick="closeModal('approveModal')">Cancel</button>
+            <button class="btn btn-gold" onclick="confirmApprove()"><i class="fa-solid fa-check"></i> Process Refund</button>
+        </div>
+    </div>
+</div>
+
 <script>
 function buildRefundQuery(extra){
     const p=new URLSearchParams();
@@ -337,16 +385,28 @@ function applyFilters(){window.location.href='refunds.php?'+buildRefundQuery();}
 function exportCsv(){window.location.href='refunds.php?'+buildRefundQuery({export:'csv'});}
 function goPage(p){const q=new URLSearchParams(window.location.search);q.set('page',p);window.location.href='refunds.php?'+q.toString();}
 function actOnRefund(id, action) {
-    if (action === 'approve') {
-        showConfirm('Approve & Refund',
-            'Approve and refund this order? For online orders this triggers a REAL Razorpay refund and cannot be undone.',
-            () => submitRefund(id, 'approve', ''));
-    } else {
-        // Reject needs a reason — open the styled modal.
-        document.getElementById('reject_id').value = id;
-        document.getElementById('reject_note').value = '';
-        openModal('rejectModal');
-    }
+    // Reject needs a reason — open the styled modal. (Approve uses openApprove.)
+    document.getElementById('reject_id').value = id;
+    document.getElementById('reject_note').value = '';
+    openModal('rejectModal');
+}
+function openApprove(id, requested, orderTotal) {
+    document.getElementById('approve_id').value = id;
+    const amt = document.getElementById('approve_amount');
+    amt.value = requested;
+    amt.max = orderTotal;
+    document.getElementById('approve_note').value = '';
+    document.getElementById('approve_hint').textContent =
+        'Order total ₹' + Number(orderTotal).toLocaleString('en-IN') + '. Edit to refund a partial amount.';
+    openModal('approveModal');
+}
+function confirmApprove() {
+    const id = document.getElementById('approve_id').value;
+    const amount = parseFloat(document.getElementById('approve_amount').value);
+    const note = document.getElementById('approve_note').value.trim();
+    if (!(amount > 0)) { showToast('Enter a refund amount greater than 0', 'warning'); return; }
+    closeModal('approveModal');
+    submitRefund(id, 'approve', note, amount);
 }
 function confirmReject() {
     const id = document.getElementById('reject_id').value;
@@ -354,10 +414,12 @@ function confirmReject() {
     closeModal('rejectModal');
     submitRefund(id, 'reject', note);
 }
-async function submitRefund(id, action, note) {
+async function submitRefund(id, action, note, amount) {
+    const body = { action, id, note };
+    if (amount !== undefined) body.amount = amount;
     const res = await fetch('refunds.php', {
         method:'POST', headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
-        body: JSON.stringify({ action, id, note })
+        body: JSON.stringify(body)
     });
     const r = await res.json();
     showToast(r.message || (r.success ? 'Done' : 'Failed'), r.success ? 'success' : 'danger');

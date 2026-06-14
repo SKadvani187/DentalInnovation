@@ -215,9 +215,18 @@ function getSidebarBadges() {
     $s['pending_orders'] = db()->fetchOne(
         "SELECT COUNT(*) as val FROM orders WHERE status = 'pending'"
     )['val'];
-    $s['notifications'] = db()->fetchAll(
-        "SELECT * FROM notifications WHERE is_read = 0 ORDER BY created_at DESC LIMIT 10"
-    );
+    // Per-admin unread: hide notifications this admin has already dismissed.
+    try {
+        $aid = (int)($_SESSION['admin_id'] ?? 0);
+        $s['notifications'] = db()->fetchAll(
+            "SELECT n.* FROM notifications n
+              WHERE NOT EXISTS (SELECT 1 FROM notification_reads nr WHERE nr.notification_id=n.id AND nr.admin_id=?)
+              ORDER BY n.created_at DESC LIMIT 10",
+            [$aid]
+        );
+    } catch (Throwable $e) {
+        $s['notifications'] = db()->fetchAll("SELECT * FROM notifications WHERE is_read = 0 ORDER BY created_at DESC LIMIT 10");
+    }
     try {
         $pendingReviews = db()->fetchOne("SELECT COUNT(*) as val FROM product_reviews WHERE is_approved=0 AND is_deleted=0")['val'] ?? 0;
     } catch (Throwable $e) { $pendingReviews = 0; }
@@ -379,9 +388,13 @@ function getDashboardStats() {
         "SELECT name, sku, stock, min_stock_alert FROM products WHERE stock <= min_stock_alert AND is_active=1 ORDER BY stock ASC LIMIT 8"
     );
 
-    // Unread notifications (guarded — table may be absent on an un-migrated DB).
+    // Unread notifications, per-admin (guarded — tables may be absent on an un-migrated DB).
     try {
-        $stats['notifications'] = db()->fetchAll("SELECT * FROM notifications WHERE is_read = 0 ORDER BY created_at DESC LIMIT 10");
+        $aid = (int)($_SESSION['admin_id'] ?? 0);
+        $stats['notifications'] = db()->fetchAll(
+            "SELECT n.* FROM notifications n
+              WHERE NOT EXISTS (SELECT 1 FROM notification_reads nr WHERE nr.notification_id=n.id AND nr.admin_id=?)
+              ORDER BY n.created_at DESC LIMIT 10", [$aid]);
     } catch(Throwable $e) { $stats['notifications'] = []; }
     $stats['notif_count'] = count($stats['notifications']);
 

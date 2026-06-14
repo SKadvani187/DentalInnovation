@@ -41,28 +41,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             if ($dupe) { echo json_encode(['success'=>false,'message'=>'Another customer already uses this email.']); exit; }
         }
 
-        // Guard every optional field so a partial payload binds NULL/'' cleanly (no notices).
+        // Guard every optional field so a partial payload binds NULL/'' cleanly (no notices),
+        // and cap each to its column size server-side (don't rely on the client's maxlength).
         $vals = [
-            $d['name'] ?? '', $email, ($d['phone'] ?? null), ($d['city'] ?? null), ($d['state'] ?? null),
-            ($d['address'] ?? null), ($d['pincode'] ?? null), ($d['clinic_name'] ?? null),
-            ($d['customer_type'] ?? null), ($d['notes'] ?? null),
+            clip($d['name'] ?? '', 150), $email,
+            (($d['phone'] ?? '') !== '' ? clip($d['phone'], 30) : null),
+            (($d['city'] ?? '') !== '' ? clip($d['city'], 100) : null),
+            (($d['state'] ?? '') !== '' ? clip($d['state'], 100) : null),
+            (($d['address'] ?? '') !== '' ? clip($d['address'], 500) : null),
+            (($d['pincode'] ?? '') !== '' ? clip($d['pincode'], 12) : null),
+            (($d['clinic_name'] ?? '') !== '' ? clip($d['clinic_name'], 200) : null),
+            (($d['customer_type'] ?? '') !== '' ? clip($d['customer_type'], 30) : null),
+            (($d['notes'] ?? '') !== '' ? clip($d['notes'], 5000) : null),
         ];
         if ($cid > 0) {
             db()->execute("UPDATE customers SET name=?,email=?,phone=?,city=?,state=?,address=?,pincode=?,clinic_name=?,customer_type=?,notes=? WHERE id=?",
                 array_merge($vals, [$cid]));
+            logActivity('updated', 'customer', $cid, (string)($d['name'] ?? ''));
             echo json_encode(['success'=>true,'message'=>'Customer updated']);
         } else {
             db()->insert("INSERT INTO customers (name,email,phone,city,state,address,pincode,clinic_name,customer_type,notes) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 $vals);
+            logActivity('created', 'customer', null, (string)($d['name'] ?? ''));
             echo json_encode(['success'=>true,'message'=>'Customer added']);
         }
     } elseif ($action === 'delete') {
         // Soft-delete: keep the row so order history stays intact; block storefront access.
         db()->execute("UPDATE customers SET is_deleted=1, is_active=0 WHERE id=?", [(int)($data['id'] ?? 0)]);
+        logActivity('deleted', 'customer', (int)($data['id'] ?? 0));
         echo json_encode(['success'=>true,'message'=>'Customer deleted']);
     } elseif ($action === 'restore') {
         db()->execute("UPDATE customers SET is_deleted=0, is_active=1 WHERE id=?", [(int)($data['id'] ?? 0)]);
         echo json_encode(['success'=>true,'message'=>'Customer restored']);
+    } elseif ($action === 'anonymize') {
+        // GDPR right-to-erasure: scrub all PII but KEEP the row + order history (legal/accounting).
+        $id = (int)($data['id'] ?? 0);
+        if ($id <= 0) { echo json_encode(['success'=>false,'message'=>'Invalid customer']); exit; }
+        db()->execute(
+            "UPDATE customers
+                SET name='Deleted Customer', email=CONCAT('deleted+',id,'@removed.local'),
+                    phone=NULL, address=NULL, pincode=NULL, city=NULL, state=NULL,
+                    clinic_name=NULL, notes=NULL, addresses=NULL, cart=NULL, api_token=NULL,
+                    is_active=0, is_deleted=1
+              WHERE id=?",
+            [$id]
+        );
+        logActivity('anonymized', 'customer', $id, 'GDPR erase — PII scrubbed, orders kept');
+        echo json_encode(['success'=>true,'message'=>'Customer data anonymized (orders kept for records)']);
     } elseif ($action === 'toggle') {
         db()->execute("UPDATE customers SET is_active = NOT is_active WHERE id=? AND is_deleted=0", [(int)($data['id'] ?? 0)]);
         echo json_encode(['success'=>true,'message'=>'Status updated']);
@@ -213,6 +238,28 @@ if ($view_id) {
     }
 }
 
+// --- GDPR: export ALL of one customer's data as JSON (right of access) ---
+if (isset($_GET['gdpr_export'])) {
+    $cid = (int)$_GET['gdpr_export'];
+    $c   = db()->fetchOne("SELECT * FROM customers WHERE id=?", [$cid]);
+    if (!$c) { http_response_code(404); exit('Customer not found'); }
+    $grab = function(string $sql) use ($cid) { try { return db()->fetchAll($sql, [$cid]); } catch (Throwable $e) { return []; } };
+    $export = [
+        'exported_at'     => date('c'),
+        'profile'         => $c,
+        'orders'          => $grab("SELECT * FROM orders WHERE customer_id=? ORDER BY created_at DESC"),
+        'order_items'     => $grab("SELECT oi.* FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.customer_id=?"),
+        'wishlist'        => $grab("SELECT w.*, p.name AS product_name FROM wishlists w JOIN products p ON p.id=w.product_id WHERE w.customer_id=?"),
+        'refund_requests' => $grab("SELECT * FROM refund_requests WHERE customer_id=?"),
+        'reviews'         => $grab("SELECT * FROM product_reviews WHERE customer_id=?"),
+    ];
+    logActivity('exported', 'customer', $cid, 'GDPR data export');
+    header('Content-Type: application/json; charset=utf-8');
+    header('Content-Disposition: attachment; filename="customer-' . $cid . '-data.json"');
+    echo json_encode($export, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
 include __DIR__ . '/../includes/header.php';
 ?>
 
@@ -256,6 +303,8 @@ $waPhone     = preg_replace('/\D/', '', (string)($cust_detail['phone'] ?? ''));
             <a href="https://wa.me/91<?= $waPhone ?>" target="_blank" class="btn btn-ghost btn-sm" title="Chat on WhatsApp"><i class="fa-brands fa-whatsapp" style="color:#25D366;"></i> WhatsApp</a>
             <a href="tel:+91<?= $waPhone ?>" class="btn btn-ghost btn-sm" title="Call"><i class="fa-solid fa-phone" style="color:var(--gold-primary);"></i> Call</a>
             <?php endif; ?>
+            <a href="customers.php?gdpr_export=<?= (int)$cust_detail['id'] ?>" class="btn btn-ghost btn-sm" title="Download all of this customer's data (GDPR)"><i class="fa-solid fa-download"></i> Data</a>
+            <button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="anonymizeCustomer(<?= (int)$cust_detail['id'] ?>)" title="GDPR erase — scrub personal data, keep orders"><i class="fa-solid fa-user-slash"></i> Erase</button>
             <a href="customers.php" class="btn btn-ghost btn-sm"><i class="fa-solid fa-arrow-left"></i> Back</a>
         </div>
     </div>
@@ -593,6 +642,14 @@ function buildCustQuery(extra={}){
 }
 function applyFilters(){ window.location.href='customers.php?'+buildCustQuery(); }
 function exportCsv(){ window.location.href='customers.php?'+buildCustQuery({export:'csv'}); }
+function anonymizeCustomer(id){
+  showConfirm('GDPR Erase','This permanently SCRUBS the customer\'s personal data (name, email, phone, address, notes). Order history is kept (anonymized) for accounting. This cannot be undone. Continue?', async()=>{
+    const res=await fetch('customers.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'anonymize',id})});
+    const r=await res.json();
+    showToast(r.message, r.success?'success':'danger');
+    if(r.success) setTimeout(()=>location.href='customers.php', 1300);
+  });
+}
 function goPage(p){ const q=new URLSearchParams(window.location.search); q.set('page',p); window.location.href='customers.php?'+q.toString(); }
 
 async function importCsv(input){

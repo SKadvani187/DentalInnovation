@@ -58,6 +58,10 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
                 <span class="nav-badge warn"><?= $navBadges['low_stock'] ?></span>
                 <?php endif; ?>
             </a>
+            <a href="<?= APP_URL ?>/pages/inventory.php" class="nav-item <?= $current_page === 'inventory' ? 'active' : '' ?>">
+                <i class="fa-solid fa-warehouse"></i>
+                <span>Inventory</span>
+            </a>
             <a href="<?= APP_URL ?>/pages/categories.php" class="nav-item <?= $current_page === 'categories' ? 'active' : '' ?>">
                 <i class="fa-solid fa-layer-group"></i>
                 <span>Categories</span>
@@ -192,10 +196,14 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
 
         <div class="nav-section">
             <span class="nav-section-label">SYSTEM</span>
-            <?php if(hasPermission('manage_admins')): // super admin only — hide the link for others ?>
+            <?php if(hasPermission('manage_admins')): // super admin only — hide these links for others ?>
             <a href="<?= APP_URL ?>/pages/admins.php" class="nav-item <?= $current_page === 'admins' ? 'active' : '' ?>">
                 <i class="fa-solid fa-shield-halved"></i>
                 <span>Admin Users</span>
+            </a>
+            <a href="<?= APP_URL ?>/pages/activity.php" class="nav-item <?= $current_page === 'activity' ? 'active' : '' ?>">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                <span>Activity Log</span>
             </a>
             <?php endif; ?>
             <a href="<?= APP_URL ?>/pages/settings.php" class="nav-item <?= ($current_page === 'settings' && !isset($_GET['page'])) ? 'active' : '' ?>">

@@ -13,11 +13,19 @@ if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success' => fal
 try {
     $d = json_decode(file_get_contents('php://input'), true);
     $action = $d['action'] ?? '';
+    $aid = (int)($_SESSION['admin_id'] ?? 0);
     if ($action === 'read') {
-        db()->execute("UPDATE notifications SET is_read=1 WHERE id=?", [(int)($d['id'] ?? 0)]);
+        // Per-admin: record that THIS admin dismissed this notification (others still see it).
+        db()->execute("INSERT IGNORE INTO notification_reads (notification_id, admin_id) VALUES (?, ?)", [(int)($d['id'] ?? 0), $aid]);
         echo json_encode(['success' => true]);
     } elseif ($action === 'read_all') {
-        db()->execute("UPDATE notifications SET is_read=1 WHERE is_read=0");
+        // Mark every currently-unread (for this admin) notification as read by this admin.
+        db()->execute(
+            "INSERT IGNORE INTO notification_reads (notification_id, admin_id)
+             SELECT n.id, ? FROM notifications n
+              WHERE NOT EXISTS (SELECT 1 FROM notification_reads nr WHERE nr.notification_id=n.id AND nr.admin_id=?)",
+            [$aid, $aid]
+        );
         echo json_encode(['success' => true]);
     } else {
         echo json_encode(['success' => false, 'message' => 'Unknown action']);

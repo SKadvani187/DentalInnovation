@@ -17,13 +17,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     if ($action === 'delete') {
         // Soft-delete: keep the row so order history / invoices stay intact; hide it everywhere.
         db()->execute("UPDATE products SET is_deleted = 1, is_active = 0 WHERE id = ?", [(int)($data['id'] ?? 0)]);
+        logActivity('deleted', 'product', (int)($data['id'] ?? 0));
         echo json_encode(['success' => true, 'message' => 'Product deleted']);
     } elseif ($action === 'restore') {
         db()->execute("UPDATE products SET is_deleted = 0 WHERE id = ?", [(int)($data['id'] ?? 0)]);
+        logActivity('restored', 'product', (int)($data['id'] ?? 0));
         echo json_encode(['success' => true, 'message' => 'Product restored']);
     } elseif ($action === 'toggle') {
         db()->execute("UPDATE products SET is_active = NOT is_active WHERE id = ?", [$data['id']]);
+        logActivity('toggled', 'product', (int)($data['id'] ?? 0));
         echo json_encode(['success' => true, 'message' => 'Status updated']);
+    } elseif ($action === 'adjust_stock') {
+        // Manual stock adjustment with a reason — logged to the inventory ledger.
+        $pid    = (int)($data['id'] ?? 0);
+        $reason = trim((string)($data['reason'] ?? ''));
+        $row    = db()->fetchOne("SELECT stock FROM products WHERE id=?", [$pid]);
+        if (!$row) { echo json_encode(['success'=>false,'message'=>'Product not found']); exit; }
+        if ($reason === '') { echo json_encode(['success'=>false,'message'=>'A reason is required for a stock adjustment']); exit; }
+        $old = (int)$row['stock'];
+        // mode 'set' = absolute new value; 'delta' = +/- change.
+        if (($data['mode'] ?? 'set') === 'delta') {
+            $new = max(0, $old + (int)($data['value'] ?? 0));
+        } else {
+            $new = max(0, (int)($data['value'] ?? $old));
+        }
+        $delta = $new - $old;
+        if ($delta === 0) { echo json_encode(['success'=>false,'message'=>'No change — stock is already '.$old]); exit; }
+        db()->execute("UPDATE products SET stock=? WHERE id=?", [$new, $pid]);
+        recordStockMovement($pid, $delta, 'manual', $reason, null, (int)($_SESSION['admin_id'] ?? 0) ?: null, $new);
+        logActivity('adjusted', 'product', $pid, 'Stock '.$old.' → '.$new.' ('.$reason.')');
+        echo json_encode(['success'=>true,'message'=>'Stock adjusted: '.$old.' → '.$new,'stock'=>$new]);
     } elseif ($action === 'save') {
         $d = $data;
         // --- Server-side validation (never trust the client form) ---
@@ -69,15 +92,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $minStock  = max(0, (int)($d['min_stock_alert'] ?? 5));   // low-stock alert threshold
 
         if (!empty($d['id'])) {
+            // Capture old stock so a stock change via the edit form is recorded in the ledger.
+            $oldStock = (int)(db()->fetchOne("SELECT stock FROM products WHERE id=?", [(int)$d['id']])['stock'] ?? $stock);
             db()->execute("UPDATE products SET name=?,slug=?,meta_title=?,meta_description=?,category_id=?,price=?,discount_price=?,discount_percent=?,stock=?,min_stock_alert=?,short_description=?,full_description=?,features=?,packing_info=?,key_specifications=?,directions_for_use=?,additional_information=?,warranty_info=?,key_features=?,warranty_no=?,direction_of_use=?,catalogue_url=?,images=?,hover_image=?,variants=?,weight_kg=?,shipping_method_id=?,is_active=?,is_featured=?,is_new=? WHERE id=?",
                 [$name,$slug,$metaTitle,$metaDesc,($d['category_id'] ?? '')?:null,$price,$disc_price,$disc_pct,$stock,$minStock,($d['short_description']??null),($d['full_description']??null),$features,($d['packing_info']??null),$key_specs,($d['directions_for_use']??null),($d['additional_information']??null),($d['warranty_info']??null),($d['key_features'] ?? '')?:null,($d['warranty_no'] ?? '')?:null,($d['direction_of_use'] ?? '')?:null,($d['catalogue_url'] ?? '')?:null,$images_json,$hover_image,$variants,($d['weight_kg'] ?? '')?:null,(!empty($d['shipping_method_id'])?(int)$d['shipping_method_id']:null),$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0,$d['id']]);
             $pid = $d['id'];
+            if ($oldStock !== $stock) {
+                recordStockMovement((int)$pid, $stock - $oldStock, 'edit', 'Stock changed via product edit', null, (int)($_SESSION['admin_id'] ?? 0) ?: null, $stock);
+            }
             echo json_encode(['success' => true, 'message' => 'Product updated', 'id' => $pid]);
         } else {
             $sku  = 'SKU-' . strtoupper(substr(md5($name . microtime()), 0, 6));
             $pid = db()->insert("INSERT INTO products (name,slug,meta_title,meta_description,sku,category_id,price,discount_price,discount_percent,stock,min_stock_alert,short_description,full_description,features,packing_info,key_specifications,directions_for_use,additional_information,warranty_info,key_features,warranty_no,direction_of_use,catalogue_url,images,hover_image,variants,weight_kg,shipping_method_id,is_active,is_featured,is_new) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 [$name,$slug,$metaTitle,$metaDesc,$sku,($d['category_id'] ?? '')?:null,$price,$disc_price,$disc_pct,$stock,$minStock,($d['short_description']??null),($d['full_description']??null),$features,($d['packing_info']??null),$key_specs,($d['directions_for_use']??null),($d['additional_information']??null),($d['warranty_info']??null),($d['key_features'] ?? '')?:null,($d['warranty_no'] ?? '')?:null,($d['direction_of_use'] ?? '')?:null,($d['catalogue_url'] ?? '')?:null,$images_json,$hover_image,$variants,($d['weight_kg'] ?? '')?:null,(!empty($d['shipping_method_id'])?(int)$d['shipping_method_id']:null),$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0]);
+            if ((int)$stock !== 0) {
+                recordStockMovement((int)$pid, (int)$stock, 'initial', 'Initial stock on create', null, (int)($_SESSION['admin_id'] ?? 0) ?: null, (int)$stock);
+            }
             echo json_encode(['success' => true, 'message' => 'Product added', 'id' => $pid]);
+        }
+        // Cost (purchase) price — stored separately to keep the big save query untouched.
+        if (!empty($pid)) {
+            $costPrice = (isset($d['cost_price']) && is_numeric($d['cost_price']) && $d['cost_price'] !== '') ? max(0,(float)$d['cost_price']) : null;
+            db()->execute("UPDATE products SET cost_price=? WHERE id=?", [$costPrice, (int)$pid]);
+            logActivity(!empty($d['id']) ? 'updated' : 'created', 'product', (int)$pid, $name.' · ₹'.$price);
         }
         if (isset($d['faqs']) && $pid) {
             db()->execute("DELETE FROM product_faqs WHERE product_id = ?", [$pid]);
@@ -249,6 +286,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['product_image'])) {
     if ($mime && !in_array($mime, ['image/jpeg','image/png','image/webp','image/gif'], true)) {
         echo json_encode(['success'=>false,'message'=>'The file is not a valid image (content check failed)']); exit;
     }
+    if (!imageDimsOk($file['tmp_name'])) { echo json_encode(['success'=>false,'message'=>'Image must be a valid file no larger than 6000×6000 px']); exit; }
     if ($file['size'] > 5*1024*1024) { echo json_encode(['success'=>false,'message'=>'File too large (max 5MB)']); exit; }
     $fname = 'prod_' . time() . '_' . rand(1000,9999) . '.' . $ext;
     if (move_uploaded_file($file['tmp_name'], $upload_dir . $fname)) {
@@ -435,7 +473,7 @@ include __DIR__ . '/../includes/header.php';
           <td><?= isset($p['category']) ? htmlspecialchars($p['category']) : '<span class="text-muted">—</span>' ?></td>
           <td class="font-bold"><?= formatCurrency($p['price']) ?></td>
           <td><?php if($p['discount_price']): ?><div><?= formatCurrency($p['discount_price']) ?></div><div class="badge badge-success"><?= $p['discount_percent'] ?>% off</div><?php else: ?><span class="text-muted">—</span><?php endif; ?></td>
-          <td><span class="<?= $p['stock']<=$p['min_stock_alert']?'stock-low':($p['stock']<=10?'stock-warn':'stock-ok') ?>"><?= $p['stock'] ?> units</span></td>
+          <td><span class="<?= $p['stock']<=$p['min_stock_alert']?'stock-low':($p['stock']<=10?'stock-warn':'stock-ok') ?>" onclick="openAdjustStock(<?= $p['id'] ?>, <?= htmlspecialchars(json_encode($p['name']), ENT_QUOTES) ?>, <?= (int)$p['stock'] ?>)" style="cursor:pointer;border-bottom:1px dashed currentColor;" title="Click to adjust stock"><?= $p['stock'] ?> units</span></td>
           <td><?= $p['weight_kg'] ? $p['weight_kg'].' kg' : '<span class="text-muted">—</span>' ?></td>
           <td><span class="badge badge-<?= $p['is_active']?'success':'secondary' ?>"><?= $p['is_active']?'Active':'Inactive' ?></span></td>
           <td><?= $p['is_featured']?'<i class="fa-solid fa-star text-gold"></i>':'<i class="fa-regular fa-star text-muted"></i>' ?></td>
@@ -509,6 +547,7 @@ include __DIR__ . '/../includes/header.php';
           <div class="form-group"><label class="form-label">Short Description</label><textarea class="form-control" id="prod_short_desc" rows="2" placeholder="Brief tagline for listings..."></textarea></div>
           <div class="form-row-3">
             <div class="form-group"><label class="form-label">Price (₹) *</label><input type="number" class="form-control" id="prod_price" placeholder="0"></div>
+            <div class="form-group"><label class="form-label">Cost Price (₹) <small class="text-muted">(for margin)</small></label><input type="number" class="form-control" id="prod_cost" placeholder="Optional"></div>
             <div class="form-group"><label class="form-label">Discount Price (₹)</label><input type="number" class="form-control" id="prod_discount" placeholder="Optional"></div>
             <div class="form-group"><label class="form-label">Stock Qty *</label><input type="number" class="form-control" id="prod_stock" placeholder="0"></div>
           </div>
@@ -939,6 +978,7 @@ function openProductModal(p=null){
   document.getElementById('prod_short_desc').value=p?.short_description||'';
   document.getElementById('prod_full_desc').value=p?.full_description||'';
   document.getElementById('prod_price').value=p?.price||'';
+  document.getElementById('prod_cost').value=p?.cost_price||'';
   document.getElementById('prod_discount').value=p?.discount_price||'';
   document.getElementById('prod_stock').value=p?.stock||'';
   document.getElementById('prod_min_stock').value=p?.min_stock_alert??'';
@@ -1063,6 +1103,7 @@ async function saveProduct(){
     warranty_no:document.getElementById('prod_warranty_no').value,
     direction_of_use:document.getElementById('prod_direction_of_use').value,
     catalogue_url:document.getElementById('prod_catalogue_url').value,
+    cost_price:document.getElementById('prod_cost').value,
     discount_price:document.getElementById('prod_discount').value,
     weight_kg:document.getElementById('prod_weight').value,
     shipping_method_id:document.getElementById('prod_ship_method').value,
@@ -1121,6 +1162,34 @@ function toggleProduct(id){
   fetch('products.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'toggle',id})})
   .then(r=>r.json()).then(d=>{if(d.success){showToast('Status updated','success');setTimeout(()=>location.reload(),600);}});
 }
+// ---- Manual stock adjustment (logged to the inventory ledger) ----
+function openAdjustStock(id, name, current){
+  document.getElementById('adj_id').value = id;
+  document.getElementById('adj_name').textContent = name;
+  document.getElementById('adj_current').textContent = current;
+  document.getElementById('adj_mode').value = 'set';
+  document.getElementById('adj_value').value = current;
+  document.getElementById('adj_reason').value = '';
+  openModal('adjustStockModal');
+}
+function adjModeChange(){
+  const mode=document.getElementById('adj_mode').value;
+  const v=document.getElementById('adj_value');
+  v.value = mode==='delta' ? '' : (document.getElementById('adj_current').textContent||'0');
+  v.placeholder = mode==='delta' ? 'e.g. -2 or 10' : 'new stock count';
+}
+async function saveAdjustStock(){
+  const id=document.getElementById('adj_id').value;
+  const mode=document.getElementById('adj_mode').value;
+  const value=parseInt(document.getElementById('adj_value').value);
+  const reason=document.getElementById('adj_reason').value.trim();
+  if(isNaN(value)){ showToast('Enter a number','warning'); return; }
+  if(!reason){ showToast('A reason is required','warning'); return; }
+  const res=await fetch('products.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'adjust_stock',id,mode,value,reason})});
+  const r=await res.json();
+  showToast(r.message,r.success?'success':'danger');
+  if(r.success){ closeModal('adjustStockModal'); setTimeout(()=>location.reload(),700); }
+}
 function deleteProduct(id){
   showConfirm('Delete Product','This hides the product from the store and storefront. Order history is kept, and you can restore it anytime from the "Deleted" filter. Continue?',async()=>{
     const res=await fetch('products.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'delete',id})});
@@ -1176,4 +1245,38 @@ function doImageSearch(input){
   input.value='';
 }
 </script>
+
+<!-- Manual Stock Adjustment Modal -->
+<div class="modal-overlay" id="adjustStockModal" style="display:none;" onclick="if(event.target===this)closeModal('adjustStockModal')">
+    <div class="modal-box" style="max-width:440px;">
+        <div class="modal-head"><h2>Adjust Stock</h2><button class="close-btn" onclick="closeModal('adjustStockModal')"><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="modal-body">
+            <input type="hidden" id="adj_id">
+            <div class="text-muted" style="font-size:.85rem;margin-bottom:12px;"><b id="adj_name"></b> — current stock: <b id="adj_current"></b></div>
+            <div class="form-row">
+                <div class="form-group" style="flex:1;">
+                    <label class="form-label">Mode</label>
+                    <select class="form-control" id="adj_mode" onchange="adjModeChange()">
+                        <option value="set">Set to (new count)</option>
+                        <option value="delta">Add / remove (±)</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label class="form-label">Value</label>
+                    <input type="number" class="form-control" id="adj_value" placeholder="new stock count">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Reason *</label>
+                <input type="text" class="form-control" id="adj_reason" placeholder="e.g. Stock received from supplier / damaged / recount">
+            </div>
+            <small class="text-muted" style="font-size:.72rem;">Recorded in the Inventory ledger with your name, time &amp; reason.</small>
+        </div>
+        <div class="modal-foot">
+            <button class="btn btn-ghost" onclick="closeModal('adjustStockModal')">Cancel</button>
+            <button class="btn btn-gold" onclick="saveAdjustStock()"><i class="fa-solid fa-warehouse"></i> Adjust Stock</button>
+        </div>
+    </div>
+</div>
+
 <?php include __DIR__ . '/../includes/footer.php'; ?>

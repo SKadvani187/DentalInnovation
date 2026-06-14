@@ -684,6 +684,15 @@ textarea.form-control { resize: vertical; min-height: 90px; }
 }
 .search-input:focus { border-color: var(--border-active); }
 
+/* Keyboard accessibility: a visible focus ring for keyboard users (not on mouse clicks). */
+a:focus-visible, button:focus-visible, .btn:focus-visible, .nav-item:focus-visible,
+input:focus-visible, select:focus-visible, textarea:focus-visible,
+.page-item:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid var(--gold-primary);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
 /* ═══════════════════════════════
    TOASTS
 ═══════════════════════════════ */

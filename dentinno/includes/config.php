@@ -176,9 +176,28 @@ function db() {
     return Database::getInstance();
 }
 
+// Inventory ledger helper (recordStockMovement) — available everywhere config is loaded.
+require_once __DIR__ . '/inventory.php';
+// Activity-log + notification helpers (logActivity / pushNotification).
+require_once __DIR__ . '/activity.php';
+
 // Helper: Format currency in INR
 function formatCurrency($amount) {
     return '₹' . number_format($amount, 0, '.', ',');
+}
+
+// Validation helpers --------------------------------------------------------
+// True only if $tmp is a real image within sane pixel bounds (rejects corrupt files,
+// zero-dimension images, and absurdly large dimensions that could DoS image processing).
+function imageDimsOk(string $tmp, int $maxPx = 6000): bool {
+    $d = @getimagesize($tmp);
+    return is_array($d) && ($d[0] ?? 0) >= 1 && ($d[1] ?? 0) >= 1 && $d[0] <= $maxPx && $d[1] <= $maxPx;
+}
+// Trim + hard-cap a string to a max length (multibyte-safe). Use to enforce DB column limits
+// gracefully server-side instead of relying on the client's maxlength.
+function clip($value, int $max): string {
+    $s = trim((string)$value);
+    return mb_strlen($s) > $max ? mb_substr($s, 0, $max) : $s;
 }
 
 // Helper: Format date

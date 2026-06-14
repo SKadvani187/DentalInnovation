@@ -278,6 +278,13 @@ try {
             if ($decStock->rowCount() !== 1) {
                 throw new RuntimeException('"' . $l['name'] . '" just went out of stock');
             }
+            // Ledger: stock out for this sale (best-effort; inside the order txn).
+            recordStockMovement((int)$l['product_id'], -(int)$l['qty'], 'sale', null, $orderNumber);
+            // Low-stock notification — fire once, only when this sale CROSSES the alert threshold.
+            $pr = $db->fetchOne("SELECT name, stock, min_stock_alert FROM products WHERE id=?", [$l['product_id']]);
+            if ($pr && (int)$pr['stock'] <= (int)$pr['min_stock_alert'] && ((int)$pr['stock'] + (int)$l['qty']) > (int)$pr['min_stock_alert']) {
+                pushNotification('stock', 'Low stock: ' . $pr['name'], $pr['name'] . ' is down to ' . (int)$pr['stock'] . ' (alert ≤ ' . (int)$pr['min_stock_alert'] . ')', '/pages/products.php?stock=restock');
+            }
         } elseif (!empty($l['slug'])) {
             // Non-catalog line backed by a combo: decrement combo stock the same way.
             $combo = $db->fetchOne("SELECT id FROM combos WHERE slug=?", [$l['slug']]);
@@ -318,6 +325,9 @@ try {
     $pdo->rollBack();
     jsonErr('Order failed: ' . $t->getMessage(), 409);
 }
+
+// New-order notification for admins (after commit, so a rolled-back order never notifies).
+pushNotification('order', 'New order ' . $orderNumber, $cust['name'] . ' placed an order of ₹' . number_format($total, 2), '/pages/orders.php?view=' . $orderId);
 
 $o = $db->fetchOne("SELECT * FROM orders WHERE id=?", [$orderId]);
 $oi = $db->fetchAll("SELECT * FROM order_items WHERE order_id=?", [$orderId]);

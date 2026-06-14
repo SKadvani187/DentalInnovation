@@ -322,6 +322,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <div style="display:flex;gap:8px;">
             <button class="btn btn-outline btn-sm" onclick="printInvoice()"><i class="fa-solid fa-print"></i> Print Invoice</button>
+            <button class="btn btn-outline btn-sm" onclick="printPacking()"><i class="fa-solid fa-box-open"></i> Packing Slip</button>
             <a href="orders.php" class="btn btn-ghost btn-sm"><i class="fa-solid fa-arrow-left"></i> Back</a>
         </div>
     </div>
@@ -769,6 +770,36 @@ function printInvoice() {
         <div><div class="muted">SHIP TO</div>${addr || '—'}</div></div>
         <table><thead><tr><th>Product</th><th style="text-align:center">Qty</th><th style="text-align:right">Unit</th><th style="text-align:right">Total</th></tr></thead><tbody>${rows}</tbody></table>
         <div style="margin-top:16px" class="tot">Subtotal: ${inr(o.subtotal)}<br>Discount: ${inr(o.discount)}<br>Shipping: ${inr(o.shipping)}<br>${Number(o.tax)>0?('Tax: '+inr(o.tax)+'<br>'):''}<strong>Total: ${inr(o.total)}</strong></div>
+        </body></html>`;
+    const w = window.open('', '_blank');
+    w.document.write(html); w.document.close(); w.focus();
+    setTimeout(() => { w.print(); }, 300);
+}
+
+// Packing slip — warehouse pick/pack doc: items + qty + ship-to, NO prices, with a packed checkbox.
+function printPacking() {
+    const o = ORDER_DETAIL; if (!o) return;
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    const ship = o.ship || {};
+    const addr = [ship.name, ship.address, [ship.city, ship.state, ship.pincode].filter(Boolean).join(', '), ship.phone].filter(Boolean).map(esc).join('<br>');
+    const totalQty = (o.items || []).reduce((s,it)=>s+(parseInt(it.qty)||0),0);
+    const rows = (o.items || []).map(it => `<tr>
+        <td>${esc(it.name)}${it.sku?`<div class="muted">SKU: ${esc(it.sku)}</div>`:''}</td>
+        <td style="text-align:center;font-size:17px;font-weight:bold">${esc(it.qty)}</td>
+        <td style="text-align:center;width:64px"><span style="display:inline-block;width:18px;height:18px;border:1.5px solid #333;border-radius:3px"></span></td></tr>`).join('');
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Packing Slip ${esc(o.order_number)}</title>
+        <style>body{font-family:Arial,sans-serif;color:#222;padding:30px;max-width:780px;margin:auto}
+        h1{margin:0;font-size:22px}.muted{color:#666;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:16px}
+        th,td{border-bottom:1px solid #ddd;padding:10px;font-size:13px;text-align:left}th{background:#f5f5f5}
+        .flex{display:flex;justify-content:space-between;gap:24px;margin-top:20px}.box{border:1px solid #ddd;padding:12px;border-radius:6px}</style></head>
+        <body>
+        <div class="flex"><div><h1>${esc(COMPANY_NAME)}</h1><div class="muted">Packing Slip — not a tax invoice</div></div>
+        <div style="text-align:right"><div><strong>${esc(o.order_number)}</strong></div>
+        <div class="muted">${esc(new Date(o.created_at).toLocaleDateString('en-IN'))}</div></div></div>
+        <div class="flex"><div class="box" style="flex:1"><div class="muted">SHIP TO</div>${addr || '—'}</div>
+        <div class="box" style="text-align:center"><div class="muted">TOTAL ITEMS</div><div style="font-size:24px;font-weight:bold">${totalQty}</div><div class="muted">${(o.items||[]).length} line(s)</div></div></div>
+        <table><thead><tr><th>Product</th><th style="text-align:center">Qty</th><th style="text-align:center">Packed</th></tr></thead><tbody>${rows}</tbody></table>
+        <div style="margin-top:34px;font-size:12px;color:#666">Packed by: ______________________&nbsp;&nbsp;&nbsp; Checked by: ______________________&nbsp;&nbsp;&nbsp; Date: ____________</div>
         </body></html>`;
     const w = window.open('', '_blank');
     w.document.write(html); w.document.close(); w.focus();

@@ -241,6 +241,7 @@ foreach ($statuses as $s) $orderStatusData[ucfirst($s['status'])] = (int)$s['cnt
                         <th>Customer</th>
                         <th>Amount</th>
                         <th>Status</th>
+                        <th>Date</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -253,10 +254,11 @@ foreach ($statuses as $s) $orderStatusData[ucfirst($s['status'])] = (int)$s['cnt
                         </td>
                         <td class="font-bold"><?= formatCurrency($order['total']) ?></td>
                         <td><span class="badge badge-<?= statusBadge($order['status']) ?>"><?= htmlspecialchars($order['status']) ?></span></td>
+                        <td class="text-muted" style="font-size:0.76rem;white-space:nowrap;"><?= !empty($order['created_at']) ? formatDate($order['created_at'], 'd M, h:i A') : '—' ?></td>
                     </tr>
                     <?php endforeach; ?>
                     <?php if(empty($stats['recent_orders'])): ?>
-                    <tr><td colspan="4" class="text-center text-muted">No orders yet</td></tr>
+                    <tr><td colspan="5" class="text-center text-muted">No orders yet</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -321,13 +323,18 @@ foreach ($statuses as $s) $orderStatusData[ucfirst($s['status'])] = (int)$s['cnt
 </div>
 
 <script>
+// Replace an empty chart canvas with a friendly placeholder (no blank boxes on a fresh store).
+function chartEmpty(id, msg){
+  const c=document.getElementById(id);
+  if(c&&c.parentElement) c.parentElement.innerHTML='<div style="text-align:center;padding:48px 0;color:var(--text-muted);"><i class="fa-solid fa-chart-simple" style="font-size:2rem;opacity:.25;display:block;margin-bottom:10px;"></i>'+msg+'</div>';
+}
 // Revenue Chart
 const revenueData = <?= json_encode($stats['revenue_chart']) ?>;
-initRevenueChart(revenueData);
+if(!revenueData || !revenueData.length) chartEmpty('revenueChart','No paid revenue yet'); else initRevenueChart(revenueData);
 
 // Order Status Doughnut
 const orderData = <?= json_encode($orderStatusData) ?>;
-initOrderChart(orderData);
+if(!orderData || !Object.keys(orderData).length) chartEmpty('orderChart','No orders yet'); else initOrderChart(orderData);
 </script>
 
 <?php include __DIR__ . '/includes/footer.php'; ?>

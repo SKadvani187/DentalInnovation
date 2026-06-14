@@ -40,10 +40,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         if (!empty($data['id'])) {
             db()->execute("UPDATE categories SET name=?,slug=?,meta_title=?,meta_description=?,description=?,parent_id=?,image=?,sort_order=?,is_active=? WHERE id=?",
                 [$name,$slug,$metaTitle,$metaDesc,$desc,$parentId,$image,$sortOrder,$isActive,$selfId]);
+            logActivity('updated', 'category', (int)$selfId, $name);
             echo json_encode(['success'=>true,'message'=>'Category updated']);
         } else {
             db()->insert("INSERT INTO categories (name,slug,meta_title,meta_description,description,parent_id,image,sort_order,is_active) VALUES (?,?,?,?,?,?,?,?,?)",
                 [$name,$slug,$metaTitle,$metaDesc,$desc,$parentId,$image,$sortOrder,$isActive]);
+            logActivity('created', 'category', null, $name);
             echo json_encode(['success'=>true,'message'=>'Category added']);
         }
     } elseif ($action === 'toggle') {
@@ -74,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $sCnt = (int)(db()->fetchOne("SELECT COUNT(*) as c FROM categories WHERE parent_id=?", [$id])['c'] ?? 0);
         if ($pCnt > 0)      { echo json_encode(['success'=>false,'message'=>"Cannot delete — $pCnt product(s) use this category. Reassign them first."]); }
         elseif ($sCnt > 0)  { echo json_encode(['success'=>false,'message'=>"Cannot delete — $sCnt sub-categor(ies) belong to this one. Move or delete them first."]); }
-        else { db()->execute("DELETE FROM categories WHERE id=?", [$id]); echo json_encode(['success'=>true,'message'=>'Category deleted']); }
+        else { db()->execute("DELETE FROM categories WHERE id=?", [$id]); logActivity('deleted', 'category', $id); echo json_encode(['success'=>true,'message'=>'Category deleted']); }
     }
     } catch (Throwable $e) {
         echo json_encode(['success'=>false, 'message'=>'Save failed: ' . $e->getMessage()]);
@@ -97,6 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['category_image'])) {
     if ($mime && !in_array($mime, ['image/jpeg','image/png','image/webp','image/gif'], true)) {
         echo json_encode(['success'=>false,'message'=>'The file is not a valid image (content check failed)']); exit;
     }
+    if (!imageDimsOk($file['tmp_name'])) { echo json_encode(['success'=>false,'message'=>'Image must be a valid file no larger than 6000×6000 px']); exit; }
     if ($file['size'] > 5*1024*1024) { echo json_encode(['success'=>false,'message'=>'File too large (max 5MB)']); exit; }
     $fname = 'cat_' . time() . '_' . rand(1000,9999) . '.' . $ext;
     if (move_uploaded_file($file['tmp_name'], $dir . $fname)) {

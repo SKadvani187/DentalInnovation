@@ -15,6 +15,24 @@ $range_orders   = db()->fetchOne("SELECT COUNT(*) as v FROM orders WHERE DATE(cr
 $range_customers= db()->fetchOne("SELECT COUNT(*) as v FROM customers WHERE DATE(created_at) BETWEEN ? AND ?", [$from,$to])['v'];
 $avg_order_val  = $range_orders > 0 ? ($range_revenue / $range_orders) : 0;
 
+// --- Returns / refunds (range, by completion date) ---
+$returns = db()->fetchOne("SELECT COUNT(*) cnt, COALESCE(SUM(refund_amount),0) amt FROM refund_requests WHERE status='completed' AND DATE(completed_at) BETWEEN ? AND ?", [$from,$to]);
+$returns_rate = $range_revenue > 0 ? round(((float)$returns['amt'] / (float)$range_revenue) * 100, 1) : 0;
+
+// --- Tax collected (range, paid) ---
+$tax_collected = (float)(db()->fetchOne("SELECT COALESCE(SUM(tax),0) v FROM orders WHERE payment_status='paid' AND DATE(created_at) BETWEEN ? AND ?", [$from,$to])['v'] ?? 0);
+
+// --- Approximate gross margin (range, paid, only items whose product has a cost_price set) ---
+$margin = db()->fetchOne(
+    "SELECT COALESCE(SUM(oi.total),0) rev, COALESCE(SUM(oi.quantity * p.cost_price),0) cogs, COUNT(DISTINCT p.id) prods
+       FROM order_items oi JOIN orders o ON o.id=oi.order_id JOIN products p ON p.id=oi.product_id
+      WHERE o.payment_status='paid' AND p.cost_price IS NOT NULL AND DATE(o.created_at) BETWEEN ? AND ?",
+    [$from,$to]);
+$margin_rev    = (float)($margin['rev'] ?? 0);
+$gross_profit  = $margin_rev - (float)($margin['cogs'] ?? 0);
+$margin_pct    = $margin_rev > 0 ? round(($gross_profit / $margin_rev) * 100, 1) : 0;
+$margin_prods  = (int)($margin['prods'] ?? 0);
+
 // Monthly revenue (12 months)
 $monthly = db()->fetchAll("SELECT DATE_FORMAT(created_at,'%b %Y') as month, DATE_FORMAT(created_at,'%Y-%m') as ym, COALESCE(SUM(total),0) as revenue, COUNT(*) as orders FROM orders WHERE payment_status='paid' AND created_at >= DATE_SUB(NOW(),INTERVAL 12 MONTH) GROUP BY ym ORDER BY ym ASC");
 
@@ -43,6 +61,12 @@ if (isset($_GET['export'])) {
     fputcsv($out, ['Orders (period)', $range_orders]);
     fputcsv($out, ['New Customers (period)', $range_customers]);
     fputcsv($out, ['Avg Order Value', round($avg_order_val, 2)]);
+    fputcsv($out, ['Refunds (count)', (int)$returns['cnt']]);
+    fputcsv($out, ['Refunded amount', round((float)$returns['amt'], 2)]);
+    fputcsv($out, ['Returns rate (%)', $returns_rate]);
+    fputcsv($out, ['Tax collected', round($tax_collected, 2)]);
+    fputcsv($out, ['Gross profit (approx)', round($gross_profit, 2)]);
+    fputcsv($out, ['Margin % (approx)', $margin_pct]);
     fputcsv($out, []);
     fputcsv($out, ['Revenue by Category (all-time, paid)']);
     fputcsv($out, ['Category','Orders','Revenue']);
@@ -104,6 +128,35 @@ include __DIR__ . '/../includes/header.php';
         <div class="stat-value text-gold" style="font-size:1.4rem;"><?= formatCurrency($avg_order_val) ?></div>
     </div>
 </div>
+
+<!-- Profit & Returns (period) -->
+<div class="stats-grid fade-in" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px;">
+    <div class="stat-card">
+        <div class="stat-card-icon stat-icon-green"><i class="fa-solid fa-coins"></i></div>
+        <div class="stat-label">Gross Profit <small class="text-muted">(approx)</small></div>
+        <div class="stat-value" style="font-size:1.4rem;color:<?= $gross_profit>=0?'var(--success)':'var(--danger)' ?>;"><?= formatCurrency($gross_profit) ?></div>
+        <div class="stat-change neutral" style="font-size:.7rem;"><?= $margin_pct ?>% margin<?= $margin_prods ? ' · '.$margin_prods.' costed' : '' ?></div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-card-icon stat-icon-red"><i class="fa-solid fa-rotate-left"></i></div>
+        <div class="stat-label">Refunds</div>
+        <div class="stat-value" style="font-size:1.4rem;color:var(--danger);"><?= formatCurrency($returns['amt']) ?></div>
+        <div class="stat-change neutral" style="font-size:.7rem;"><?= (int)$returns['cnt'] ?> refund(s) · <?= $returns_rate ?>% of revenue</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-card-icon stat-icon-blue"><i class="fa-solid fa-receipt"></i></div>
+        <div class="stat-label">Tax Collected</div>
+        <div class="stat-value" style="font-size:1.4rem;"><?= formatCurrency($tax_collected) ?></div>
+        <div class="stat-change neutral" style="font-size:.7rem;">on paid orders in range</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-card-icon stat-icon-gold"><i class="fa-solid fa-chart-pie"></i></div>
+        <div class="stat-label">Net (rev − refunds)</div>
+        <div class="stat-value text-gold" style="font-size:1.4rem;"><?= formatCurrency((float)$range_revenue - (float)$returns['amt']) ?></div>
+        <div class="stat-change neutral" style="font-size:.7rem;">period net revenue</div>
+    </div>
+</div>
+<div class="text-muted fade-in" style="font-size:.72rem;margin:-12px 0 20px;"><i class="fa-solid fa-circle-info"></i> Gross profit is approximate — it counts only items whose product has a <b>Cost Price</b> set, using the current cost. Tax shows ₹0 until tax is configured on orders.</div>
 
 <!-- Monthly Revenue Chart -->
 <div class="card fade-in" style="margin-bottom:24px;">
@@ -227,7 +280,9 @@ function exportCsv() {
 // Monthly chart
 const monthlyData = <?= json_encode($monthly) ?>;
 const ctx = document.getElementById('monthlyChart');
-if (ctx) {
+if (ctx && (!monthlyData || !monthlyData.length)) {
+    ctx.parentElement.innerHTML = '<div style="text-align:center;padding:60px 0;color:var(--text-muted);"><i class="fa-solid fa-chart-line" style="font-size:2rem;opacity:.25;display:block;margin-bottom:10px;"></i>No paid revenue in this period</div>';
+} else if (ctx) {
     new Chart(ctx, {
         type: 'bar',
         data: {

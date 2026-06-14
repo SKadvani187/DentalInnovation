@@ -69,8 +69,13 @@ function showToast(message, type = 'success') {
         <i class="fa-solid fa-${icons[type] || 'circle-check'} toast-icon"></i>
         <span class="toast-text">${message}</span>
     `;
+    // Click to dismiss; errors/warnings linger longer than successes (easy to miss otherwise).
+    toast.style.cursor = 'pointer';
+    toast.title = 'Click to dismiss';
+    toast.addEventListener('click', () => toast.remove());
     container.appendChild(toast);
-    setTimeout(() => toast.remove(), 3500);
+    const ttl = (type === 'danger' || type === 'warning') ? 7000 : 3500;
+    setTimeout(() => toast.remove(), ttl);
 }
 
 // ── Confirm Modal ──
