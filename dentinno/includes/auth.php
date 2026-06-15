@@ -266,7 +266,11 @@ function getSidebarBadges() {
         $pendingReviews = db()->fetchOne("SELECT COUNT(*) as val FROM product_reviews WHERE is_approved=0 AND is_deleted=0")['val'] ?? 0;
     } catch (Throwable $e) { $pendingReviews = 0; }
     $s['pending_reviews'] = (int)$pendingReviews;
-    $s['notif_count'] = count($s['notifications']) + (int)$pendingReviews;
+    // The bell badge must equal what the dropdown LISTS — i.e. the notifications rows only.
+    // pending_reviews used to be added here, but those rows are NOT shown in the dropdown,
+    // so the badge said "3" while the dropdown showed 1. (getDashboardStats() already counts
+    // notifications only — this keeps the two code paths consistent across pages.)
+    $s['notif_count'] = count($s['notifications']);
 
     // Actionable badges for the sidebar — kept cheap (single COUNTs), each guarded so a missing
     // table/column never breaks the header on an un-migrated DB.
