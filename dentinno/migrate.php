@@ -17,8 +17,10 @@
 require_once __DIR__ . '/includes/config.php';
 
 if (php_sapi_name() !== 'cli') {
-    // Allow browser use too, but make output readable.
+    // Migrations alter the schema — they must NEVER be triggerable over HTTP.
+    http_response_code(403);
     header('Content-Type: text/plain; charset=utf-8');
+    die("Forbidden. Run migrations from the command line: php migrate.php\n");
 }
 
 $pdo = db()->getConnection();

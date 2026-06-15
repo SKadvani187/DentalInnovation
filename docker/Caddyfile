@@ -1,0 +1,6 @@
+# Automatic HTTPS for the storefront + backend. Caddy obtains and renews a
+# Let's Encrypt certificate for {$DOMAIN} and reverse-proxies to the web container.
+{$DOMAIN} {
+    reverse_proxy web:80
+    encode gzip
+}

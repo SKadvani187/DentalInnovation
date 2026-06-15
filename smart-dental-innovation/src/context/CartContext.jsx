@@ -7,6 +7,13 @@ import api from "../lib/api";
 
 const CartContext = createContext(null);
 
+// Cap a quantity at the line's known stock — only for real product lines with a finite
+// stock > 0. Unknown stock (undefined) or non-product lines (gifts/offers) pass through
+// unchanged. Prevents building a cart that can never clear the checkout stock check.
+function capToStock(qty, stock) {
+  return (typeof stock === "number" && stock > 0) ? Math.min(qty, stock) : qty;
+}
+
 export function CartProvider({ children }) {
   const [items, setItems] = useLocalStorage("sdi:cart", []);
   const { token } = useAuth();
@@ -142,7 +149,8 @@ export function CartProvider({ children }) {
       const idx = prev.findIndex((i) => i.key === key);
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = { ...next[idx], qty: next[idx].qty + qty };
+        const merged = next[idx].qty + qty;
+        next[idx] = { ...next[idx], qty: type === "product" ? capToStock(merged, next[idx].stock) : merged };
         return next;
       }
       return [
@@ -156,8 +164,10 @@ export function CartProvider({ children }) {
           mrp: product.mrp,
           category: product.category || "unique",
           variant,
-          qty,
+          qty: type === "product" ? capToStock(qty, product.stock) : qty,
           type,
+          // Remember available stock so later increments can't exceed it.
+          stock: typeof product.stock === "number" ? product.stock : undefined,
           offerId: product.offerId || null,
           parentId: product.parentId || null,
           // For gift lines, remember the per-offer-unit qty so it can scale with the offer line.
@@ -182,7 +192,8 @@ export function CartProvider({ children }) {
     setItems((prev) => {
       const line = prev.find((i) => i.key === key);
       if (!line) return prev;
-      const newQty = Math.max(1, qty);
+      // Clamp to [1, stock] for product lines (stock known); gifts/offers just clamp ≥1.
+      const newQty = line.type === "product" ? capToStock(Math.max(1, qty), line.stock) : Math.max(1, qty);
       return prev
         .map((i) => {
           if (i.key === key) return { ...i, qty: newQty };

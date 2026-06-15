@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Static sitemap of the main storefront sections. Product/category detail URLs are dynamic —
+  generate and append them from the catalog (e.g. a build script that reads the products API
+  and emits <url> entries) so every product page is discoverable.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://www.reetzdentinnovations.com/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>
+  <url><loc>https://www.reetzdentinnovations.com/category</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://www.reetzdentinnovations.com/shop-by-price</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.reetzdentinnovations.com/great-value</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.reetzdentinnovations.com/combos</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.reetzdentinnovations.com/offers</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.reetzdentinnovations.com/events</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://www.reetzdentinnovations.com/about</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://www.reetzdentinnovations.com/contact</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://www.reetzdentinnovations.com/qna</loc><changefreq>weekly</changefreq><priority>0.5</priority></url>
+</urlset>

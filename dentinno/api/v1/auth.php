@@ -43,6 +43,11 @@ if ($action === 'login') {
     $existing = $db->fetchOne("SELECT * FROM customers WHERE phone=?", [$mobile]);
     $token = makeToken();
 
+    // A soft-deleted account can't log back in.
+    if ($existing && !empty($existing['is_deleted'])) {
+        jsonErr('This account is no longer available. Please contact support.', 403);
+    }
+
     if ($existing) {
         $db->execute("UPDATE customers SET api_token=? WHERE id=?", [$token, $existing['id']]);
         // optional profile refresh

@@ -48,7 +48,7 @@ $prod = $db->fetchOne("SELECT id FROM products WHERE slug=?", [$slug]);
 if (!$prod) jsonOut(['success' => true, 'questions' => []]);
 
 $rows = $db->fetchAll(
-    "SELECT * FROM product_questions WHERE product_id=? AND is_approved=1 AND is_answered=1 ORDER BY answered_at DESC, created_at DESC",
+    "SELECT * FROM product_questions WHERE product_id=? AND is_approved=1 AND is_answered=1 AND is_deleted=0 ORDER BY answered_at DESC, created_at DESC",
     [(int)$prod['id']]
 );
 jsonOut(['success' => true, 'questions' => array_map('mapQuestion', $rows)]);

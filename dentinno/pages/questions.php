@@ -2,24 +2,36 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Product Q&A';
+requireView('questions');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    // Never let a PHP warning/exception leak HTML into the JSON response (breaks res.json()).
+    try {
     $d = json_decode(file_get_contents('php://input'), true);
     $action = $d['action'] ?? '';
+    requireAction('questions', rbacCrudVerb($action, $d));
     if ($action === 'answer') {
         $ans = trim((string)($d['answer'] ?? ''));
         if ($ans === '') { echo json_encode(['success'=>false,'message'=>'Answer cannot be empty']); exit; }
         // Answering also approves + publishes the question.
-        db()->execute("UPDATE product_questions SET answer=?, is_answered=1, is_approved=1, answered_at=NOW() WHERE id=?", [$ans, $d['id']]);
+        db()->execute("UPDATE product_questions SET answer=?, is_answered=1, is_approved=1, answered_at=NOW() WHERE id=?", [$ans, (int)($d['id'] ?? 0)]);
         echo json_encode(['success'=>true,'message'=>'Answer published']);
     } elseif ($action === 'approve') {
-        db()->execute("UPDATE product_questions SET is_approved=? WHERE id=?", [(int)$d['approved'], $d['id']]);
-        echo json_encode(['success'=>true,'message'=>$d['approved'] ? 'Published' : 'Hidden']);
+        $approved = !empty($d['approved']) ? 1 : 0;   // coerce to a strict 0/1
+        db()->execute("UPDATE product_questions SET is_approved=? WHERE id=?", [$approved, (int)($d['id'] ?? 0)]);
+        echo json_encode(['success'=>true,'message'=>$approved ? 'Published' : 'Hidden']);
     } elseif ($action === 'delete') {
-        db()->execute("DELETE FROM product_questions WHERE id=?", [$d['id']]);
+        // Soft-delete: keep the row so an accidental delete can be restored.
+        db()->execute("UPDATE product_questions SET is_deleted=1 WHERE id=?", [(int)($d['id'] ?? 0)]);
         echo json_encode(['success'=>true,'message'=>'Question deleted']);
+    } elseif ($action === 'restore') {
+        db()->execute("UPDATE product_questions SET is_deleted=0 WHERE id=?", [(int)($d['id'] ?? 0)]);
+        echo json_encode(['success'=>true,'message'=>'Question restored']);
+    }
+    } catch (Throwable $e) {
+        echo json_encode(['success'=>false,'message'=>'Server error: ' . $e->getMessage()]);
     }
     exit;
 }
@@ -31,14 +43,20 @@ $per_page = 15; $offset = ($page-1)*$per_page;
 
 $where = ["1=1"]; $params = [];
 if ($search) { $where[] = "(q.question LIKE ? OR q.asker_name LIKE ? OR p.name LIKE ?)"; $params = array_merge($params, ["%$search%","%$search%","%$search%"]); }
-if ($status === 'pending')  { $where[] = "q.is_answered=0"; }
-if ($status === 'answered') { $where[] = "q.is_answered=1"; }
+// Soft-delete: hide deleted unless the "Deleted" filter is chosen.
+if ($status === 'deleted') {
+    $where[] = "q.is_deleted=1";
+} else {
+    $where[] = "q.is_deleted=0";
+    if ($status === 'pending')      { $where[] = "q.is_answered=0"; }
+    elseif ($status === 'answered') { $where[] = "q.is_answered=1"; }
+}
 $whereStr = implode(' AND ', $where);
 
 $total = db()->fetchOne("SELECT COUNT(*) c FROM product_questions q LEFT JOIN products p ON q.product_id=p.id WHERE $whereStr", $params)['c'];
 $pages = ceil($total/$per_page);
 $questions = db()->fetchAll("SELECT q.*, p.name AS product_name FROM product_questions q LEFT JOIN products p ON q.product_id=p.id WHERE $whereStr ORDER BY q.is_answered ASC, q.created_at DESC LIMIT $per_page OFFSET $offset", $params);
-$stats = db()->fetchOne("SELECT COUNT(*) total, SUM(is_answered=0) pending, SUM(is_answered=1) answered FROM product_questions");
+$stats = db()->fetchOne("SELECT COUNT(*) total, SUM(is_answered=0) pending, SUM(is_answered=1) answered FROM product_questions WHERE is_deleted=0");
 
 include __DIR__ . '/../includes/header.php';
 ?>
@@ -67,6 +85,7 @@ include __DIR__ . '/../includes/header.php';
     <option value="">All</option>
     <option value="pending" <?= $status==='pending'?'selected':'' ?>>Pending</option>
     <option value="answered" <?= $status==='answered'?'selected':'' ?>>Answered</option>
+    <option value="deleted" <?= $status==='deleted'?'selected':'' ?>>🗑 Deleted</option>
   </select>
   <button class="btn btn-ghost btn-sm" onclick="applyFilters()"><i class="fa-solid fa-filter"></i> Filter</button>
   <a href="questions.php" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate-left"></i> Reset</a>
@@ -87,11 +106,11 @@ include __DIR__ . '/../includes/header.php';
           <td><span class="badge badge-<?= $q['is_answered'] ? 'success' : 'warning' ?>"><?= $q['is_answered'] ? 'Answered' : 'Pending' ?></span></td>
           <td>
             <div style="display:flex;gap:4px;">
-              <button class="btn btn-ghost btn-sm btn-icon" onclick='openAnswer(<?= json_encode($q) ?>)' title="Answer"><i class="fa-solid fa-reply" style="color:var(--gold-primary);"></i></button>
+              <button class="btn btn-ghost btn-sm btn-icon" onclick='openAnswer(<?= htmlspecialchars(json_encode($q, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT), ENT_QUOTES) ?>)' title="Answer"><i class="fa-solid fa-reply" style="color:var(--gold-primary);"></i></button>
               <?php if($q['is_answered']): ?>
               <button class="btn btn-ghost btn-sm btn-icon" onclick="approveQ(<?= $q['id'] ?>,<?= $q['is_approved']?0:1 ?>)" title="<?= $q['is_approved']?'Hide':'Publish' ?>"><i class="fa-solid fa-<?= $q['is_approved']?'eye-slash':'eye' ?>" style="color:<?= $q['is_approved']?'var(--warning)':'var(--success)' ?>;"></i></button>
               <?php endif; ?>
-              <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteQ(<?= $q['id'] ?>)" title="Delete"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+              <?php if (can('questions','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick="deleteQ(<?= $q['id'] ?>)" title="Delete"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
             </div>
           </td>
         </tr>
@@ -101,7 +120,24 @@ include __DIR__ . '/../includes/header.php';
     </table>
   </div>
   <?php if($pages>1): ?>
-  <div style="padding:16px 20px;border-top:1px solid var(--border-color);"><div class="pagination"><?php for($i=1;$i<=$pages;$i++): ?><div class="page-item <?= $i==$page?'active':'' ?>" onclick="goPage(<?= $i ?>)"><?= $i ?></div><?php endfor; ?></div></div>
+  <div style="padding:16px 20px;border-top:1px solid var(--border-color);">
+    <div class="pagination">
+      <?php
+      // Compact pagination: first, last, and a window around the current page (… for gaps).
+      $range = 2; $shown = [];
+      for ($i = 1; $i <= $pages; $i++) {
+          if ($i == 1 || $i == $pages || ($i >= $page - $range && $i <= $page + $range)) $shown[] = $i;
+      }
+      if ($page > 1): ?><div class="page-item" onclick="goPage(<?= $page-1 ?>)">‹</div><?php endif;
+      $prev = 0;
+      foreach ($shown as $i):
+          if ($prev && $i - $prev > 1): ?><div class="page-item" style="pointer-events:none;opacity:.5;">…</div><?php endif; ?>
+          <div class="page-item <?= $i==$page?'active':'' ?>" onclick="goPage(<?= $i ?>)"><?= $i ?></div>
+          <?php $prev = $i;
+      endforeach;
+      if ($page < $pages): ?><div class="page-item" onclick="goPage(<?= $page+1 ?>)">›</div><?php endif; ?>
+    </div>
+  </div>
   <?php endif; ?>
 </div>
 
@@ -127,7 +163,7 @@ include __DIR__ . '/../includes/header.php';
 
 <script>
 function applyFilters(){window.location.href=`questions.php?search=${encodeURIComponent(document.getElementById('searchInput').value)}&status=${document.getElementById('statusFilter').value}`;}
-function goPage(p){window.location.href=`questions.php?page=${p}`;}
+function goPage(p){const q=new URLSearchParams(window.location.search);q.set('page',p);window.location.href='questions.php?'+q.toString();}
 async function post(payload){const res=await fetch('questions.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(payload)});return res.json();}
 
 function openAnswer(q){
@@ -145,6 +181,7 @@ async function saveAnswer(){
   else showToast(r.message||'Failed','danger');
 }
 async function approveQ(id,approved){const r=await post({action:'approve',id,approved});if(r.success){showToast(r.message,'success');setTimeout(()=>location.reload(),500);}}
-function deleteQ(id){showConfirm('Delete Question','Permanently delete this question?',async()=>{const r=await post({action:'delete',id});if(r.success){showToast(r.message,'success');const row=document.getElementById('q-row-'+id);if(row){row.style.opacity='0';row.style.transition='.3s';setTimeout(()=>row.remove(),300);}}});}
+function deleteQ(id){showConfirm('Delete Question','This hides the question from the storefront. You can restore it from the "Deleted" filter. Continue?',async()=>{const r=await post({action:'delete',id});if(r.success){showToast(r.message,'success');const row=document.getElementById('q-row-'+id);if(row){row.style.opacity='0';row.style.transition='.3s';setTimeout(()=>row.remove(),300);}}});}
+async function restoreQ(id){const r=await post({action:'restore',id});if(r.success){showToast(r.message,'success');const row=document.getElementById('q-row-'+id);if(row){row.style.opacity='0';row.style.transition='.3s';setTimeout(()=>row.remove(),300);}}}
 </script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

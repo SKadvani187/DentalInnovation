@@ -52,6 +52,8 @@ function reverseOrderEffects(int $orderId): bool {
                 // Gift lines (price 0) still consumed stock + bumped total_sales at creation,
                 // so they are restocked here too — symmetric with orders.php.
                 $restockProd->execute([$qty, $qty, (int)$it['product_id']]);
+                // Ledger: stock back in from a refund (best-effort).
+                recordStockMovement((int)$it['product_id'], $qty, 'refund', null, $order['order_number'] ?? null);
             } elseif (!empty($it['product_slug'])) {
                 // Non-catalog line backed by a combo (product_id NULL): restock the combo.
                 $restockCombo->execute([$qty, $it['product_slug']]);
@@ -73,6 +75,8 @@ function reverseOrderEffects(int $orderId): bool {
                 "UPDATE coupons SET uses_count = GREATEST(0, uses_count - 1) WHERE id = ?",
                 [(int)$order['coupon_id']]
             );
+            // Free the customer's per-customer redemption slot so they can use it again.
+            $db->execute("DELETE FROM coupon_redemptions WHERE order_id = ?", [(int)$order['id']]);
         }
 
         if ($ownTxn) $pdo->commit();

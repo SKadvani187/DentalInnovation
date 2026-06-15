@@ -1,0 +1,17 @@
+# Keep the build context small and reproducible.
+.git
+.gitignore
+**/node_modules
+smart-dental-innovation/dist
+**/*.log
+
+# Docs / scratch — not needed in the image.
+*.md
+*.docx
+*.xlsx
+.claude
+
+# Never bake local secrets into the image (provided via env at runtime instead).
+dentinno/includes/config.local.php
+smart-dental-innovation/.env
+smart-dental-innovation/.env.local

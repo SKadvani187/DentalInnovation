@@ -2,7 +2,7 @@
 // Base URL from VITE_API_URL (.env). Falls back to localhost dev API.
 // ROOT is one level above /v1 — the AI image/voice search endpoints live at /api/*.php.
 
-const BASE = import.meta.env.VITE_API_URL || "http://localhost:8088/api/v1";
+const BASE = import.meta.env.VITE_API_URL || "http://localhost/dentinno/api/v1";
 
 const ROOT = BASE.replace(/\/v1\/?$/, "");
 

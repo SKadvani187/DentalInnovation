@@ -230,13 +230,37 @@ if ($action === 'verify') {
 
     // Best-effort WhatsApp payment confirmation. Fires once: this point is only reached
     // on the real unpaid->paid transition (the idempotency guard above returns early otherwise).
+    $ord = $db->fetchOne("SELECT * FROM orders WHERE id=?", [$o['id']]);
     try {
         require_once __DIR__ . '/../../includes/whatsapp_sender.php';
-        $ord = $db->fetchOne("SELECT * FROM orders WHERE id=?", [$o['id']]);
         if (!empty($cust['phone']) && $ord) waPaymentSuccess($cust, $ord);
     } catch (Throwable $e) { error_log('WA payVerify: ' . $e->getMessage()); }
 
+    // Best-effort admin "order placed (paid)" email — fires once, on the real paid transition.
+    try {
+        require_once __DIR__ . '/../../includes/order_mailer.php';
+        if ($ord) {
+            $omItems = $db->fetchAll("SELECT * FROM order_items WHERE order_id=?", [$o['id']]);
+            sendOrderAdminMail($ord, $omItems, $cust, 'placed');
+        }
+    } catch (Throwable $e) { error_log('orderMail paid: ' . $e->getMessage()); }
+
     jsonOut(['success' => true, 'orderId' => $o['order_number'], 'paymentStatus' => 'paid']);
+}
+
+// Notify the admin that an online payment was cancelled / failed for an order. The storefront
+// calls this when the customer dismisses or the gateway rejects the Razorpay popup. Only
+// notifies while the order is still unpaid, so a later successful retry isn't contradicted.
+if ($action === 'failed') {
+    $o = loadOwnedOrder($db, $cust, (string)($body['orderId'] ?? ''));
+    if (($o['payment_status'] ?? '') !== 'paid') {
+        try {
+            require_once __DIR__ . '/../../includes/order_mailer.php';
+            $items = $db->fetchAll("SELECT * FROM order_items WHERE order_id=?", [$o['id']]);
+            sendOrderAdminMail($o, $items, $cust, 'failed');
+        } catch (Throwable $e) { error_log('orderMail failed: ' . $e->getMessage()); }
+    }
+    jsonOut(['success' => true]);
 }
 
 jsonErr('Unknown action', 400);

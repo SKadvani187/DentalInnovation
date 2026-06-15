@@ -205,6 +205,19 @@ $tax      = $pricing['tax'];
 $total    = $pricing['total'];
 $payMethod = (string)($body['paymentMethod'] ?? 'cod');
 
+// Per-customer coupon cap: block a customer redeeming a code more times than per_user_limit
+// allows (NULL = unlimited). The global cap is enforced atomically at increment time below.
+if ($pricing['couponRow']) {
+    $perUser = $pricing['couponRow']['per_user_limit'] ?? 1;
+    if ($perUser !== null && $perUser !== '') {
+        $usedByCust = (int)($db->fetchOne(
+            "SELECT COUNT(*) c FROM coupon_redemptions WHERE coupon_id=? AND customer_id=?",
+            [(int)$pricing['couponRow']['id'], $cust['id']]
+        )['c'] ?? 0);
+        if ($usedByCust >= (int)$perUser) jsonErr('You have already used this coupon.', 422);
+    }
+}
+
 // COD guard: only allow Cash-on-Delivery where the delivery pincode is serviceable AND
 // has cod_available=1 (admin → Shipping → Pincode ETA). Longest-prefix match, same as
 // delivery.php. If no pincode rows exist at all, COD is left open (don't block on empty config).
@@ -265,6 +278,13 @@ try {
             if ($decStock->rowCount() !== 1) {
                 throw new RuntimeException('"' . $l['name'] . '" just went out of stock');
             }
+            // Ledger: stock out for this sale (best-effort; inside the order txn).
+            recordStockMovement((int)$l['product_id'], -(int)$l['qty'], 'sale', null, $orderNumber);
+            // Low-stock notification — fire once, only when this sale CROSSES the alert threshold.
+            $pr = $db->fetchOne("SELECT name, stock, min_stock_alert FROM products WHERE id=?", [$l['product_id']]);
+            if ($pr && (int)$pr['stock'] <= (int)$pr['min_stock_alert'] && ((int)$pr['stock'] + (int)$l['qty']) > (int)$pr['min_stock_alert']) {
+                pushNotification('stock', 'Low stock: ' . $pr['name'], $pr['name'] . ' is down to ' . (int)$pr['stock'] . ' (alert ≤ ' . (int)$pr['min_stock_alert'] . ')', '/pages/products.php?stock=restock');
+            }
         } elseif (!empty($l['slug'])) {
             // Non-catalog line backed by a combo: decrement combo stock the same way.
             $combo = $db->fetchOne("SELECT id FROM combos WHERE slug=?", [$l['slug']]);
@@ -277,9 +297,21 @@ try {
         }
     }
 
-    // Record coupon usage (now that the order is committed-bound).
+    // Record coupon usage atomically: the conditional UPDATE only succeeds while the global
+    // uses_limit hasn't been hit, closing the concurrent over-redemption race. Then log the
+    // per-customer redemption (drives the per_user_limit check above).
     if ($pricing['couponRow']) {
-        $db->execute("UPDATE coupons SET uses_count = uses_count + 1 WHERE id=?", [(int)$pricing['couponRow']['id']]);
+        $cpId = (int)$pricing['couponRow']['id'];
+        $bumped = $db->execute(
+            "UPDATE coupons SET uses_count = uses_count + 1
+              WHERE id=? AND (uses_limit IS NULL OR uses_count < uses_limit)",
+            [$cpId]
+        );
+        if ($bumped < 1) throw new RuntimeException('This coupon has reached its usage limit.');
+        $db->insert(
+            "INSERT INTO coupon_redemptions (coupon_id, customer_id, order_id) VALUES (?,?,?)",
+            [$cpId, $cust['id'], $orderId]
+        );
     }
 
     // bump customer aggregates
@@ -294,6 +326,9 @@ try {
     jsonErr('Order failed: ' . $t->getMessage(), 409);
 }
 
+// New-order notification for admins (after commit, so a rolled-back order never notifies).
+pushNotification('order', 'New order ' . $orderNumber, $cust['name'] . ' placed an order of ₹' . number_format($total, 2), '/pages/orders.php?view=' . $orderId);
+
 $o = $db->fetchOne("SELECT * FROM orders WHERE id=?", [$orderId]);
 $oi = $db->fetchAll("SELECT * FROM order_items WHERE order_id=?", [$orderId]);
 
@@ -302,5 +337,12 @@ try {
     require_once __DIR__ . '/../../includes/whatsapp_sender.php';
     if (!empty($cust['phone'])) waOrderPlaced($cust, $o, $oi);
 } catch (Throwable $e) { error_log('WA orderPlaced: ' . $e->getMessage()); }
+
+// Best-effort admin order-placed email. COD only here — online orders are emailed once the
+// payment is captured (see payment_razorpay.php). Never blocks the response.
+try {
+    require_once __DIR__ . '/../../includes/order_mailer.php';
+    if ($payMethod === 'cod') sendOrderAdminMail($o, $oi, $cust, 'placed');
+} catch (Throwable $e) { error_log('orderMail placed: ' . $e->getMessage()); }
 
 jsonOut(['success' => true, 'order' => mapOrder($o, $oi)], 201);

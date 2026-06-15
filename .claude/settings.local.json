@@ -10,7 +10,17 @@
       "Bash(/d/DIP/OtherData/xampp/php/php.exe -l dentinno/includes/header.php)",
       "PowerShell(try { $r = Invoke-RestMethod \"http://localhost:8088/api/v1/offers.php\" -TimeoutSec 6; \"API offers count: $\\($r.offers.Count\\)\"; $r.offers | Select-Object -First 3 | ForEach-Object { \"  - $\\($_.title\\) | gradient=$\\($_.gradient\\) | accent=$\\($_.accent\\)\" } } catch { \"OFFERS API ERR: $\\($_.Exception.Message\\)\" })",
       "PowerShell(try { $r = Invoke-RestMethod \"http://localhost:8088/api/v1/offers.php\" -TimeoutSec 6; $r.offers | ForEach-Object { \"  $\\($_.title\\): accent=$\\($_.accent\\) gradient=$\\($_.gradient.Substring\\(0,[Math]::Min\\(35,$_.gradient.Length\\)\\)\\) cta=$\\($_.cta\\)\" } } catch { \"ERR: $\\($_.Exception.Message\\)\" })",
-      "Bash(/d/DIP/OtherData/xampp/php/php.exe -l dentinno/pages/offers.php)"
+      "Bash(/d/DIP/OtherData/xampp/php/php.exe -l dentinno/pages/offers.php)",
+      "Bash(\"C:/xampp/php/php.exe\" -l \"f:/DentalInnovation-DIP_Final_UI/DentalInnovation-DIP_Final_UI/dentinno/pages/customers.php\")",
+      "Bash(\"C:/xampp/php/php.exe\" -l \"f:/DentalInnovation-DIP_Final_UI/DentalInnovation-DIP_Final_UI/dentinno/pages/orders.php\")",
+      "Bash(\"C:/xampp/php/php.exe\" -l \"f:/DentalInnovation-DIP_Final_UI/DentalInnovation-DIP_Final_UI/dentinno/pages/products.php\")",
+      "Bash(\"C:/xampp/php/php.exe\" -l \"f:/DentalInnovation-DIP_Final_UI/DentalInnovation-DIP_Final_UI/dentinno/pages/shipping.php\")",
+      "Bash(\"C:/xampp/php/php.exe\" -l \"f:/DentalInnovation-DIP_Final_UI/DentalInnovation-DIP_Final_UI/dentinno/pages/settings.php\")",
+      "Bash(grep -rniA 25 \"CREATE TABLE.*testimonials\" \"f:/DentalInnovation-DIP_Final_UI/DentalInnovation-DIP_Final_UI/dentinno/database_storefront.sql\")",
+      "Bash(grep -rniA 22 \"CREATE TABLE.*product_reviews\" \"f:/DentalInnovation-DIP_Final_UI/DentalInnovation-DIP_Final_UI/dentinno/database_additions.sql\")",
+      "Bash(cd /f/DentalInnovation-DIP_Final_UI/DentalInnovation-DIP_Final_UI/dentinno && ls database*.sql 2>/dev/null)",
+      "Read(//f/f/DentalInnovation-DIP_Final_UI/DentalInnovation-DIP_Final_UI/**)",
+      "Bash(grep -rniA 30 \"CREATE TABLE.*customers\" \"f:/DentalInnovation-DIP_Final_UI/DentalInnovation-DIP_Final_UI/dentinno/database.sql\")"
     ]
   }
 }

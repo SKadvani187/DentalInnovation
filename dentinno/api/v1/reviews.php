@@ -44,7 +44,7 @@ if (!$prod) jsonOut(['success' => true, 'reviews' => [], 'summary' => emptySumma
 
 $pid  = (int)$prod['id'];
 $rows = $db->fetchAll(
-    "SELECT * FROM product_reviews WHERE product_id=? AND is_approved=1 ORDER BY created_at DESC",
+    "SELECT * FROM product_reviews WHERE product_id=? AND is_approved=1 AND is_deleted=0 ORDER BY created_at DESC",
     [$pid]
 );
 $reviews = array_map('mapReview', $rows);

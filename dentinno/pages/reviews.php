@@ -2,31 +2,51 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Product Reviews';
+requireView('reviews');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    // Never let a PHP warning/exception leak HTML into the JSON response (breaks res.json()).
+    try {
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
+    requireAction('reviews', rbacCrudVerb($action, $data));
     if ($action === 'approve') {
-        db()->execute("UPDATE product_reviews SET is_approved=? WHERE id=?", [$data['approved'], $data['id']]);
-        echo json_encode(['success' => true, 'message' => $data['approved'] ? 'Review approved' : 'Review hidden']);
+        $approved = !empty($data['approved']) ? 1 : 0;   // coerce to a strict 0/1
+        db()->execute("UPDATE product_reviews SET is_approved=? WHERE id=?", [$approved, (int)($data['id'] ?? 0)]);
+        echo json_encode(['success' => true, 'message' => $approved ? 'Review approved' : 'Review hidden']);
     } elseif ($action === 'verify') {
-        db()->execute("UPDATE product_reviews SET is_verified=1 WHERE id=?", [$data['id']]);
+        db()->execute("UPDATE product_reviews SET is_verified=1 WHERE id=?", [(int)($data['id'] ?? 0)]);
         echo json_encode(['success' => true, 'message' => 'Marked as verified purchase']);
     } elseif ($action === 'delete') {
-        db()->execute("DELETE FROM product_reviews WHERE id=?", [$data['id']]);
+        // Soft-delete: keep the row so an accidental delete can be restored.
+        db()->execute("UPDATE product_reviews SET is_deleted=1 WHERE id=?", [(int)($data['id'] ?? 0)]);
         echo json_encode(['success' => true, 'message' => 'Review deleted']);
+    } elseif ($action === 'restore') {
+        db()->execute("UPDATE product_reviews SET is_deleted=0 WHERE id=?", [(int)($data['id'] ?? 0)]);
+        echo json_encode(['success' => true, 'message' => 'Review restored']);
     } elseif ($action === 'bulk_approve') {
-        $ids = array_map('intval', $data['ids']);
+        $ids = array_values(array_filter(array_map('intval', (array)($data['ids'] ?? []))));
+        if (!$ids) { echo json_encode(['success'=>false,'message'=>'No reviews selected']); exit; }
         $ph  = implode(',', array_fill(0, count($ids), '?'));
-        db()->execute("UPDATE product_reviews SET is_approved=1 WHERE id IN ($ph)", $ids);
+        db()->execute("UPDATE product_reviews SET is_approved=1 WHERE id IN ($ph) AND is_deleted=0", $ids);
         echo json_encode(['success' => true, 'message' => count($ids) . ' reviews approved']);
     } elseif ($action === 'bulk_delete') {
-        $ids = array_map('intval', $data['ids']);
+        $ids = array_values(array_filter(array_map('intval', (array)($data['ids'] ?? []))));
+        if (!$ids) { echo json_encode(['success'=>false,'message'=>'No reviews selected']); exit; }
         $ph  = implode(',', array_fill(0, count($ids), '?'));
-        db()->execute("DELETE FROM product_reviews WHERE id IN ($ph)", $ids);
+        db()->execute("UPDATE product_reviews SET is_deleted=1 WHERE id IN ($ph)", $ids);
         echo json_encode(['success' => true, 'message' => count($ids) . ' reviews deleted']);
+    } elseif ($action === 'bulk_restore') {
+        $ids = array_values(array_filter(array_map('intval', (array)($data['ids'] ?? []))));
+        if (!$ids) { echo json_encode(['success'=>false,'message'=>'No reviews selected']); exit; }
+        $ph  = implode(',', array_fill(0, count($ids), '?'));
+        db()->execute("UPDATE product_reviews SET is_deleted=0 WHERE id IN ($ph)", $ids);
+        echo json_encode(['success' => true, 'message' => count($ids) . ' reviews restored']);
+    }
+    } catch (Throwable $e) {
+        echo json_encode(['success'=>false,'message'=>'Server error: ' . $e->getMessage()]);
     }
     exit;
 }
@@ -40,7 +60,13 @@ $per_page = 15; $offset = ($page-1)*$per_page;
 $where = ["1=1"]; $params = [];
 if ($search)    { $where[] = "(r.reviewer_name LIKE ? OR r.review LIKE ? OR p.name LIKE ?)"; $params = array_merge($params, ["%$search%","%$search%","%$search%"]); }
 if ($rating)    { $where[] = "r.rating=?"; $params[] = $rating; }
-if ($approved !== '') { $where[] = "r.is_approved=?"; $params[] = (int)$approved; }
+// Soft-delete: hide deleted reviews unless the "Deleted" filter is chosen.
+if ($approved === 'deleted') {
+    $where[] = "r.is_deleted=1";
+} else {
+    $where[] = "r.is_deleted=0";
+    if ($approved !== '') { $where[] = "r.is_approved=?"; $params[] = (int)$approved; }
+}
 $whereStr = implode(' AND ', $where);
 
 $total   = db()->fetchOne("SELECT COUNT(*) as cnt FROM product_reviews r LEFT JOIN products p ON r.product_id=p.id WHERE $whereStr", $params)['cnt'];
@@ -48,7 +74,7 @@ $pages   = ceil($total/$per_page);
 $reviews = db()->fetchAll("SELECT r.*,p.name as product_name FROM product_reviews r LEFT JOIN products p ON r.product_id=p.id WHERE $whereStr ORDER BY r.created_at DESC LIMIT $per_page OFFSET $offset", $params);
 
 // Stats
-$stats = db()->fetchOne("SELECT COUNT(*) as total, SUM(is_approved=0) as pending, ROUND(AVG(rating),1) as avg_rating, SUM(is_verified=1) as verified FROM product_reviews");
+$stats = db()->fetchOne("SELECT COUNT(*) as total, SUM(is_approved=0) as pending, ROUND(AVG(rating),1) as avg_rating, SUM(is_verified=1) as verified FROM product_reviews WHERE is_deleted=0");
 
 include __DIR__ . '/../includes/header.php';
 ?>
@@ -69,6 +95,7 @@ include __DIR__ . '/../includes/header.php';
   <div style="display:flex;gap:10px;">
     <button class="btn btn-ghost btn-sm" onclick="bulkAction('approve')" id="bulkApproveBtn" style="display:none;"><i class="fa-solid fa-check"></i> Approve Selected</button>
     <button class="btn btn-ghost btn-sm" style="color:var(--danger);display:none;" onclick="bulkAction('delete')" id="bulkDeleteBtn"><i class="fa-solid fa-trash"></i> Delete Selected</button>
+    <button class="btn btn-ghost btn-sm" onclick="bulkAction('restore')" id="bulkRestoreBtn" style="display:none;"><i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i> Restore Selected</button>
   </div>
 </div>
 
@@ -98,7 +125,7 @@ include __DIR__ . '/../includes/header.php';
 <div class="filter-bar fade-in" style="flex-wrap:wrap;">
   <div class="search-wrapper" style="flex:1;min-width:180px;">
     <i class="fa-solid fa-magnifying-glass"></i>
-    <input type="text" class="search-input" id="searchInput" placeholder="Search reviews..." value="<?= $search ?>">
+    <input type="text" class="search-input" id="searchInput" placeholder="Search reviews..." value="<?= htmlspecialchars($search) ?>" onkeydown="if(event.key==='Enter')applyFilters()">
   </div>
   <select class="form-control" id="ratingFilter" style="max-width:140px;">
     <option value="">All Ratings</option>
@@ -108,6 +135,7 @@ include __DIR__ . '/../includes/header.php';
     <option value="">All Status</option>
     <option value="1" <?= $approved==='1'?'selected':'' ?>>Approved</option>
     <option value="0" <?= $approved==='0'?'selected':'' ?>>Pending</option>
+    <option value="deleted" <?= $approved==='deleted'?'selected':'' ?>>🗑 Deleted</option>
   </select>
   <button class="btn btn-ghost btn-sm" onclick="applyFilters()"><i class="fa-solid fa-filter"></i> Filter</button>
   <a href="reviews.php" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate-left"></i> Reset</a>
@@ -145,6 +173,8 @@ include __DIR__ . '/../includes/header.php';
           <td>
             <?php if($r['title']): ?><div style="font-weight:600;font-size:.82rem;margin-bottom:2px;"><?= htmlspecialchars($r['title']) ?></div><?php endif; ?>
             <div class="review-text" title="<?= htmlspecialchars($r['review']) ?>"><?= htmlspecialchars($r['review']) ?></div>
+            <?php $rImgs = !empty($r['images']) ? json_decode($r['images'], true) : null; $rImgCount = is_array($rImgs) ? count($rImgs) : 0; ?>
+            <?php if($rImgCount): ?><div style="font-size:.7rem;color:var(--gold-primary);margin-top:3px;cursor:pointer;" onclick="viewReview(<?= $r['id'] ?>)"><i class="fa-solid fa-images"></i> <?= $rImgCount ?> photo<?= $rImgCount>1?'s':'' ?></div><?php endif; ?>
           </td>
           <td style="font-size:.78rem;color:var(--text-muted);white-space:nowrap;">
             <?= date('d M Y', strtotime($r['created_at'])) ?><br>
@@ -157,6 +187,14 @@ include __DIR__ . '/../includes/header.php';
           </td>
           <td>
             <div style="display:flex;gap:4px;">
+              <button class="btn btn-ghost btn-sm btn-icon" onclick="viewReview(<?= $r['id'] ?>)" title="View Full">
+                <i class="fa-solid fa-eye" style="color:var(--gold-primary);"></i>
+              </button>
+              <?php if(!empty($r['is_deleted'])): ?>
+              <button class="btn btn-ghost btn-sm btn-icon" onclick="restoreReview(<?= $r['id'] ?>)" title="Restore">
+                <i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i>
+              </button>
+              <?php else: ?>
               <button class="btn btn-ghost btn-sm btn-icon" onclick="approveReview(<?= $r['id'] ?>,<?= $r['is_approved']?0:1 ?>)" title="<?= $r['is_approved']?'Hide':'Approve' ?>">
                 <i class="fa-solid fa-<?= $r['is_approved']?'eye-slash':'check' ?>" style="color:<?= $r['is_approved']?'var(--warning)':'var(--success)' ?>;"></i>
               </button>
@@ -168,9 +206,11 @@ include __DIR__ . '/../includes/header.php';
               <button class="btn btn-ghost btn-sm btn-icon" onclick="viewReview(<?= $r['id'] ?>)" title="View Full">
                 <i class="fa-solid fa-eye" style="color:var(--gold-primary);"></i>
               </button>
+              <?php if (can('reviews','delete')): ?>
               <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteReview(<?= $r['id'] ?>)" title="Delete">
                 <i class="fa-solid fa-trash" style="color:var(--danger);"></i>
               </button>
+              <?php endif; ?>
             </div>
           </td>
         </tr>
@@ -184,7 +224,20 @@ include __DIR__ . '/../includes/header.php';
   <?php if($pages > 1): ?>
   <div style="padding:16px 20px;border-top:1px solid var(--border-color);">
     <div class="pagination">
-      <?php for($i=1;$i<=$pages;$i++): ?><div class="page-item <?= $i==$page?'active':'' ?>" onclick="goPage(<?= $i ?>)"><?= $i ?></div><?php endfor; ?>
+      <?php
+      // Compact pagination: first, last, and a window around the current page (… for gaps).
+      $range = 2; $shown = [];
+      for ($i = 1; $i <= $pages; $i++) {
+          if ($i == 1 || $i == $pages || ($i >= $page - $range && $i <= $page + $range)) $shown[] = $i;
+      }
+      if ($page > 1): ?><div class="page-item" onclick="goPage(<?= $page-1 ?>)">‹</div><?php endif;
+      $prev = 0;
+      foreach ($shown as $i):
+          if ($prev && $i - $prev > 1): ?><div class="page-item" style="pointer-events:none;opacity:.5;">…</div><?php endif; ?>
+          <div class="page-item <?= $i==$page?'active':'' ?>" onclick="goPage(<?= $i ?>)"><?= $i ?></div>
+          <?php $prev = $i;
+      endforeach;
+      if ($page < $pages): ?><div class="page-item" onclick="goPage(<?= $page+1 ?>)">›</div><?php endif; ?>
     </div>
   </div>
   <?php endif; ?>
@@ -202,13 +255,16 @@ include __DIR__ . '/../includes/header.php';
 const reviewsData = <?= json_encode(array_column($reviews, null, 'id')) ?>;
 
 function applyFilters(){window.location.href=`reviews.php?search=${encodeURIComponent(document.getElementById('searchInput').value)}&rating=${document.getElementById('ratingFilter').value}&approved=${document.getElementById('approvedFilter').value}`;}
-function goPage(p){window.location.href=`reviews.php?page=${p}`;}
+function goPage(p){const q=new URLSearchParams(window.location.search);q.set('page',p);window.location.href='reviews.php?'+q.toString();}
 
+const IS_DELETED_VIEW = <?= $approved==='deleted'?'true':'false' ?>;
 function toggleSelectAll(cb){document.querySelectorAll('.review-check').forEach(c=>c.checked=cb.checked);updateBulkBtns();}
 function updateBulkBtns(){
   const any=document.querySelectorAll('.review-check:checked').length>0;
-  document.getElementById('bulkApproveBtn').style.display=any?'':'none';
-  document.getElementById('bulkDeleteBtn').style.display=any?'':'none';
+  const show=(id,cond)=>{const el=document.getElementById(id);if(el)el.style.display=(any&&cond)?'':'none';};
+  show('bulkApproveBtn', !IS_DELETED_VIEW);
+  show('bulkDeleteBtn',  !IS_DELETED_VIEW);
+  show('bulkRestoreBtn', IS_DELETED_VIEW);
 }
 function getSelected(){return [...document.querySelectorAll('.review-check:checked')].map(c=>parseInt(c.value));}
 
@@ -226,32 +282,49 @@ async function verifyReview(id){
   if(r.success){showToast(r.message,'success');setTimeout(()=>location.reload(),600);}
 }
 async function deleteReview(id){
-  showConfirm('Delete Review','Permanently delete this review?',async()=>{
+  showConfirm('Delete Review','Hide this review from the storefront. You can restore it from the "Deleted" filter. Continue?',async()=>{
     const r=await post({action:'delete',id});
     if(r.success){showToast(r.message,'success');const row=document.getElementById('review-row-'+id);if(row){row.style.opacity='0';row.style.transition='.3s';setTimeout(()=>row.remove(),300);}}
   });
 }
+async function restoreReview(id){
+  const r=await post({action:'restore',id});
+  if(r.success){showToast(r.message,'success');const row=document.getElementById('review-row-'+id);if(row){row.style.opacity='0';row.style.transition='.3s';setTimeout(()=>row.remove(),300);}}
+}
 async function bulkAction(type){
   const ids=getSelected();if(!ids.length)return;
   if(type==='delete'){
-    showConfirm('Delete Reviews',`Delete ${ids.length} selected reviews?`,async()=>{
+    showConfirm('Delete Reviews',`Delete ${ids.length} selected reviews? They can be restored from the "Deleted" filter.`,async()=>{
       const r=await post({action:'bulk_delete',ids});
       if(r.success){showToast(r.message,'success');setTimeout(()=>location.reload(),700);}
     });
+  } else if(type==='restore'){
+    const r=await post({action:'bulk_restore',ids});
+    if(r.success){showToast(r.message,'success');setTimeout(()=>location.reload(),700);}
   } else {
     const r=await post({action:'bulk_approve',ids});
     if(r.success){showToast(r.message,'success');setTimeout(()=>location.reload(),700);}
   }
 }
 
+// Render any photos a reviewer attached, so the admin can moderate them (click = open full size).
+function reviewImagesHtml(images){
+  let imgs=[];
+  try { imgs = images ? (typeof images==='string'?JSON.parse(images):images) : []; } catch(e){ imgs=[]; }
+  if(!Array.isArray(imgs)||!imgs.length) return '';
+  return `<div style="margin-top:12px;">
+    <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:6px;"><i class="fa-solid fa-images"></i> Attached photos (${imgs.length})</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">${imgs.map(u=>`<a href="${escapeHtml(u)}" target="_blank" rel="noopener"><img src="${escapeHtml(u)}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--border-color);" onerror="this.style.opacity=.2"></a>`).join('')}</div>
+  </div>`;
+}
 function viewReview(id){
   const r=reviewsData[id];if(!r)return;
   document.getElementById('viewModalBody').innerHTML=`
     <div style="margin-bottom:14px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
         <div>
-          <div style="font-weight:700;font-size:1rem;">${r.reviewer_name}</div>
-          ${r.reviewer_email?`<div style="font-size:.78rem;color:var(--text-muted);">${r.reviewer_email}</div>`:''}
+          <div style="font-weight:700;font-size:1rem;">${escapeHtml(r.reviewer_name)}</div>
+          ${r.reviewer_email?`<div style="font-size:.78rem;color:var(--text-muted);">${escapeHtml(r.reviewer_email)}</div>`:''}
         </div>
         <div style="text-align:right;">
           <div style="color:#F0D080;font-size:1rem;">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div>
@@ -259,10 +332,11 @@ function viewReview(id){
         </div>
       </div>
       <div style="font-size:.8rem;color:var(--text-muted);margin-bottom:12px;">
-        <i class="fa-solid fa-box" style="margin-right:5px;"></i>${r.product_name||'—'}
+        <i class="fa-solid fa-box" style="margin-right:5px;"></i>${escapeHtml(r.product_name||'—')}
       </div>
-      ${r.title?`<div style="font-weight:600;margin-bottom:6px;">${r.title}</div>`:''}
-      <div style="color:var(--text-secondary);font-size:.88rem;line-height:1.7;background:var(--bg-elevated);padding:14px;border-radius:var(--radius-sm);">${r.review}</div>
+      ${r.title?`<div style="font-weight:600;margin-bottom:6px;">${escapeHtml(r.title)}</div>`:''}
+      <div style="color:var(--text-secondary);font-size:.88rem;line-height:1.7;background:var(--bg-elevated);padding:14px;border-radius:var(--radius-sm);">${escapeHtml(r.review)}</div>
+      ${reviewImagesHtml(r.images)}
       <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
         <span class="badge badge-${r.is_approved?'success':'warning'}">${r.is_approved?'Approved':'Pending'}</span>
         ${r.is_verified?'<span class="badge badge-info"><i class="fa-solid fa-circle-check"></i> Verified</span>':''}

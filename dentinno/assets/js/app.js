@@ -1,5 +1,19 @@
 /* DentInno CRM — Main JavaScript */
 
+// ── XSS guard: escape any customer-supplied string before injecting it into innerHTML. ──
+// Admin view-modals render storefront data (review text, names, registration fields); without
+// escaping, a malicious submission would run script in the admin's session (stored XSS).
+function escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+window.escapeHtml = escapeHtml;
+
 // ── CSRF: auto-attach the per-session token to same-origin state-changing requests ──
 // Admin AJAX handlers verify this token (includes/auth.php::verifyCsrf). Patching fetch
 // here covers every inline fetch on every page without editing each one. Cross-origin
@@ -55,8 +69,13 @@ function showToast(message, type = 'success') {
         <i class="fa-solid fa-${icons[type] || 'circle-check'} toast-icon"></i>
         <span class="toast-text">${message}</span>
     `;
+    // Click to dismiss; errors/warnings linger longer than successes (easy to miss otherwise).
+    toast.style.cursor = 'pointer';
+    toast.title = 'Click to dismiss';
+    toast.addEventListener('click', () => toast.remove());
     container.appendChild(toast);
-    setTimeout(() => toast.remove(), 3500);
+    const ttl = (type === 'danger' || type === 'warning') ? 7000 : 3500;
+    setTimeout(() => toast.remove(), ttl);
 }
 
 // ── Confirm Modal ──
@@ -204,7 +223,9 @@ function initRevenueChart(chartData) {
 }
 
 // ── Order Status Doughnut ──
-function initOrderChart(data) {
+// `colors` (optional) is an array parallel to the labels so each status keeps a stable,
+// meaningful colour; falls back to a default palette if not supplied.
+function initOrderChart(data, colors) {
     const ctx = document.getElementById('orderChart');
     if (!ctx) return;
     new Chart(ctx, {
@@ -213,7 +234,7 @@ function initOrderChart(data) {
             labels: Object.keys(data),
             datasets: [{
                 data: Object.values(data),
-                backgroundColor: ['#F39C12','#3498DB','#C9A84C','#9B59B6','#2ECC71','#E74C3C'],
+                backgroundColor: (colors && colors.length) ? colors : ['#F39C12','#3498DB','#C9A84C','#9B59B6','#2ECC71','#E74C3C'],
                 borderWidth: 0,
                 hoverOffset: 8,
             }]

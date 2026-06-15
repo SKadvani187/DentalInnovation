@@ -94,4 +94,7 @@ $id = $db->insert(
     [$order['id'], $cust['id'], $reason, (float)$order['total']]
 );
 
+// Notify admins of the new refund request.
+pushNotification('payment', 'Refund request — ' . ($order['order_number'] ?? ('#'.$order['id'])), $cust['name'] . ' requested a refund of ₹' . number_format((float)$order['total'], 2), '/pages/refunds.php?status=pending');
+
 jsonOut(['success' => true, 'refundId' => (int)$id, 'status' => 'pending'], 201);

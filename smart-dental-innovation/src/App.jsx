@@ -3,7 +3,7 @@ import { WishlistProvider } from "./context/WishlistContext";
 import { AuthProvider } from "./context/AuthContext";
 import { UIProvider } from "./context/UIContext";
 import { SettingsProvider } from "./context/SettingsContext";
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ScrollToTop from "./components/ScrollToTop";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -24,22 +24,24 @@ import CheckoutDrawer from "./components/modals/CheckoutDrawer";
 import AuthModal from "./components/modals/AuthModal";
 import SearchModal from "./components/modals/SearchModal";
 import BulkQuoteModal from "./components/modals/BulkQuoteModal";
-import CategoryPage from "./components/pages/CategoryPage";
-import ShopByPricePage from "./components/pages/ShopByPricePage";
-import GreatValuePage from "./components/pages/GreatValuePage";
-import CombosPage from "./components/pages/CombosPage";
-import EventsPage from "./components/pages/EventsPage";
-import AboutPage from "./components/pages/AboutPage";
-import ContactPage from "./components/pages/ContactPage";
-import ProductDetailPage from "./components/pages/ProductDetailPage";
-import QnaPage from "./components/pages/QnaPage";
-import AccountPage from "./components/pages/AccountPage";
-import OrdersPage from "./components/pages/OrdersPage";
-import OrderDetailPage from "./components/pages/OrderDetailPage";
-import WishlistPage from "./components/pages/WishlistPage";
-import AddressPage from "./components/pages/AddressPage";
-import OfferZonePage from "./components/pages/OfferZonePage";
-import PolicyPage from "./components/pages/PolicyPage";
+// Route pages are code-split (React.lazy) so a first visit doesn't ship every page's JS in
+// one bundle — each route's chunk loads on demand. See <Suspense> around <Routes> below.
+const CategoryPage = lazy(() => import("./components/pages/CategoryPage"));
+const ShopByPricePage = lazy(() => import("./components/pages/ShopByPricePage"));
+const GreatValuePage = lazy(() => import("./components/pages/GreatValuePage"));
+const CombosPage = lazy(() => import("./components/pages/CombosPage"));
+const EventsPage = lazy(() => import("./components/pages/EventsPage"));
+const AboutPage = lazy(() => import("./components/pages/AboutPage"));
+const ContactPage = lazy(() => import("./components/pages/ContactPage"));
+const ProductDetailPage = lazy(() => import("./components/pages/ProductDetailPage"));
+const QnaPage = lazy(() => import("./components/pages/QnaPage"));
+const AccountPage = lazy(() => import("./components/pages/AccountPage"));
+const OrdersPage = lazy(() => import("./components/pages/OrdersPage"));
+const OrderDetailPage = lazy(() => import("./components/pages/OrderDetailPage"));
+const WishlistPage = lazy(() => import("./components/pages/WishlistPage"));
+const AddressPage = lazy(() => import("./components/pages/AddressPage"));
+const OfferZonePage = lazy(() => import("./components/pages/OfferZonePage"));
+const PolicyPage = lazy(() => import("./components/pages/PolicyPage"));
 import ToastHost from "./components/ui/ToastHost";
 import WhatsAppFab from "./components/layout/WhatsAppFab";
 
@@ -119,6 +121,7 @@ function Shell() {
     <>
       <NavigationHeader />
       <main>
+        <Suspense fallback={<div className="min-h-[60vh] flex items-center justify-center text-brand-muted text-sm">Loading…</div>}>
         <Routes>
           <Route path="/" element={<>{blocks.map(renderBlock)}</>} />
           <Route path="/category/:category?" element={<CategoryPage />} />
@@ -139,6 +142,7 @@ function Shell() {
           <Route path="/policy/:type?" element={<PolicyPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       </main>
       <Footer />
 

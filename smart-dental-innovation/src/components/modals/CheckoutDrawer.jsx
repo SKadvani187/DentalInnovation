@@ -180,10 +180,10 @@ export default function CheckoutDrawer() {
         modal: {
           ondismiss: () => {
             // User exited Razorpay without paying. The order already exists as pending —
-            // mirror the reference: leave checkout and land on its Order Details page,
-            // which shows the pending banner + Retry Payment.
+            // leave checkout and land on its Order Details page (pending banner + Retry
+            // Payment). Keep the cart intact: if this pending order is never paid (expires),
+            // the customer still has their items and isn't forced to re-add everything.
             setPlacing(false);
-            clearCart();
             closeModal();
             showToast?.("Payment not completed — your order is saved as pending.", "info");
             navigate("orderDetails", { id: order.orderId });
@@ -191,8 +191,9 @@ export default function CheckoutDrawer() {
         },
       });
       rz.on("payment.failed", () => {
+        // Payment failed — order stays pending, keep the cart so the customer can retry
+        // (via the Order Details page) without losing their items.
         setPlacing(false);
-        clearCart();
         closeModal();
         showToast?.("Payment failed — your order is saved as pending, you can retry.", "error");
         navigate("orderDetails", { id: order.orderId });

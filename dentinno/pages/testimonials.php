@@ -2,16 +2,26 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Testimonials';
+requireView('testimonials');
 
 // Image upload (shared products folder)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['t_image'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    requireAction('testimonials', 'edit');
     $upload_dir = __DIR__ . '/../assets/images/products/';
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
     $file = $_FILES['t_image'];
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) { echo json_encode(['success'=>false,'message'=>'Upload failed (error code '.($file['error'] ?? '?').')']); exit; }
     $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     if (!in_array($ext, ['jpg','jpeg','png','webp','gif'])) { echo json_encode(['success'=>false,'message'=>'Invalid file type']); exit; }
+    // Verify the actual file CONTENT, not just the extension (a .jpg could be a PHP script).
+    $fi = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : false;
+    $mime = $fi ? finfo_file($fi, $file['tmp_name']) : '';
+    if ($mime && !in_array($mime, ['image/jpeg','image/png','image/webp','image/gif'], true)) {
+        echo json_encode(['success'=>false,'message'=>'The file is not a valid image (content check failed)']); exit;
+    }
+    if (!imageDimsOk($file['tmp_name'])) { echo json_encode(['success'=>false,'message'=>'Image must be a valid file no larger than 6000×6000 px']); exit; }
     if ($file['size'] > 5*1024*1024) { echo json_encode(['success'=>false,'message'=>'File too large']); exit; }
     $fname = 'tst_' . time() . '_' . rand(1000,9999) . '.' . $ext;
     if (move_uploaded_file($file['tmp_name'], $upload_dir . $fname)) {
@@ -24,33 +34,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['t_image'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    // Never let a PHP warning/exception leak HTML into the JSON response (breaks res.json()).
+    try {
     $d = json_decode(file_get_contents('php://input'), true);
     $action = $d['action'] ?? '';
+    requireAction('testimonials', rbacCrudVerb($action, $d));
 
     if ($action === 'save') {
         $rating = max(1, min(5, (int)($d['rating'] ?? 5)));
+        // Required fields enforced server-side (never trust the client form).
+        $name = trim((string)($d['name'] ?? ''));
+        $text = trim((string)($d['text'] ?? ''));
+        if ($name === '' || $text === '') { echo json_encode(['success'=>false,'message'=>'Name and review text are required']); exit; }
+        $avatar  = ($d['avatar'] ?? '') ?: null;
+        $pImage  = ($d['product_image'] ?? '') ?: null;
+        $pName   = ($d['product_name'] ?? '') ?: null;
+        $active  = !empty($d['is_active']) ? 1 : 0;
         if (!empty($d['id'])) {
             db()->execute(
                 "UPDATE testimonials SET name=?,avatar=?,product_image=?,product_name=?,rating=?,text=?,is_active=? WHERE id=?",
-                [$d['name'],($d['avatar']??'')?:null,($d['product_image']??'')?:null,($d['product_name']??'')?:null,$rating,$d['text'],$d['is_active']??1,$d['id']]
+                [$name,$avatar,$pImage,$pName,$rating,$text,$active,(int)$d['id']]
             );
             echo json_encode(['success'=>true,'message'=>'Testimonial updated']);
         } else {
             $slug = 't-' . substr((string)time(), -6);
             db()->insert(
                 "INSERT INTO testimonials (slug,name,avatar,product_image,product_name,rating,text,is_active) VALUES (?,?,?,?,?,?,?,?)",
-                [$slug,$d['name'],($d['avatar']??'')?:null,($d['product_image']??'')?:null,($d['product_name']??'')?:null,$rating,$d['text'],$d['is_active']??1]
+                [$slug,$name,$avatar,$pImage,$pName,$rating,$text,$active]
             );
             echo json_encode(['success'=>true,'message'=>'Testimonial added']);
         }
+    } elseif ($action === 'toggle') {
+        db()->execute("UPDATE testimonials SET is_active = NOT is_active WHERE id=?", [(int)($d['id'] ?? 0)]);
+        echo json_encode(['success'=>true,'message'=>'Status updated']);
     } elseif ($action === 'delete') {
-        db()->execute("DELETE FROM testimonials WHERE id=?", [$d['id']]);
+        db()->execute("DELETE FROM testimonials WHERE id=?", [(int)($d['id'] ?? 0)]);
         echo json_encode(['success'=>true,'message'=>'Testimonial deleted']);
+    }
+    } catch (Throwable $e) {
+        echo json_encode(['success'=>false,'message'=>'Server error: ' . $e->getMessage()]);
     }
     exit;
 }
 
-$testimonials = db()->fetchAll("SELECT * FROM testimonials ORDER BY sort_order, id");
+$search = sanitize($_GET['search'] ?? '');
+$tWhere = ''; $tParams = [];
+if ($search) { $tWhere = "WHERE name LIKE ? OR text LIKE ? OR product_name LIKE ?"; $tParams = ["%$search%","%$search%","%$search%"]; }
+$testimonials = db()->fetchAll("SELECT * FROM testimonials $tWhere ORDER BY sort_order, id", $tParams);
 include __DIR__ . '/../includes/header.php';
 ?>
 
@@ -59,7 +89,16 @@ include __DIR__ . '/../includes/header.php';
         <h1>Testimonials</h1>
         <p>Customer reviews shown on the storefront home page</p>
     </div>
-    <button class="btn btn-gold" onclick="openTstModal()"><i class="fa-solid fa-plus"></i> Add Testimonial</button>
+    <?php if (can('testimonials','create')): ?><button class="btn btn-gold" onclick="openTstModal()"><i class="fa-solid fa-plus"></i> Add Testimonial</button><?php endif; ?>
+</div>
+
+<div class="filter-bar fade-in" style="flex-wrap:wrap;gap:8px;">
+    <div class="search-wrapper" style="flex:1;min-width:180px;max-width:300px;">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" class="search-input" id="searchInput" placeholder="Search testimonials..." value="<?= htmlspecialchars($search) ?>" onkeydown="if(event.key==='Enter')applyFilters()">
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="applyFilters()"><i class="fa-solid fa-filter"></i> Filter</button>
+    <a href="testimonials.php" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate-left"></i> Reset</a>
 </div>
 
 <div class="grid-3 fade-in">
@@ -77,14 +116,27 @@ include __DIR__ . '/../includes/header.php';
                 </div>
             </div>
             <div style="margin-top:12px;display:flex;justify-content:flex-end;gap:6px;">
-                <button class="btn btn-ghost btn-sm btn-icon" onclick='openTstModal(<?= json_encode($t) ?>)'><i class="fa-solid fa-pen"></i></button>
-                <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteTst(<?= $t['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+                <?php if (can('testimonials','edit')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick='openTstModal(<?= htmlspecialchars(json_encode($t, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT), ENT_QUOTES) ?>)'><i class="fa-solid fa-pen"></i></button><?php endif; ?>
+                <?php if (can('testimonials','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick="deleteTst(<?= $t['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
             </div>
         </div>
     </div>
     <?php endforeach; ?>
-    <?php if(empty($testimonials)): ?><p class="text-muted">No testimonials yet. Click "Add Testimonial".</p><?php endif; ?>
 </div>
+<?php if(empty($testimonials)): ?>
+<div class="card fade-in" style="text-align:center;padding:48px 20px;">
+    <i class="fa-solid fa-quote-right" style="font-size:2.6rem;color:var(--border-active);margin-bottom:12px;"></i>
+    <?php if($search !== ''): ?>
+    <h3 style="font-size:1rem;margin-bottom:4px;">No testimonials match "<?= htmlspecialchars($search) ?>"</h3>
+    <p class="text-muted" style="font-size:.85rem;margin-bottom:14px;">Try a different search — or reset to see all testimonials.</p>
+    <a href="testimonials.php" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate-left"></i> Reset</a>
+    <?php else: ?>
+    <h3 style="font-size:1rem;margin-bottom:4px;">No testimonials yet</h3>
+    <p class="text-muted" style="font-size:.85rem;margin-bottom:14px;">Add customer quotes to feature on the storefront home page.</p>
+    <button class="btn btn-gold btn-sm" onclick="openTstModal()"><i class="fa-solid fa-plus"></i> Add your first testimonial</button>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
 
 <!-- Modal -->
 <div class="modal-overlay" id="tstModal" style="display:none;" onclick="if(event.target===this)closeModal('tstModal')">
@@ -126,6 +178,7 @@ include __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
+function applyFilters(){const v=document.getElementById('searchInput').value;window.location.href='testimonials.php'+(v?('?search='+encodeURIComponent(v)):'');}
 function openTstModal(t = null) {
     document.getElementById('tst_id').value            = t?.id || '';
     document.getElementById('tst_name').value          = t?.name || '';
@@ -169,6 +222,10 @@ async function saveTst() {
     const r = await res.json();
     if(r.success){ showToast(r.message,'success'); closeModal('tstModal'); setTimeout(()=>location.reload(),800); }
     else showToast(r.message,'danger');
+}
+function toggleTst(id){
+    fetch('testimonials.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'toggle',id})})
+    .then(r=>r.json()).then(d=>{if(d.success){showToast('Status updated','success');setTimeout(()=>location.reload(),600);}});
 }
 function deleteTst(id) {
     showConfirm('Delete Testimonial','This review will be removed from the storefront.', async () => {

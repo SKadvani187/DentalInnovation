@@ -2,61 +2,90 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Shipping';
+requireView('shipping');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    // Never let a PHP warning/exception leak HTML into the JSON response (breaks res.json()).
+    try {
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
+    requireAction('shipping', rbacCrudVerb($action, $data));
 
     if ($action === 'save_method') {
         $d = $data;
+        $name = trim((string)($d['name'] ?? ''));
+        if ($name === '') { echo json_encode(['success'=>false,'message'=>'Method name is required']); exit; }
+        $type = in_array($d['type'] ?? '', ['flat','free','weight','price','product','flexible'], true) ? $d['type'] : 'flat';
+        $desc = (string)($d['description'] ?? '');
+        $base = max(0, (float)($d['base_cost'] ?? 0));
+        $active = !empty($d['is_active']) ? 1 : 0;
         if (!empty($d['id'])) {
             db()->execute("UPDATE shipping_methods SET name=?,description=?,type=?,base_cost=?,is_active=? WHERE id=?",
-                [$d['name'],$d['description'],$d['type'],$d['base_cost'],$d['is_active'],$d['id']]);
+                [$name,$desc,$type,$base,$active,(int)$d['id']]);
             echo json_encode(['success'=>true,'message'=>'Shipping method updated']);
         } else {
             db()->insert("INSERT INTO shipping_methods (name,description,type,base_cost,is_active) VALUES (?,?,?,?,?)",
-                [$d['name'],$d['description'],$d['type'],$d['base_cost'],$d['is_active']??1]);
+                [$name,$desc,$type,$base,$active]);
             echo json_encode(['success'=>true,'message'=>'Shipping method created']);
         }
     } elseif ($action === 'delete_method') {
-        db()->execute("DELETE FROM shipping_methods WHERE id=?",[$data['id']]);
+        // Deleting a method CASCADE-deletes its rules — warn first so the admin knows what goes.
+        $mid = (int)($data['id'] ?? 0);
+        $ruleCount = (int)(db()->fetchOne("SELECT COUNT(*) c FROM shipping_rules WHERE method_id=?", [$mid])['c'] ?? 0);
+        if ($ruleCount > 0 && empty($data['force'])) {
+            echo json_encode(['success'=>false,'needsConfirm'=>true,'ruleCount'=>$ruleCount,
+                'message'=>"This method has $ruleCount shipping rule(s) that will be deleted with it."]); exit;
+        }
+        db()->execute("DELETE FROM shipping_methods WHERE id=?",[$mid]);
         echo json_encode(['success'=>true,'message'=>'Method deleted']);
     } elseif ($action === 'toggle_method') {
-        db()->execute("UPDATE shipping_methods SET is_active=NOT is_active WHERE id=?",[$data['id']]);
+        db()->execute("UPDATE shipping_methods SET is_active=NOT is_active WHERE id=?",[(int)($data['id'] ?? 0)]);
         echo json_encode(['success'=>true]);
     } elseif ($action === 'save_zone') {
         $d = $data;
-        $states_json = json_encode(array_filter(array_map('trim', explode(',', $d['states'] ?? ''))));
+        $name = trim((string)($d['name'] ?? ''));
+        if ($name === '') { echo json_encode(['success'=>false,'message'=>'Zone name is required']); exit; }
+        $states_json = json_encode(array_values(array_filter(array_map('trim', explode(',', $d['states'] ?? '')))));
         // Pincode prefixes drive zone resolution at checkout (resolveShippingZone reads this).
         $pincodes_json = json_encode(array_values(array_filter(array_map(
             fn($p) => preg_replace('/\D/', '', trim($p)),
             explode(',', $d['pincodes'] ?? '')
         ))));
+        $active = isset($d['is_active']) ? (!empty($d['is_active']) ? 1 : 0) : 1;
         if (!empty($d['id'])) {
-            db()->execute("UPDATE shipping_zones SET name=?,states=?,pincodes=?,is_active=? WHERE id=?",[$d['name'],$states_json,$pincodes_json,$d['is_active'],$d['id']]);
+            db()->execute("UPDATE shipping_zones SET name=?,states=?,pincodes=?,is_active=? WHERE id=?",[$name,$states_json,$pincodes_json,$active,(int)$d['id']]);
         } else {
-            db()->insert("INSERT INTO shipping_zones (name,states,pincodes,is_active) VALUES (?,?,?,?)",[$d['name'],$states_json,$pincodes_json,1]);
+            db()->insert("INSERT INTO shipping_zones (name,states,pincodes,is_active) VALUES (?,?,?,?)",[$name,$states_json,$pincodes_json,1]);
         }
         echo json_encode(['success'=>true,'message'=>'Zone saved']);
     } elseif ($action === 'delete_zone') {
-        db()->execute("DELETE FROM shipping_zones WHERE id=?",[$data['id']]);
+        db()->execute("DELETE FROM shipping_zones WHERE id=?",[(int)($data['id'] ?? 0)]);
         echo json_encode(['success'=>true]);
     } elseif ($action === 'save_rule') {
         $d = $data;
+        $methodId = (int)($d['method_id'] ?? 0);
+        if ($methodId <= 0) { echo json_encode(['success'=>false,'message'=>'A shipping method is required']); exit; }
+        $ruleType = in_array($d['rule_type'] ?? '', ['weight','price','quantity','product'], true) ? $d['rule_type'] : 'weight';
+        $zoneId   = !empty($d['zone_id']) ? (int)$d['zone_id'] : null;
         // Product-class rules ignore min/max and target a shipping class instead.
-        $pclass = ($d['rule_type'] ?? '') === 'product' ? ($d['product_class'] ?: null) : null;
+        $pclass   = $ruleType === 'product' ? (($d['product_class'] ?? '') ?: null) : null;
+        $minV     = max(0, (float)($d['min_value'] ?? 0));
+        $maxV     = ($d['max_value'] ?? '') !== '' ? max(0, (float)$d['max_value']) : null;
+        $isFree   = !empty($d['is_free']) ? 1 : 0;
+        $cost     = $isFree ? 0 : max(0, (float)($d['cost'] ?? 0));
+        $active   = isset($d['is_active']) ? (!empty($d['is_active']) ? 1 : 0) : 1;
         if (!empty($d['id'])) {
             db()->execute("UPDATE shipping_rules SET method_id=?,zone_id=?,rule_type=?,min_value=?,max_value=?,product_class=?,cost=?,is_free=?,is_active=? WHERE id=?",
-                [$d['method_id'],$d['zone_id']?:null,$d['rule_type'],$d['min_value'],$d['max_value']?:null,$pclass,$d['cost'],$d['is_free']??0,$d['is_active']??1,$d['id']]);
+                [$methodId,$zoneId,$ruleType,$minV,$maxV,$pclass,$cost,$isFree,$active,(int)$d['id']]);
         } else {
             db()->insert("INSERT INTO shipping_rules (method_id,zone_id,rule_type,min_value,max_value,product_class,cost,is_free,is_active) VALUES (?,?,?,?,?,?,?,?,?)",
-                [$d['method_id'],$d['zone_id']?:null,$d['rule_type'],$d['min_value'],$d['max_value']?:null,$pclass,$d['cost'],$d['is_free']??0,1]);
+                [$methodId,$zoneId,$ruleType,$minV,$maxV,$pclass,$cost,$isFree,1]);
         }
         echo json_encode(['success'=>true,'message'=>'Rule saved']);
     } elseif ($action === 'delete_rule') {
-        db()->execute("DELETE FROM shipping_rules WHERE id=?",[$data['id']]);
+        db()->execute("DELETE FROM shipping_rules WHERE id=?",[(int)($data['id'] ?? 0)]);
         echo json_encode(['success'=>true]);
     } elseif ($action === 'save_pincode') {
         $d = $data;
@@ -64,10 +93,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         if ($pfx === '') { echo json_encode(['success'=>false,'message'=>'Pincode / prefix required']); exit; }
         $days = max(0, (int)($d['delivery_days'] ?? 5));
         $cod  = !empty($d['cod_available']) ? 1 : 0;
-        $act  = isset($d['is_active']) ? (int)$d['is_active'] : 1;
+        $act  = isset($d['is_active']) ? (!empty($d['is_active']) ? 1 : 0) : 1;
         if (!empty($d['id'])) {
             db()->execute("UPDATE delivery_pincodes SET pincode_prefix=?,label=?,delivery_days=?,cod_available=?,is_active=? WHERE id=?",
-                [$pfx,$d['label']??null,$days,$cod,$act,$d['id']]);
+                [$pfx,$d['label']??null,$days,$cod,$act,(int)$d['id']]);
         } else {
             db()->execute("INSERT INTO delivery_pincodes (pincode_prefix,label,delivery_days,cod_available,is_active) VALUES (?,?,?,?,1)
                 ON DUPLICATE KEY UPDATE label=VALUES(label),delivery_days=VALUES(delivery_days),cod_available=VALUES(cod_available),is_active=1",
@@ -75,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         }
         echo json_encode(['success'=>true,'message'=>'Pincode saved']);
     } elseif ($action === 'delete_pincode') {
-        db()->execute("DELETE FROM delivery_pincodes WHERE id=?",[$data['id']]);
+        db()->execute("DELETE FROM delivery_pincodes WHERE id=?",[(int)($data['id'] ?? 0)]);
         echo json_encode(['success'=>true,'message'=>'Pincode deleted']);
     } elseif ($action === 'calc') {
         // Shipping Cost Calculator — runs the SAME engine the storefront cart/checkout use,
@@ -86,16 +115,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $qty    = max(1, (int)($data['qty'] ?? 1));
         $zoneId = !empty($data['zone_id']) ? (int)$data['zone_id'] : null;
         $line   = [['product_id'=>null, 'qty'=>$qty, 'price'=>$price, 'line_type'=>'product']];
+        // Authoritative amount the customer is actually charged (auto-cheapest, zone-aware).
         $actual = computeShipping($line, $price, $weight, $qty, $zoneId);
 
-        // Per-method breakdown (informational).
-        $methods = [];
+        // Per-method breakdown via the SAME engine — only the methods that apply, sorted best-first.
+        $results = [];
         foreach (db()->fetchAll("SELECT * FROM shipping_methods WHERE is_active=1 ORDER BY sort_order") as $m) {
             $r = methodShippingCost($m, $price, $weight, $qty, $zoneId, []);
-            $methods[] = ['name'=>$m['name'], 'type'=>$m['type'], 'applicable'=>$r!==null,
-                          'cost'=>$r['cost'] ?? null, 'free'=>$r['free'] ?? false];
+            if ($r === null) continue;
+            $isFree = !empty($r['free']);
+            $cost   = $isFree ? 0.0 : (float)($r['cost'] ?? 0);
+            $results[] = [
+                'name'        => $m['name'],
+                'description' => $m['description'],
+                'type'        => $m['type'],
+                'cost'        => $cost,
+                'is_free'     => $isFree,
+                'formatted'   => $isFree ? 'FREE' : '₹' . number_format($cost, 2),
+            ];
         }
-        echo json_encode(['success'=>true, 'actual'=>$actual, 'methods'=>$methods]);
+        usort($results, fn($a, $b) => ($b['is_free'] <=> $a['is_free']) ?: ($a['cost'] <=> $b['cost']));
+        echo json_encode(['success'=>true, 'results'=>$results, 'actual'=>$actual, 'inputs'=>['price'=>$price,'weight'=>$weight,'qty'=>$qty]]);
+    }
+    } catch (Throwable $e) {
+        echo json_encode(['success'=>false,'message'=>'Server error: ' . $e->getMessage()]);
     }
     exit;
 }
@@ -104,6 +147,8 @@ $methods = db()->fetchAll("SELECT * FROM shipping_methods ORDER BY sort_order,id
 $zones   = db()->fetchAll("SELECT * FROM shipping_zones ORDER BY id");
 $rules   = db()->fetchAll("SELECT r.*,m.name as method_name,z.name as zone_name FROM shipping_rules r LEFT JOIN shipping_methods m ON r.method_id=m.id LEFT JOIN shipping_zones z ON r.zone_id=z.id ORDER BY r.method_id,r.rule_type,r.min_value");
 $pincodes = db()->fetchAll("SELECT * FROM delivery_pincodes ORDER BY CHAR_LENGTH(pincode_prefix) DESC, pincode_prefix");
+// Products for the calculator's "quick fill" dropdown (auto-fills price + weight).
+$calcProducts = db()->fetchAll("SELECT id,name,price,weight_kg FROM products WHERE is_active=1 ORDER BY name LIMIT 200");
 
 include __DIR__ . '/../includes/header.php';
 ?>
@@ -120,6 +165,10 @@ include __DIR__ . '/../includes/header.php';
 .ship-tab.active{background:var(--bg-card);color:var(--gold-primary);box-shadow:0 2px 8px rgba(0,0,0,.3);}
 .ship-section{display:none;} .ship-section.active{display:block;}
 .rule-type-icon{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;font-size:.85rem;}
+.calc-result-item{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:var(--bg-elevated);border-radius:var(--radius);margin-bottom:8px;border:1px solid var(--border-color);transition:.2s;}
+.calc-result-item.cheapest{border-color:var(--gold-primary);background:rgba(201,168,76,.06);}
+.calc-result-item.free-ship{border-color:var(--success);background:rgba(46,204,113,.06);}
+.calc-type-icon{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;font-size:.9rem;flex-shrink:0;}
 </style>
 
 <div class="page-header fade-in">
@@ -142,7 +191,7 @@ include __DIR__ . '/../includes/header.php';
 <div id="ship-methods" class="ship-section active fade-in">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
     <h3 style="font-family:'Playfair Display',serif;">Shipping Methods</h3>
-    <button class="btn btn-gold btn-sm" onclick="openMethodModal()"><i class="fa-solid fa-plus"></i> Add Method</button>
+    <?php if (can('shipping','create')): ?><button class="btn btn-gold btn-sm" onclick="openMethodModal()"><i class="fa-solid fa-plus"></i> Add Method</button><?php endif; ?>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;">
     <?php foreach($methods as $m): ?>
@@ -153,9 +202,11 @@ include __DIR__ . '/../includes/header.php';
           <span class="ship-type-badge type-<?= $m['type'] ?>"><i class="fa-solid fa-<?= ['flat'=>'truck','free'=>'gift','product'=>'box','weight'=>'weight-scale','price'=>'tag','flexible'=>'sliders'][$m['type']]??'truck' ?>"></i> <?= ucfirst($m['type']) ?></span>
         </div>
         <div style="display:flex;gap:6px;">
-          <button class="btn btn-ghost btn-sm btn-icon" onclick='openMethodModal(<?= json_encode($m) ?>)'><i class="fa-solid fa-pen"></i></button>
+          <?php if (can('shipping','edit')): ?>
+          <button class="btn btn-ghost btn-sm btn-icon" onclick='openMethodModal(<?= htmlspecialchars(json_encode($m), ENT_QUOTES) ?>)'><i class="fa-solid fa-pen"></i></button>
           <button class="btn btn-ghost btn-sm btn-icon" onclick="toggleMethod(<?= $m['id'] ?>)"><i class="fa-solid fa-power-off" style="color:<?= $m['is_active']?'var(--success)':'var(--text-muted)' ?>;"></i></button>
-          <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteMethod(<?= $m['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+          <?php endif; ?>
+          <?php if (can('shipping','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick="deleteMethod(<?= $m['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
         </div>
       </div>
       <?php if($m['description']): ?><p style="color:var(--text-secondary);font-size:.82rem;margin-bottom:10px;"><?= htmlspecialchars($m['description']) ?></p><?php endif; ?>
@@ -173,7 +224,7 @@ include __DIR__ . '/../includes/header.php';
 <div id="ship-rules" class="ship-section fade-in">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
     <h3 style="font-family:'Playfair Display',serif;">Shipping Rules</h3>
-    <button class="btn btn-gold btn-sm" onclick="openRuleModal()"><i class="fa-solid fa-plus"></i> Add Rule</button>
+    <?php if (can('shipping','create')): ?><button class="btn btn-gold btn-sm" onclick="openRuleModal()"><i class="fa-solid fa-plus"></i> Add Rule</button><?php endif; ?>
   </div>
   <div class="card">
     <div class="table-responsive">
@@ -182,7 +233,7 @@ include __DIR__ . '/../includes/header.php';
         <tbody>
           <?php foreach($rules as $r): ?>
           <tr>
-            <td class="font-bold" style="font-size:.85rem;"><?= htmlspecialchars($r['method_name']) ?></td>
+            <td class="font-bold" style="font-size:.85rem;"><?= htmlspecialchars($r['method_name'] ?? '') ?></td>
             <td><?= $r['zone_name'] ? htmlspecialchars($r['zone_name']) : '<span class="badge badge-secondary">All Zones</span>' ?></td>
             <td>
               <span class="ship-type-badge type-<?= ['weight'=>'weight','price'=>'price','quantity'=>'price','product'=>'product'][$r['rule_type']]??'flat' ?>">
@@ -214,8 +265,8 @@ include __DIR__ . '/../includes/header.php';
             <td><span class="badge badge-<?= $r['is_active']?'success':'secondary' ?>"><?= $r['is_active']?'Active':'Inactive' ?></span></td>
             <td>
               <div style="display:flex;gap:5px;">
-                <button class="btn btn-ghost btn-sm btn-icon" onclick='openRuleModal(<?= json_encode($r) ?>)'><i class="fa-solid fa-pen"></i></button>
-                <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteRule(<?= $r['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+                <?php if (can('shipping','edit')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick='openRuleModal(<?= htmlspecialchars(json_encode($r), ENT_QUOTES) ?>)'><i class="fa-solid fa-pen"></i></button><?php endif; ?>
+                <?php if (can('shipping','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick="deleteRule(<?= $r['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
               </div>
             </td>
           </tr>
@@ -231,7 +282,7 @@ include __DIR__ . '/../includes/header.php';
 <div id="ship-zones" class="ship-section fade-in">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
     <h3 style="font-family:'Playfair Display',serif;">Shipping Zones</h3>
-    <button class="btn btn-gold btn-sm" onclick="openZoneModal()"><i class="fa-solid fa-plus"></i> Add Zone</button>
+    <?php if (can('shipping','create')): ?><button class="btn btn-gold btn-sm" onclick="openZoneModal()"><i class="fa-solid fa-plus"></i> Add Zone</button><?php endif; ?>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">
     <?php foreach($zones as $z):
@@ -241,8 +292,8 @@ include __DIR__ . '/../includes/header.php';
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <div style="font-weight:600;"><i class="fa-solid fa-map-location-dot" style="color:var(--gold-primary);margin-right:7px;"></i><?= htmlspecialchars($z['name']) ?></div>
         <div style="display:flex;gap:5px;">
-          <button class="btn btn-ghost btn-sm btn-icon" onclick='openZoneModal(<?= json_encode($z) ?>)'><i class="fa-solid fa-pen"></i></button>
-          <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteZone(<?= $z['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+          <?php if (can('shipping','edit')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick='openZoneModal(<?= htmlspecialchars(json_encode($z), ENT_QUOTES) ?>)'><i class="fa-solid fa-pen"></i></button><?php endif; ?>
+          <?php if (can('shipping','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick="deleteZone(<?= $z['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
         </div>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:5px;">
@@ -262,7 +313,7 @@ include __DIR__ . '/../includes/header.php';
       <h3 style="font-family:'Playfair Display',serif;">Pincode Delivery & COD</h3>
       <p class="text-muted" style="font-size:.8rem;margin-top:2px;">Powers the "Delivery Details" pincode check on the product page. Longest matching prefix wins (e.g. <b>395006</b> overrides <b>39</b>).</p>
     </div>
-    <button class="btn btn-gold btn-sm" onclick="openPinModal()"><i class="fa-solid fa-plus"></i> Add Pincode</button>
+    <?php if (can('shipping','create')): ?><button class="btn btn-gold btn-sm" onclick="openPinModal()"><i class="fa-solid fa-plus"></i> Add Pincode</button><?php endif; ?>
   </div>
   <div class="card">
     <div class="table-responsive">
@@ -278,8 +329,8 @@ include __DIR__ . '/../includes/header.php';
             <td><span class="badge badge-<?= $pc['is_active']?'success':'secondary' ?>"><?= $pc['is_active']?'Active':'Inactive' ?></span></td>
             <td>
               <div style="display:flex;gap:5px;">
-                <button class="btn btn-ghost btn-sm btn-icon" onclick='openPinModal(<?= json_encode($pc) ?>)'><i class="fa-solid fa-pen"></i></button>
-                <button class="btn btn-ghost btn-sm btn-icon" onclick="deletePin(<?= $pc['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+                <?php if (can('shipping','edit')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick='openPinModal(<?= htmlspecialchars(json_encode($pc), ENT_QUOTES) ?>)'><i class="fa-solid fa-pen"></i></button><?php endif; ?>
+                <?php if (can('shipping','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick="deletePin(<?= $pc['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
               </div>
             </td>
           </tr>
@@ -294,22 +345,48 @@ include __DIR__ . '/../includes/header.php';
 <!-- CALCULATOR -->
 <div id="ship-calculator" class="ship-section fade-in">
   <h3 style="font-family:'Playfair Display',serif;margin-bottom:20px;">Shipping Cost Calculator</h3>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:800px;">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;max-width:920px;">
+    <!-- Inputs -->
     <div class="card" style="padding:24px;">
       <h4 style="margin-bottom:16px;color:var(--gold-primary);">Order Details</h4>
-      <div class="form-group"><label class="form-label">Order Total (₹)</label><input type="number" class="form-control" id="calc_price" placeholder="e.g. 15000" oninput="calcShipping()"></div>
-      <div class="form-group"><label class="form-label">Total Weight (kg)</label><input type="number" step="0.1" class="form-control" id="calc_weight" placeholder="e.g. 3.5" oninput="calcShipping()"></div>
+      <div class="form-group">
+        <label class="form-label">Quick Fill from Product</label>
+        <select class="form-control" id="calcQuickProduct" onchange="calcQuickFill(this)">
+          <option value="">— Select a product to auto-fill —</option>
+          <?php foreach($calcProducts as $p): ?>
+          <option value="<?= $p['id'] ?>" data-price="<?= $p['price'] ?>" data-weight="<?= $p['weight_kg'] ?>"><?= htmlspecialchars($p['name']) ?> — <?= formatCurrency($p['price']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div style="height:1px;background:var(--border-color);margin:16px 0;"></div>
+      <div class="form-group"><label class="form-label">Order Total (₹)</label><input type="number" class="form-control" id="calc_price" placeholder="e.g. 15000" oninput="calcDebounce()"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Total Weight (kg)</label><input type="number" step="0.1" class="form-control" id="calc_weight" placeholder="e.g. 2.5" oninput="calcDebounce()"></div>
+        <div class="form-group"><label class="form-label">Qty / Items</label><input type="number" min="1" class="form-control" id="calc_qty" value="1" oninput="calcDebounce()"></div>
+      </div>
       <div class="form-group"><label class="form-label">Destination Zone</label>
-        <select class="form-control" id="calc_zone" onchange="calcShipping()">
-          <option value="">All Zones</option>
+        <select class="form-control" id="calc_zone" onchange="calcDebounce()">
+          <option value="">All Zones (Default)</option>
           <?php foreach($zones as $z): ?><option value="<?= $z['id'] ?>"><?= htmlspecialchars($z['name']) ?></option><?php endforeach; ?>
         </select>
       </div>
+      <button class="btn btn-gold" style="width:100%;" onclick="calcRun()"><i class="fa-solid fa-calculator"></i> Calculate Shipping</button>
     </div>
-    <div class="card" style="padding:24px;" id="calcResults">
-      <h4 style="margin-bottom:16px;color:var(--gold-primary);">Applicable Methods</h4>
-      <div id="calcOutput" style="color:var(--text-muted);text-align:center;padding:20px 0;"><i class="fa-solid fa-calculator" style="font-size:2rem;opacity:.3;"></i><br>Enter order details</div>
+    <!-- Results -->
+    <div class="card" style="padding:24px;">
+      <h4 style="margin-bottom:16px;color:var(--gold-primary);">Available Shipping Options</h4>
+      <div id="calcResults">
+        <div style="text-align:center;padding:40px 0;color:var(--text-muted);">
+          <i class="fa-solid fa-truck" style="font-size:2.5rem;opacity:.2;display:block;margin-bottom:12px;"></i>
+          Enter order details to see applicable shipping methods
+        </div>
+      </div>
     </div>
+  </div>
+  <!-- Summary -->
+  <div class="card fade-in" style="margin-top:20px;padding:20px;display:none;" id="calcSummaryCard">
+    <h4 style="font-family:'Playfair Display',serif;margin-bottom:14px;">Shipping Cost Summary</h4>
+    <div id="calcSummaryContent"></div>
   </div>
 </div>
 
@@ -472,10 +549,18 @@ function toggleMethod(id){
   .then(r=>r.json()).then(d=>{if(d.success)setTimeout(()=>location.reload(),300);});
 }
 function deleteMethod(id){
-  showConfirm('Delete Method','Remove this shipping method?',async()=>{
-    await fetch('shipping.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'delete_method',id})});
-    showToast('Method deleted','success');setTimeout(()=>location.reload(),700);
-  });
+  showConfirm('Delete Method','Remove this shipping method?', ()=>attemptDeleteMethod(id,false));
+}
+async function attemptDeleteMethod(id,force){
+  const res=await fetch('shipping.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'delete_method',id,force})});
+  const r=await res.json();
+  if(r.needsConfirm){
+    // Method still has rules — confirm the cascade before forcing the delete.
+    showConfirm('Method has rules', r.message+' Delete the method and its rules?', ()=>attemptDeleteMethod(id,true));
+    return;
+  }
+  if(r.success){showToast('Method deleted','success');setTimeout(()=>location.reload(),700);}
+  else showToast(r.message||'Failed','danger');
 }
 
 // Rules
@@ -571,6 +656,16 @@ function deletePin(id){
 }
 
 // Calculator — runs the real server engine (same as cart/checkout) so the preview matches.
+const calcTypeIcons = {flat:'truck',free:'gift',weight:'weight-scale',price:'tag',product:'box',flexible:'sliders'};
+const calcTypeColors= {flat:'#3498DB',free:'#2ECC71',weight:'#9B59B6',price:'#F39C12',product:'#C9A84C',flexible:'#E74C3C'};
+
+function calcQuickFill(sel){
+  const opt=sel.selectedOptions[0];
+  if(!opt.value)return;
+  document.getElementById('calc_price').value=opt.dataset.price||'';
+  document.getElementById('calc_weight').value=opt.dataset.weight||'';
+  document.getElementById('calc_qty').value=1;
+  calcRun();
 let calcTimer;
 function calcShipping(){
   const price=parseFloat(document.getElementById('calc_price').value)||0;
@@ -591,11 +686,76 @@ function calcShipping(){
     const apl=(d.methods||[]).filter(m=>m.applicable);
     if(apl.length){html+='<div style="font-size:.72rem;color:var(--text-muted);margin-bottom:8px;">All applicable methods:</div>'+apl.map(m=>`
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bg-elevated);border-radius:8px;margin-bottom:6px;">
-        <div><div style="font-weight:600;font-size:.88rem;">${m.name}</div><div style="font-size:.72rem;color:var(--text-muted);">${m.type}</div></div>
+        <div><div style="font-weight:600;font-size:.88rem;">${escapeHtml(m.name||'')}</div><div style="font-size:.72rem;color:var(--text-muted);">${escapeHtml(m.type||'')}</div></div>
         <div style="font-weight:700;color:${m.free?'var(--success)':'var(--gold-primary)'};">${m.free?'FREE':'₹'+Number(m.cost).toLocaleString('en-IN')}</div>
       </div>`).join('');}
     out.innerHTML=html;
   },350);
 }
+
+let calcTimer;
+function calcDebounce(){ clearTimeout(calcTimer); calcTimer=setTimeout(calcRun, 450); }
+
+async function calcRun(){
+  const price=document.getElementById('calc_price').value;
+  const weight=document.getElementById('calc_weight').value;
+  if(!price&&!weight){return;}
+  const payload={action:'calc',price:parseFloat(price)||0,weight:parseFloat(weight)||0,qty:parseInt(document.getElementById('calc_qty').value)||1,zone_id:document.getElementById('calc_zone').value||0};
+  const res=await fetch('shipping.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(payload)});
+  const data=await res.json();
+  if(!data.success)return;
+  calcRender(data.results||[], data.inputs, data.actual);
+}
+
+function calcRender(results, inputs, actual){
+  const div=document.getElementById('calcResults');
+  if(!results.length){
+    div.innerHTML='<div style="text-align:center;padding:30px;color:var(--text-muted);">No shipping methods match these order details</div>';
+    document.getElementById('calcSummaryCard').style.display='none';
+    return;
+  }
+  // Authoritative amount the customer is actually charged (same engine as checkout).
+  const actualHtml = (actual!==undefined && actual!==null) ? `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;margin-bottom:14px;background:rgba(46,204,113,.08);border:1px solid var(--success);border-radius:var(--radius);">
+      <div><div style="font-weight:700;">Actual charge at checkout</div><div style="font-size:.72rem;color:var(--text-muted);">Auto-picked by the live shipping engine</div></div>
+      <div style="font-size:1.25rem;font-weight:800;color:${actual<=0?'var(--success)':'var(--gold-primary)'};">${actual<=0?'FREE':('₹'+Number(actual).toLocaleString('en-IN'))}</div>
+    </div>` : '';
+  div.innerHTML = actualHtml + results.map((r,i)=>`
+    <div class="calc-result-item ${r.is_free?'free-ship':i===0&&!r.is_free?'cheapest':''}">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="calc-type-icon" style="background:${calcTypeColors[r.type]||'#666'}20;">
+          <i class="fa-solid fa-${calcTypeIcons[r.type]||'truck'}" style="color:${calcTypeColors[r.type]||'#666'};"></i>
+        </div>
+        <div>
+          <div style="font-weight:600;font-size:.9rem;">${escapeHtml(r.name||'')}</div>
+          ${r.description?`<div style="font-size:.75rem;color:var(--text-muted);">${escapeHtml(r.description)}</div>`:''}
+          <div style="display:flex;gap:5px;margin-top:3px;"><span class="ship-type-badge type-${escapeHtml(r.type||'')}" style="font-size:.65rem;">${escapeHtml(r.type||'')}</span></div>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:1.1rem;font-weight:700;color:${r.is_free?'var(--success)':'var(--gold-primary)'};">${r.formatted}</div>
+        ${i===0&&!r.is_free?'<div style="font-size:.68rem;color:var(--gold-primary);font-weight:600;">BEST RATE</div>':''}
+        ${r.is_free?'<div style="font-size:.68rem;color:var(--success);font-weight:600;">FREE</div>':''}
+      </div>
+    </div>`).join('');
+
+  const cheapest=results[0];
+  document.getElementById('calcSummaryCard').style.display='block';
+  document.getElementById('calcSummaryContent').innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;">
+      <div style="background:var(--bg-elevated);padding:14px;border-radius:var(--radius);"><div class="stat-label">Order Value</div><div style="font-size:1.1rem;font-weight:700;">₹${Number(inputs.price).toLocaleString('en-IN')}</div></div>
+      <div style="background:var(--bg-elevated);padding:14px;border-radius:var(--radius);"><div class="stat-label">Total Weight</div><div style="font-size:1.1rem;font-weight:700;">${inputs.weight} kg</div></div>
+      <div style="background:var(--bg-elevated);padding:14px;border-radius:var(--radius);"><div class="stat-label">Methods Available</div><div style="font-size:1.1rem;font-weight:700;color:var(--gold-primary);">${results.length}</div></div>
+      <div style="background:var(--bg-elevated);padding:14px;border-radius:var(--radius);"><div class="stat-label">Cheapest Option</div><div style="font-size:1.1rem;font-weight:700;color:${cheapest.is_free?'var(--success)':'var(--gold-primary)'};">${cheapest.formatted}</div></div>
+    </div>`;
+}
+
+// Open a tab directly from the URL hash (e.g. shipping.php#calculator from the sidebar/dashboard).
+(function(){
+  const h=(location.hash||'').replace('#','');
+  if(!h) return;
+  const btn=[...document.querySelectorAll('.ship-tab')].find(b=>(b.getAttribute('onclick')||'').includes("'"+h+"'"));
+  if(btn) btn.click();
+})();
 </script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

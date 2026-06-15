@@ -2,52 +2,85 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Courses';
+requireView('courses');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    // Never let a PHP warning/exception leak HTML into the JSON response (breaks res.json()).
+    try {
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
+    requireAction('courses', rbacCrudVerb($action, $data));
 
     if ($action === 'save') {
         $d = $data;
-        $tags_json = !empty($d['tags']) ? json_encode(array_filter(array_map('trim', explode(',', $d['tags'])))) : null;
-        $outcomes_json = !empty($d['outcomes']) ? json_encode(array_filter(array_map('trim', explode("\n", $d['outcomes'])))) : null;
-        $reqs_json = !empty($d['requirements']) ? json_encode(array_filter(array_map('trim', explode("\n", $d['requirements'])))) : null;
-        $is_free = !empty($d['is_free']) ? 1 : 0;
+        // ---- Server-side validation (authoritative; never trust the client) ----
+        $title = trim((string)($d['title'] ?? ''));
+        if ($title === '') { echo json_encode(['success'=>false,'message'=>'Course title is required']); exit; }
+        $courseType = in_array($d['course_type'] ?? '', ['online','offline','hybrid'], true) ? $d['course_type'] : 'online';
+        $level  = in_array($d['level'] ?? '', ['beginner','intermediate','advanced','expert'], true) ? $d['level'] : 'beginner';
+        $status = in_array($d['status'] ?? '', ['draft','published','archived'], true) ? $d['status'] : 'draft';
+        $is_free  = !empty($d['is_free']) ? 1 : 0;
+        $price    = $is_free ? 0 : max(0, (float)($d['price'] ?? 0));
+        $discount = (!$is_free && ($d['discount_price'] ?? '') !== '') ? max(0, (float)$d['discount_price']) : null;
+        $duration = ($d['duration_hours'] ?? '') !== '' ? max(0, (float)$d['duration_hours']) : null;
+        $lessons  = ($d['total_lessons'] ?? '') !== '' ? max(0, (int)$d['total_lessons']) : 0;
+        $maxStud  = ($d['max_students'] ?? '') !== '' ? max(0, (int)$d['max_students']) : null;
+        $cert     = !empty($d['certificate_offered']) ? 1 : 0;
+        $desc     = (string)($d['description'] ?? '');      $fullDesc = (string)($d['full_description'] ?? '');
+        $category = (string)($d['category'] ?? '');         $instr    = (string)($d['instructor_name'] ?? '');
+        $instrBio = (string)($d['instructor_bio'] ?? '');
+        $tags_json     = !empty($d['tags'])         ? json_encode(array_values(array_filter(array_map('trim', explode(',',  $d['tags']))))) : null;
+        $outcomes_json = !empty($d['outcomes'])     ? json_encode(array_values(array_filter(array_map('trim', explode("\n", $d['outcomes']))))) : null;
+        $reqs_json     = !empty($d['requirements']) ? json_encode(array_values(array_filter(array_map('trim', explode("\n", $d['requirements']))))) : null;
         if (!empty($d['id'])) {
-            db()->execute("UPDATE courses SET title=?,description=?,full_description=?,course_type=?,category=?,level=?,status=?,duration_hours=?,price=?,discount_price=?,is_free=?,instructor_name=?,instructor_bio=?,certificate_offered=?,max_students=?,tags=?,requirements=?,outcomes=? WHERE id=?",
-                [$d['title'],$d['description'],$d['full_description'],$d['course_type'],$d['category'],$d['level'],$d['status'],$d['duration_hours']?:null,$d['price']??0,$d['discount_price']?:null,$is_free,$d['instructor_name'],$d['instructor_bio'],$d['certificate_offered']??1,$d['max_students']?:null,$tags_json,$reqs_json,$outcomes_json,$d['id']]);
+            db()->execute("UPDATE courses SET title=?,description=?,full_description=?,course_type=?,category=?,level=?,status=?,duration_hours=?,total_lessons=?,price=?,discount_price=?,is_free=?,instructor_name=?,instructor_bio=?,certificate_offered=?,max_students=?,tags=?,requirements=?,outcomes=? WHERE id=?",
+                [$title,$desc,$fullDesc,$courseType,$category,$level,$status,$duration,$lessons,$price,$discount,$is_free,$instr,$instrBio,$cert,$maxStud,$tags_json,$reqs_json,$outcomes_json,(int)$d['id']]);
         } else {
-            $slug = generateSlug($d['title']) . '-' . time();
-            db()->insert("INSERT INTO courses (title,slug,description,full_description,course_type,category,level,status,duration_hours,price,discount_price,is_free,instructor_name,instructor_bio,certificate_offered,max_students,tags,requirements,outcomes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                [$d['title'],$slug,$d['description'],$d['full_description'],$d['course_type'],$d['category'],$d['level'],$d['status']??'draft',$d['duration_hours']?:null,$d['price']??0,$d['discount_price']?:null,$is_free,$d['instructor_name'],$d['instructor_bio'],$d['certificate_offered']??1,$d['max_students']?:null,$tags_json,$reqs_json,$outcomes_json]);
+            $slug = generateSlug($title) . '-' . time();
+            db()->insert("INSERT INTO courses (title,slug,description,full_description,course_type,category,level,status,duration_hours,total_lessons,price,discount_price,is_free,instructor_name,instructor_bio,certificate_offered,max_students,tags,requirements,outcomes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                [$title,$slug,$desc,$fullDesc,$courseType,$category,$level,$status,$duration,$lessons,$price,$discount,$is_free,$instr,$instrBio,$cert,$maxStud,$tags_json,$reqs_json,$outcomes_json]);
         }
         echo json_encode(['success'=>true,'message'=>'Course saved']);
     } elseif ($action === 'delete') {
-        db()->execute("DELETE FROM courses WHERE id=?",[$data['id']]);
+        // Soft-delete: keep the course + its enrollments (paid student data) so it can be restored.
+        db()->execute("UPDATE courses SET is_deleted=1 WHERE id=?",[(int)($data['id'] ?? 0)]);
         echo json_encode(['success'=>true,'message'=>'Course deleted']);
+    } elseif ($action === 'restore') {
+        db()->execute("UPDATE courses SET is_deleted=0 WHERE id=?",[(int)($data['id'] ?? 0)]);
+        echo json_encode(['success'=>true,'message'=>'Course restored']);
     } elseif ($action === 'toggle_status') {
-        $new = $data['current'] === 'published' ? 'draft' : 'published';
-        db()->execute("UPDATE courses SET status=? WHERE id=?",[$new,$data['id']]);
+        // Read the CURRENT status from the DB (never trust the client's claim of it).
+        $cid = (int)($data['id'] ?? 0);
+        $cur = db()->fetchOne("SELECT status FROM courses WHERE id=?", [$cid]);
+        if (!$cur) { echo json_encode(['success'=>false,'message'=>'Course not found']); exit; }
+        $new = $cur['status'] === 'published' ? 'draft' : 'published';
+        db()->execute("UPDATE courses SET status=? WHERE id=?",[$new,$cid]);
         echo json_encode(['success'=>true,'message'=>'Status updated to '.$new]);
     } elseif ($action === 'get_enrollments') {
-        $enrollments = db()->fetchAll("SELECT * FROM course_enrollments WHERE course_id=? ORDER BY enrollment_date DESC",[$data['course_id']]);
+        $enrollments = db()->fetchAll("SELECT * FROM course_enrollments WHERE course_id=? ORDER BY enrollment_date DESC",[(int)($data['course_id'] ?? 0)]);
         echo json_encode(['success'=>true,'enrollments'=>$enrollments]);
     } elseif ($action === 'save_module') {
         $d = $data;
+        $mtitle = trim((string)($d['title'] ?? ''));
+        if ($mtitle === '') { echo json_encode(['success'=>false,'message'=>'Module title is required']); exit; }
+        $mdesc = (string)($d['description'] ?? ''); $msort = (int)($d['sort_order'] ?? 0);
         if (!empty($d['id'])) {
-            db()->execute("UPDATE course_modules SET title=?,description=?,sort_order=? WHERE id=?",[$d['title'],$d['description'],$d['sort_order']??0,$d['id']]);
+            db()->execute("UPDATE course_modules SET title=?,description=?,sort_order=? WHERE id=?",[$mtitle,$mdesc,$msort,(int)$d['id']]);
         } else {
-            db()->insert("INSERT INTO course_modules (course_id,title,description,sort_order) VALUES (?,?,?,?)",[$d['course_id'],$d['title'],$d['description'],$d['sort_order']??0]);
+            db()->insert("INSERT INTO course_modules (course_id,title,description,sort_order) VALUES (?,?,?,?)",[(int)($d['course_id'] ?? 0),$mtitle,$mdesc,$msort]);
         }
         echo json_encode(['success'=>true,'message'=>'Module saved']);
     } elseif ($action === 'get_modules') {
-        $modules = db()->fetchAll("SELECT m.*,(SELECT COUNT(*) FROM course_lessons WHERE module_id=m.id) as lesson_count FROM course_modules m WHERE m.course_id=? ORDER BY m.sort_order",[$data['course_id']]);
+        $modules = db()->fetchAll("SELECT m.*,(SELECT COUNT(*) FROM course_lessons WHERE module_id=m.id) as lesson_count FROM course_modules m WHERE m.course_id=? ORDER BY m.sort_order",[(int)($data['course_id'] ?? 0)]);
         echo json_encode(['success'=>true,'modules'=>$modules]);
     } elseif ($action === 'delete_module') {
-        db()->execute("DELETE FROM course_modules WHERE id=?",[$data['id']]);
+        db()->execute("DELETE FROM course_modules WHERE id=?",[(int)($data['id'] ?? 0)]);
         echo json_encode(['success'=>true]);
+    }
+    } catch (Throwable $e) {
+        echo json_encode(['success'=>false,'message'=>'Server error: ' . $e->getMessage()]);
     }
     exit;
 }
@@ -58,9 +91,37 @@ $status   = sanitize($_GET['status'] ?? '');
 $where    = ["1=1"]; $params = [];
 if ($search) { $where[] = "title LIKE ?"; $params[] = "%$search%"; }
 if ($level)  { $where[] = "level = ?"; $params[] = $level; }
-if ($status) { $where[] = "status = ?"; $params[] = $status; }
+// Soft-delete: hide deleted unless the "Deleted" filter is chosen.
+if ($status === 'deleted') {
+    $where[] = "is_deleted = 1";
+} else {
+    $where[] = "is_deleted = 0";
+    if ($status) { $where[] = "status = ?"; $params[] = $status; }
+}
 $whereStr = implode(' AND ', $where);
-$courses = db()->fetchAll("SELECT c.*,(SELECT COUNT(*) FROM course_enrollments WHERE course_id=c.id) as student_count FROM courses c WHERE $whereStr ORDER BY c.created_at DESC", $params);
+
+// CSV export of one course's enrollments (roster / accounting), before any HTML output.
+if (isset($_GET['export_enroll'])) {
+    $cid  = (int)$_GET['export_enroll'];
+    $crs  = db()->fetchOne("SELECT title FROM courses WHERE id=?", [$cid]);
+    $rows = db()->fetchAll("SELECT student_name,student_email,student_phone,payment_status,payment_amount,progress_percent,certificate_issued,enrollment_date,completion_date FROM course_enrollments WHERE course_id=? ORDER BY enrollment_date DESC", [$cid]);
+    $fname = 'enrollments-' . ($crs ? generateSlug($crs['title']) : 'course-'.$cid) . '.csv';
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="'.$fname.'"');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['Student','Email','Phone','Payment Status','Amount','Progress %','Certificate','Enrolled','Completed']);
+    foreach ($rows as $r) {
+        fputcsv($out, [$r['student_name'],$r['student_email'],$r['student_phone'],$r['payment_status'],$r['payment_amount'],$r['progress_percent'],$r['certificate_issued']?'Yes':'No',$r['enrollment_date'],$r['completion_date']]);
+    }
+    fclose($out);
+    exit;
+}
+
+$page     = max(1,(int)($_GET['page'] ?? 1));
+$per_page = 18; $offset = ($page-1)*$per_page;
+$total    = (int)(db()->fetchOne("SELECT COUNT(*) c FROM courses c WHERE $whereStr", $params)['c'] ?? 0);
+$pages    = (int)ceil($total/$per_page);
+$courses = db()->fetchAll("SELECT c.*,(SELECT COUNT(*) FROM course_enrollments WHERE course_id=c.id) as student_count FROM courses c WHERE $whereStr ORDER BY c.created_at DESC LIMIT $per_page OFFSET $offset", $params);
 
 include __DIR__ . '/../includes/header.php';
 ?>
@@ -92,13 +153,13 @@ include __DIR__ . '/../includes/header.php';
     <h1><i class="fa-solid fa-graduation-cap" style="color:var(--gold-primary);margin-right:10px;"></i>Course Management</h1>
     <p>Online, offline & hybrid dental education courses — <?= count($courses) ?> courses</p>
   </div>
-  <button class="btn btn-gold" onclick="openCourseModal()"><i class="fa-solid fa-plus"></i> Add Course</button>
+  <?php if (can('courses','create')): ?><button class="btn btn-gold" onclick="openCourseModal()"><i class="fa-solid fa-plus"></i> Add Course</button><?php endif; ?>
 </div>
 
 <div class="filter-bar fade-in" style="flex-wrap:wrap;">
   <div class="search-wrapper" style="flex:1;min-width:180px;">
     <i class="fa-solid fa-magnifying-glass"></i>
-    <input type="text" class="search-input" id="searchInput" placeholder="Search courses..." value="<?= $search ?>">
+    <input type="text" class="search-input" id="searchInput" placeholder="Search courses..." value="<?= htmlspecialchars($search) ?>" onkeydown="if(event.key==='Enter')applyFilters()">
   </div>
   <select class="form-control" id="levelFilter" style="max-width:160px;">
     <option value="">All Levels</option>
@@ -107,6 +168,7 @@ include __DIR__ . '/../includes/header.php';
   <select class="form-control" id="statusFilter" style="max-width:150px;">
     <option value="">All Status</option>
     <?php foreach(['draft','published','archived'] as $s): ?><option value="<?= $s ?>" <?= $status===$s?'selected':'' ?>><?= ucfirst($s) ?></option><?php endforeach; ?>
+    <option value="deleted" <?= $status==='deleted'?'selected':'' ?>>🗑 Deleted</option>
   </select>
   <button class="btn btn-ghost btn-sm" onclick="applyFilters()"><i class="fa-solid fa-filter"></i> Filter</button>
   <a href="courses.php" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate-left"></i> Reset</a>
@@ -140,12 +202,17 @@ include __DIR__ . '/../includes/header.php';
       </div>
       <div style="display:flex;gap:5px;">
         <button class="btn btn-ghost btn-sm btn-icon" title="Enrollments" onclick="viewEnrollments(<?= $c['id'] ?>,'<?= addslashes(htmlspecialchars($c['title'])) ?>')"><i class="fa-solid fa-users"></i></button>
+        <?php if(!empty($c['is_deleted'])): ?>
+        <button class="btn btn-ghost btn-sm" title="Restore course" onclick="restoreCourse(<?= $c['id'] ?>)"><i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i> Restore</button>
+        <?php else: ?>
         <button class="btn btn-ghost btn-sm btn-icon" title="Modules" onclick="manageModules(<?= $c['id'] ?>,'<?= addslashes(htmlspecialchars($c['title'])) ?>')"><i class="fa-solid fa-list"></i></button>
-        <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick='openCourseModal(<?= json_encode($c) ?>)'><i class="fa-solid fa-pen"></i></button>
+        <?php if (can('courses','edit')): ?>
+        <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick='openCourseModal(<?= htmlspecialchars(json_encode($c), ENT_QUOTES) ?>)'><i class="fa-solid fa-pen"></i></button>
         <button class="btn btn-ghost btn-sm btn-icon" title="<?= $c['status']==='published'?'Unpublish':'Publish' ?>" onclick="toggleCourseStatus(<?= $c['id'] ?>,'<?= $c['status'] ?>')">
           <i class="fa-solid fa-<?= $c['status']==='published'?'eye-slash':'rocket' ?>" style="color:<?= $c['status']==='published'?'var(--warning)':'var(--success)' ?>;"></i>
         </button>
-        <button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteCourse(<?= $c['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+        <?php endif; ?>
+        <?php if (can('courses','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteCourse(<?= $c['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
       </div>
     </div>
   </div>
@@ -153,10 +220,29 @@ include __DIR__ . '/../includes/header.php';
   <?php if(empty($courses)): ?>
   <div class="card" style="padding:40px;text-align:center;grid-column:1/-1;">
     <i class="fa-solid fa-graduation-cap" style="font-size:2.5rem;color:var(--text-muted);margin-bottom:12px;"></i>
-    <p style="color:var(--text-muted);">No courses yet. <a href="#" onclick="openCourseModal()" style="color:var(--gold-primary);">Create your first course</a></p>
+    <p style="color:var(--text-muted);"><?= ($search||$level||$status) ? 'No courses match your filters.' : 'No courses yet.' ?> <a href="#" onclick="openCourseModal()" style="color:var(--gold-primary);">Create your first course</a></p>
   </div>
   <?php endif; ?>
 </div>
+
+<?php if($pages > 1): ?>
+<div class="pagination" style="margin-top:18px;">
+  <?php
+  // Compact pagination: first, last, and a window around the current page (… for gaps).
+  $range = 2; $shown = [];
+  for ($i = 1; $i <= $pages; $i++) {
+      if ($i == 1 || $i == $pages || ($i >= $page - $range && $i <= $page + $range)) $shown[] = $i;
+  }
+  if ($page > 1): ?><div class="page-item" onclick="goPage(<?= $page-1 ?>)">‹</div><?php endif;
+  $prev = 0;
+  foreach ($shown as $i):
+      if ($prev && $i - $prev > 1): ?><div class="page-item" style="pointer-events:none;opacity:.5;">…</div><?php endif; ?>
+      <div class="page-item <?= $i==$page?'active':'' ?>" onclick="goPage(<?= $i ?>)"><?= $i ?></div>
+      <?php $prev = $i;
+  endforeach;
+  if ($page < $pages): ?><div class="page-item" onclick="goPage(<?= $page+1 ?>)">›</div><?php endif; ?>
+</div>
+<?php endif; ?>
 
 <!-- COURSE MODAL -->
 <div class="modal-overlay" id="courseModal" style="display:none;" onclick="if(event.target===this)closeModal('courseModal')">
@@ -243,6 +329,7 @@ include __DIR__ . '/../includes/header.php';
 
 <script>
 function applyFilters(){window.location.href=`courses.php?search=${encodeURIComponent(document.getElementById('searchInput').value)}&level=${document.getElementById('levelFilter').value}&status=${document.getElementById('statusFilter').value}`;}
+function goPage(p){const q=new URLSearchParams(window.location.search);q.set('page',p);window.location.href='courses.php?'+q.toString();}
 
 function openCourseModal(c=null){
   document.getElementById('course_id').value=c?.id||'';
@@ -296,10 +383,14 @@ async function toggleCourseStatus(id,current){
 }
 
 function deleteCourse(id){
-  showConfirm('Delete Course','Remove this course and all enrollments?',async()=>{
+  showConfirm('Delete Course','This hides the course. Its enrollments are kept, and you can restore it from the "Deleted" filter. Continue?',async()=>{
     await fetch('courses.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'delete',id})});
     showToast('Course deleted','success');setTimeout(()=>location.reload(),700);
   });
+}
+async function restoreCourse(id){
+  const res=await fetch('courses.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'restore',id})});
+  const r=await res.json();if(r.success){showToast(r.message,'success');setTimeout(()=>location.reload(),600);}
 }
 
 async function viewEnrollments(id,name){
@@ -308,19 +399,22 @@ async function viewEnrollments(id,name){
   const data=await res.json();
   const body=document.getElementById('enrollBody');
   if(!data.enrollments?.length){body.innerHTML='<div class="empty-state"><i class="fa-solid fa-users-slash"></i><p>No enrollments yet</p></div>';return;}
-  body.innerHTML=`<div style="margin-bottom:12px;color:var(--text-muted);font-size:.82rem;">${data.enrollments.length} students enrolled</div>`+
+  body.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <span style="color:var(--text-muted);font-size:.82rem;">${data.enrollments.length} students enrolled</span>
+      <a href="courses.php?export_enroll=${id}" class="btn btn-ghost btn-sm"><i class="fa-solid fa-file-csv"></i> Export CSV</a>
+    </div>`+
   data.enrollments.map(e=>`
     <div class="enroll-row">
       <div>
-        <div style="font-weight:600;font-size:.88rem;">${e.student_name}</div>
-        <div style="font-size:.75rem;color:var(--text-muted);">${e.student_email}</div>
+        <div style="font-weight:600;font-size:.88rem;">${escapeHtml(e.student_name||'')}</div>
+        <div style="font-size:.75rem;color:var(--text-muted);">${escapeHtml(e.student_email||'')}</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
         <div style="text-align:right;">
           <div style="font-size:.75rem;color:var(--text-muted);">Progress</div>
           <div style="font-size:.85rem;font-weight:600;color:var(--gold-primary);">${e.progress_percent}%</div>
         </div>
-        <span class="badge badge-${e.payment_status==='paid'?'success':e.payment_status==='free'?'info':'warning'}">${e.payment_status}</span>
+        <span class="badge badge-${e.payment_status==='paid'?'success':e.payment_status==='free'?'info':'warning'}">${escapeHtml(e.payment_status||'')}</span>
         ${e.certificate_issued?'<span class="badge badge-gold"><i class="fa-solid fa-certificate"></i> Cert</span>':''}
       </div>
     </div>`).join('');
@@ -352,10 +446,11 @@ async function addModule(){
   const res=await fetch('courses.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'save_module',course_id:currentModuleCourseId,title,description:document.getElementById('new_module_desc').value})});
   const r=await res.json();if(r.success){document.getElementById('new_module_title').value='';document.getElementById('new_module_desc').value='';showToast('Module added','success');await loadModules();}
 }
-async function deleteModule(id){
-  if(!confirm('Delete this module?'))return;
-  await fetch('courses.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'delete_module',id})});
-  await loadModules();showToast('Module deleted','success');
+function deleteModule(id){
+  showConfirm('Delete Module','Remove this module?', async()=>{
+    await fetch('courses.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'delete_module',id})});
+    await loadModules();showToast('Module deleted','success');
+  });
 }
 </script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

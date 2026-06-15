@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -niA 30 \"CREATE TABLE.*orders\" \"f:/DentalInnovation-DIP_Final_UI/DentalInnovation-DIP_Final_UI/dentinno/database.sql\")",
+      "Bash(grep -oE '\\\\?\\\\? .{0,3}')",
+      "PowerShell(& \"C:\\\\xampp\\\\php\\\\php.exe\" -l \"f:\\\\DentalInnovation-DIP_Final_UI\\\\DentalInnovation-DIP_Final_UI\\\\dentinno\\\\pages\\\\orders.php\")",
+      "PowerShell(& \"C:\\\\xampp\\\\php\\\\php.exe\" \"f:\\\\DentalInnovation-DIP_Final_UI\\\\DentalInnovation-DIP_Final_UI\\\\dentinno\\\\migrate.php\" 2>&1)",
+      "PowerShell(& \"C:\\\\xampp\\\\mysql\\\\bin\\\\mysql.exe\" -u root dentinno_crm -e \"SHOW COLUMNS FROM products WHERE Field IN \\('meta_title','meta_description','slug','variants'\\);\")",
+      "PowerShell(& \"C:\\\\xampp\\\\mysql\\\\bin\\\\mysql.exe\" -u root dentinno_crm -e \"SHOW COLUMNS FROM products LIKE 'is_deleted';\")",
+      "PowerShell(& \"C:\\\\xampp\\\\mysql\\\\bin\\\\mysql.exe\" -u root dentinno_crm -N -e \"SELECT GROUP_CONCAT\\(COLUMN_NAME\\) FROM information_schema.columns WHERE table_schema='dentinno_crm' AND table_name='customers';\")",
+      "PowerShell(& \"C:\\\\xampp\\\\mysql\\\\bin\\\\mysql.exe\" -u root dentinno_crm -e \"SHOW COLUMNS FROM customers LIKE 'is_deleted';\")",
+      "PowerShell(& \"C:\\\\xampp\\\\mysql\\\\bin\\\\mysql.exe\" -u root dentinno_crm -N -e \"SELECT GROUP_CONCAT\\(COLUMN_NAME\\) FROM information_schema.columns WHERE table_schema='dentinno_crm' AND table_name='categories';\")",
+      "PowerShell(& \"C:\\\\xampp\\\\mysql\\\\bin\\\\mysql.exe\" -u root dentinno_crm -N -e \"SELECT GROUP_CONCAT\\(COLUMN_NAME\\) FROM information_schema.columns WHERE table_schema='dentinno_crm' AND table_name='coupons';\")",
+      "Bash(\"/c/xampp/mysql/bin/mysql.exe\" -u root dentinno_crm -e \"SHOW COLUMNS FROM combos;\")",
+      "Bash(\"/c/xampp/mysql/bin/mysql.exe\" -u root dentinno_crm -e \"SHOW COLUMNS FROM offers;\")",
+      "Bash(awk '{print $1}')",
+      "Bash(\"/c/xampp/mysql/bin/mysql.exe\" -u root dentinno_crm -N -e \"SELECT COUNT\\(*\\) FROM information_schema.columns WHERE table_schema='dentinno_crm' AND table_name='orders' AND column_name LIKE '%offer%';\")",
+      "PowerShell($f=\"$env:TEMP\\\\evil.jpg\"; if\\(Test-Path $f\\){ Remove-Item $f -Force }; \"cleaned\")",
+      "Bash(\"/c/xampp/mysql/bin/mysql.exe\" -u root dentinno_crm -N -e \"SHOW COLUMNS FROM events;\")",
+      "Bash(\"/c/xampp/mysql/bin/mysql.exe\" -u root dentinno_crm -N -e \"SHOW COLUMNS FROM event_registrations;\")",
+      "Bash(\"/c/xampp/mysql/bin/mysql.exe\" -u root dentinno_crm -N -e \"SELECT DELETE_RULE FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA='dentinno_crm' AND TABLE_NAME='event_registrations';\")"
+    ]
+  }
+}

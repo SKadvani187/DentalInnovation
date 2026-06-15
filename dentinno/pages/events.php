@@ -2,40 +2,103 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Events';
+requireView('events');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    // Never let a PHP warning/exception leak HTML into the JSON response (that breaks res.json()
+    // on the client with "Unexpected token '<'"). Any DB error is returned as a JSON message.
+    try {
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
+    requireAction('events', rbacCrudVerb($action, $data));
+
+    // Allowlists — keep these in sync with the badge/icon maps in the grid below so a
+    // crafted request can never store an unknown status/type (which renders as a blank badge).
+    $EVENT_STATUSES = ['draft','published','cancelled','completed'];
+    $EVENT_TYPES    = ['workshop','webinar','conference','seminar','training','exhibition','other'];
 
     if ($action === 'save') {
         $d = $data;
-        $tags_json = !empty($d['tags']) ? json_encode(array_filter(array_map('trim', explode(',', $d['tags'])))) : null;
+        // ---- Server-side validation (authoritative; never trust the client) ----
+        $title = trim((string)($d['title'] ?? ''));
+        $start = trim((string)($d['start_date'] ?? ''));
+        $end   = trim((string)($d['end_date'] ?? ''));
+        if ($title === '')                      { echo json_encode(['success'=>false,'message'=>'Event title is required']); exit; }
+        if ($start === '' || $end === '')       { echo json_encode(['success'=>false,'message'=>'Start and end date are required']); exit; }
+        if (strtotime($end) < strtotime($start)){ echo json_encode(['success'=>false,'message'=>'End date cannot be before the start date']); exit; }
+        $eventType = in_array($d['event_type'] ?? '', $validTypes, true) ? $d['event_type'] : 'other';
+        $status    = in_array($d['status'] ?? '', $validStatuses, true) ? $d['status'] : 'draft';
         $is_online = !empty($d['is_online']) ? 1 : 0;
         $is_free   = !empty($d['is_free']) ? 1 : 0;
+        // Validate shape before write.
+        if (trim((string)($d['title'] ?? '')) === '') { echo json_encode(['success'=>false,'message'=>'Event title is required']); exit; }
+        $d['event_type'] = in_array($d['event_type'] ?? '', $EVENT_TYPES, true) ? $d['event_type'] : 'other';
+        $statusIn = $d['status'] ?? 'draft';
+        $d['status'] = in_array($statusIn, $EVENT_STATUSES, true) ? $statusIn : 'draft';
+        if (empty($d['start_date'])) { echo json_encode(['success'=>false,'message'=>'Start date is required']); exit; }
+        if (empty($d['end_date']))   { $d['end_date'] = $d['start_date']; }
+        if (!empty($d['contact_email']) && !filter_var($d['contact_email'], FILTER_VALIDATE_EMAIL)) { echo json_encode(['success'=>false,'message'=>'Enter a valid contact email']); exit; }
         if (!empty($d['id'])) {
             db()->execute("UPDATE events SET title=?,description=?,event_type=?,status=?,start_date=?,end_date=?,venue=?,city=?,state=?,is_online=?,online_link=?,max_attendees=?,registration_fee=?,is_free=?,organizer=?,contact_email=?,contact_phone=?,tags=? WHERE id=?",
-                [$d['title'],$d['description'],$d['event_type'],$d['status'],$d['start_date'],$d['end_date'],$d['venue'],$d['city'],$d['state'],$is_online,$d['online_link'],$d['max_attendees']?:null,$d['registration_fee']??0,$is_free,$d['organizer'],$d['contact_email'],$d['contact_phone'],$tags_json,$d['id']]);
+                [$title,$desc,$eventType,$status,$start,$end,$venue,$city,$state,$is_online,$link,$maxAtt,$fee,$is_free,$organizer,$email,$phone,$tags_json,(int)$d['id']]);
         } else {
-            $slug = generateSlug($d['title']) . '-' . time();
+            $slug = generateSlug($title) . '-' . time();
             db()->insert("INSERT INTO events (title,slug,description,event_type,status,start_date,end_date,venue,city,state,is_online,online_link,max_attendees,registration_fee,is_free,organizer,contact_email,contact_phone,tags) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                [$d['title'],$slug,$d['description'],$d['event_type'],$d['status']??'draft',$d['start_date'],$d['end_date'],$d['venue'],$d['city'],$d['state'],$is_online,$d['online_link'],$d['max_attendees']?:null,$d['registration_fee']??0,$is_free,$d['organizer'],$d['contact_email'],$d['contact_phone'],$tags_json]);
+                [$title,$slug,$desc,$eventType,$status,$start,$end,$venue,$city,$state,$is_online,$link,$maxAtt,$fee,$is_free,$organizer,$email,$phone,$tags_json]);
         }
         echo json_encode(['success'=>true,'message'=>'Event saved']);
     } elseif ($action === 'delete') {
-        db()->execute("DELETE FROM events WHERE id=?",[$data['id']]);
+        // Soft-delete: keep the event + its registrations (paid attendee data) so it can be restored.
+        db()->execute("UPDATE events SET is_deleted=1 WHERE id=?",[(int)($data['id'] ?? 0)]);
         echo json_encode(['success'=>true,'message'=>'Event deleted']);
+    } elseif ($action === 'restore') {
+        db()->execute("UPDATE events SET is_deleted=0 WHERE id=?",[(int)($data['id'] ?? 0)]);
+        echo json_encode(['success'=>true,'message'=>'Event restored']);
+    } elseif ($action === 'bulk') {
+        $ids = array_values(array_filter(array_map('intval', (array)($data['ids'] ?? []))));
+        $op  = (string)($data['op'] ?? '');
+        if (!$ids) { echo json_encode(['success'=>false,'message'=>'No events selected']); exit; }
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        if ($op === 'publish')     { db()->execute("UPDATE events SET status='published' WHERE id IN ($ph) AND is_deleted=0", $ids); $msg = count($ids).' event(s) published'; }
+        elseif ($op === 'cancel')  { db()->execute("UPDATE events SET status='cancelled' WHERE id IN ($ph) AND is_deleted=0", $ids); $msg = count($ids).' event(s) cancelled'; }
+        elseif ($op === 'delete')  { db()->execute("UPDATE events SET is_deleted=1 WHERE id IN ($ph)", $ids); $msg = count($ids).' event(s) deleted'; }
+        elseif ($op === 'restore') { db()->execute("UPDATE events SET is_deleted=0 WHERE id IN ($ph)", $ids); $msg = count($ids).' event(s) restored'; }
+        else { echo json_encode(['success'=>false,'message'=>'Unknown bulk action']); exit; }
+        echo json_encode(['success'=>true,'message'=>$msg]);
     } elseif ($action === 'change_status') {
-        db()->execute("UPDATE events SET status=? WHERE id=?",[$data['status'],$data['id']]);
+        $st = $data['status'] ?? '';
+        if (!in_array($st, $EVENT_STATUSES, true)) { echo json_encode(['success'=>false,'message'=>'Invalid status']); exit; }
+        db()->execute("UPDATE events SET status=? WHERE id=?",[$st,(int)($data['id'] ?? 0)]);
         echo json_encode(['success'=>true]);
     } elseif ($action === 'get_registrations') {
-        $regs = db()->fetchAll("SELECT * FROM event_registrations WHERE event_id=? ORDER BY created_at DESC",[$data['event_id']]);
+        $regs = db()->fetchAll("SELECT * FROM event_registrations WHERE event_id=? ORDER BY created_at DESC",[(int)($data['event_id'] ?? 0)]);
         echo json_encode(['success'=>true,'registrations'=>$regs]);
     } elseif ($action === 'mark_attended') {
-        db()->execute("UPDATE event_registrations SET attended=? WHERE id=?",[$data['attended'],$data['id']]);
+        db()->execute("UPDATE event_registrations SET attended=? WHERE id=?",[(int)($data['attended'] ?? 0),(int)($data['id'] ?? 0)]);
         echo json_encode(['success'=>true]);
     }
+    } catch (Throwable $e) {
+        echo json_encode(['success'=>false,'message'=>'Server error: ' . $e->getMessage()]);
+    }
+    exit;
+}
+
+// CSV export of one event's registrations (check-in sheet / accounting).
+if (isset($_GET['export_regs'])) {
+    $eid  = (int)$_GET['export_regs'];
+    $ev   = db()->fetchOne("SELECT title FROM events WHERE id=?", [$eid]);
+    $regs = db()->fetchAll("SELECT name,email,phone,clinic_name,payment_status,payment_amount,registration_code,attended,created_at FROM event_registrations WHERE event_id=? ORDER BY created_at DESC", [$eid]);
+    $fname = 'registrations-' . ($ev ? generateSlug($ev['title']) : 'event-'.$eid) . '.csv';
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="'.$fname.'"');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['Name','Email','Phone','Clinic','Payment Status','Amount','Registration Code','Attended','Registered At']);
+    foreach ($regs as $r) {
+        fputcsv($out, [$r['name'],$r['email'],$r['phone'],$r['clinic_name'],$r['payment_status'],$r['payment_amount'],$r['registration_code'],$r['attended']?'Yes':'No',$r['created_at']]);
+    }
+    fclose($out);
     exit;
 }
 
@@ -45,7 +108,13 @@ $status = sanitize($_GET['status'] ?? '');
 $where  = ["1=1"]; $params = [];
 if ($search) { $where[] = "title LIKE ?"; $params[] = "%$search%"; }
 if ($type)   { $where[] = "event_type = ?"; $params[] = $type; }
-if ($status) { $where[] = "status = ?"; $params[] = $status; }
+// Soft-delete: hide deleted events unless the "Deleted" filter is chosen.
+if ($status === 'deleted') {
+    $where[] = "is_deleted = 1";
+} else {
+    $where[] = "is_deleted = 0";
+    if ($status) { $where[] = "status = ?"; $params[] = $status; }
+}
 $whereStr = implode(' AND ', $where);
 // Paginate the events grid (was: fetch ALL rows), preserving the active filters.
 $page     = max(1, (int)($_GET['page'] ?? 1));
@@ -81,13 +150,13 @@ include __DIR__ . '/../includes/header.php';
     <h1><i class="fa-solid fa-calendar-star" style="color:var(--gold-primary);margin-right:10px;"></i>Event Management</h1>
     <p>Conferences, workshops, webinars and exhibitions — <?= count($events) ?> events</p>
   </div>
-  <button class="btn btn-gold" onclick="openEventModal()"><i class="fa-solid fa-plus"></i> Create Event</button>
+  <?php if (can('events','create')): ?><button class="btn btn-gold" onclick="openEventModal()"><i class="fa-solid fa-plus"></i> Create Event</button><?php endif; ?>
 </div>
 
 <div class="filter-bar fade-in" style="flex-wrap:wrap;">
   <div class="search-wrapper" style="flex:1;min-width:180px;">
     <i class="fa-solid fa-magnifying-glass"></i>
-    <input type="text" class="search-input" id="searchInput" placeholder="Search events..." value="<?= $search ?>">
+    <input type="text" class="search-input" id="searchInput" placeholder="Search events..." value="<?= htmlspecialchars($search) ?>" onkeydown="if(event.key==='Enter')applyFilters()">
   </div>
   <select class="form-control" id="typeFilter" style="max-width:160px;">
     <option value="">All Types</option>
@@ -100,30 +169,51 @@ include __DIR__ . '/../includes/header.php';
     <?php foreach(['draft','published','cancelled','completed'] as $s): ?>
     <option value="<?= $s ?>" <?= $status===$s?'selected':'' ?>><?= ucfirst($s) ?></option>
     <?php endforeach; ?>
+    <option value="deleted" <?= $status==='deleted'?'selected':'' ?>>🗑 Deleted</option>
   </select>
   <button class="btn btn-ghost btn-sm" onclick="applyFilters()"><i class="fa-solid fa-filter"></i> Filter</button>
   <a href="events.php" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate-left"></i> Reset</a>
+  <label style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--text-secondary);cursor:pointer;margin-left:auto;">
+    <input type="checkbox" id="selectAllEvents" onchange="toggleAllEvents(this)" style="width:15px;height:15px;accent-color:var(--gold-primary);cursor:pointer;"> Select all
+  </label>
+</div>
+
+<div id="bulkBar" style="display:none;padding:10px 16px;margin-bottom:14px;border:1px solid var(--border-color);border-radius:10px;gap:10px;align-items:center;background:var(--bg-elevated);flex-wrap:wrap;">
+  <span id="bulkCount" style="font-size:.82rem;font-weight:600;"></span>
+  <?php if($status === 'deleted'): ?>
+  <button class="btn btn-ghost btn-sm" onclick="bulkAction('restore')"><i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i> Restore</button>
+  <?php else: ?>
+  <button class="btn btn-ghost btn-sm" onclick="bulkAction('publish')"><i class="fa-solid fa-rocket" style="color:var(--success);"></i> Publish</button>
+  <button class="btn btn-ghost btn-sm" onclick="bulkAction('cancel')"><i class="fa-solid fa-ban" style="color:var(--warning);"></i> Cancel</button>
+  <button class="btn btn-ghost btn-sm" onclick="bulkAction('delete')" style="color:var(--danger);"><i class="fa-solid fa-trash"></i> Delete</button>
+  <?php endif; ?>
+  <button class="btn btn-ghost btn-sm" onclick="clearBulk()" style="margin-left:auto;">Clear</button>
 </div>
 
 <!-- Events Grid -->
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:18px;" class="fade-in">
   <?php foreach($events as $e): ?>
   <?php
-  $typeIcons = ['conference'=>'people-group','workshop'=>'screwdriver-wrench','webinar'=>'video','exhibition'=>'store','training'=>'graduation-cap','other'=>'calendar-days'];
-  $start = new DateTime($e['start_date']); $end = new DateTime($e['end_date']);
+  $typeIcons = ['conference'=>'people-group','workshop'=>'screwdriver-wrench','webinar'=>'video','exhibition'=>'store','training'=>'graduation-cap','seminar'=>'chalkboard-user','other'=>'calendar-days'];
+  // Guard against NULL/empty/garbage dates (would otherwise throw and 500 the whole page).
+  try { $start = new DateTime($e['start_date'] ?: 'now'); } catch (Exception $ex) { $start = new DateTime('now'); }
+  try { $end   = new DateTime($e['end_date'] ?: ($e['start_date'] ?: 'now')); } catch (Exception $ex) { $end = $start; }
   $isPast = $end < new DateTime();
+  $statusBadgeMap = ['draft'=>'secondary','published'=>'success','cancelled'=>'danger','completed'=>'info'];
   ?>
   <div class="event-card event-status-<?= $e['status'] ?>">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" class="event-check" value="<?= $e['id'] ?>" onchange="updateBulkBar()" style="width:15px;height:15px;accent-color:var(--gold-primary);cursor:pointer;">
         <div style="width:36px;height:36px;background:linear-gradient(135deg,rgba(201,168,76,.2),rgba(201,168,76,.05));border-radius:9px;display:grid;place-items:center;">
           <i class="fa-solid fa-<?= $typeIcons[$e['event_type']] ?? 'calendar' ?>" style="color:var(--gold-primary);"></i>
         </div>
         <span class="event-type-badge evt-<?= $e['event_type'] ?>"><?= ucfirst($e['event_type']) ?></span>
       </div>
       <div style="display:flex;gap:5px;align-items:center;">
+        <?php if($isPast && !in_array($e['status'], ['cancelled','completed'], true)): ?><span class="badge badge-secondary" style="font-size:.68rem;" title="End date has passed">Past</span><?php endif; ?>
         <?php if($e['is_online']): ?><span class="badge badge-info" style="font-size:.68rem;">Online</span><?php endif; ?>
-        <span class="badge badge-<?= ['draft'=>'secondary','published'=>'success','cancelled'=>'danger','completed'=>'info'][$e['status']] ?>"><?= ucfirst($e['status']) ?></span>
+        <span class="badge badge-<?= $statusBadgeMap[$e['status']] ?? 'secondary' ?>"><?= ucfirst(htmlspecialchars($e['status'])) ?></span>
       </div>
     </div>
     <h3 style="font-family:'Playfair Display',serif;font-size:1rem;margin-bottom:8px;line-height:1.4;"><?= htmlspecialchars($e['title']) ?></h3>
@@ -141,9 +231,9 @@ include __DIR__ . '/../includes/header.php';
       </div>
       <div style="display:flex;gap:5px;">
         <button class="btn btn-ghost btn-sm btn-icon" title="Registrations" onclick="viewRegistrations(<?= $e['id'] ?>,'<?= addslashes(htmlspecialchars($e['title'])) ?>')"><i class="fa-solid fa-users"></i></button>
-        <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick='openEventModal(<?= json_encode($e) ?>)'><i class="fa-solid fa-pen"></i></button>
+        <?php if (can('events','edit')): ?><button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick='openEventModal(<?= htmlspecialchars(json_encode($e), ENT_QUOTES) ?>)'><i class="fa-solid fa-pen"></i></button><?php endif; ?>
         <?php if($e['status']==='draft'): ?><button class="btn btn-ghost btn-sm btn-icon" title="Publish" onclick="changeEventStatus(<?= $e['id'] ?>,'published')"><i class="fa-solid fa-rocket" style="color:var(--success);"></i></button><?php endif; ?>
-        <button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteEvent(<?= $e['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+        <?php if (can('events','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteEvent(<?= $e['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
       </div>
     </div>
   </div>
@@ -156,9 +246,22 @@ include __DIR__ . '/../includes/header.php';
   <?php endif; ?>
 </div>
 
-<?php if($pages > 1): $qs = http_build_query(array_filter(['search'=>$search,'type'=>$type,'status'=>$status])); ?>
+<?php if($pages > 1): $qs = http_build_query(array_filter(['search'=>$search,'type'=>$type,'status'=>$status])); $qp = $qs ? $qs.'&' : ''; ?>
 <div class="pagination" style="margin-top:16px;">
-    <?php for($i=1;$i<=$pages;$i++): ?><a href="?<?= $qs ? $qs.'&' : '' ?>page=<?= $i ?>" class="page-item <?= $i==$page?'active':'' ?>" style="text-decoration:none;"><?= $i ?></a><?php endfor; ?>
+    <?php
+    // Compact pagination: first, last, and a window around the current page (… for gaps).
+    $range = 2; $shown = [];
+    for ($i = 1; $i <= $pages; $i++) {
+        if ($i == 1 || $i == $pages || ($i >= $page - $range && $i <= $page + $range)) $shown[] = $i;
+    }
+    if ($page > 1): ?><a href="?<?= $qp ?>page=<?= $page-1 ?>" class="page-item" style="text-decoration:none;">‹</a><?php endif;
+    $prev = 0;
+    foreach ($shown as $i):
+        if ($prev && $i - $prev > 1): ?><span class="page-item" style="pointer-events:none;opacity:.5;">…</span><?php endif; ?>
+        <a href="?<?= $qp ?>page=<?= $i ?>" class="page-item <?= $i==$page?'active':'' ?>" style="text-decoration:none;"><?= $i ?></a>
+        <?php $prev = $i;
+    endforeach;
+    if ($page < $pages): ?><a href="?<?= $qp ?>page=<?= $page+1 ?>" class="page-item" style="text-decoration:none;">›</a><?php endif; ?>
 </div>
 <?php endif; ?>
 
@@ -234,6 +337,26 @@ include __DIR__ . '/../includes/header.php';
 <script>
 function applyFilters(){window.location.href=`events.php?search=${encodeURIComponent(document.getElementById('searchInput').value)}&type=${document.getElementById('typeFilter').value}&status=${document.getElementById('statusFilter').value}`;}
 
+// ---- Bulk selection ----
+function selectedEventIds(){return [...document.querySelectorAll('.event-check:checked')].map(c=>parseInt(c.value));}
+function updateBulkBar(){
+  const n=selectedEventIds().length;
+  const bar=document.getElementById('bulkBar');
+  bar.style.display=n?'flex':'none';
+  if(n)document.getElementById('bulkCount').textContent=n+' selected';
+  const all=document.getElementById('selectAllEvents'); const total=document.querySelectorAll('.event-check').length;
+  if(all)all.checked=n>0&&n===total;
+}
+function toggleAllEvents(cb){document.querySelectorAll('.event-check').forEach(c=>c.checked=cb.checked);updateBulkBar();}
+function clearBulk(){document.querySelectorAll('.event-check').forEach(c=>c.checked=false);const a=document.getElementById('selectAllEvents');if(a)a.checked=false;updateBulkBar();}
+async function bulkAction(op){
+  const ids=selectedEventIds(); if(!ids.length)return;
+  if(!confirm(`${op.charAt(0).toUpperCase()+op.slice(1)} ${ids.length} event(s)?`))return;
+  const res=await fetch('events.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'bulk',op,ids})});
+  const r=await res.json();
+  showToast(r.message||(r.success?'Done':'Failed'), r.success?'success':'danger');
+  if(r.success)setTimeout(()=>location.reload(),800);
+}
 function openEventModal(e=null){
   document.getElementById('event_id').value=e?.id||'';
   document.getElementById('event_title').value=e?.title||'';
@@ -267,6 +390,7 @@ async function saveEvent(){
   const start=document.getElementById('event_start').value;
   const end=document.getElementById('event_end').value;
   if(!title||!start||!end){showToast('Title, start and end date are required','warning');return;}
+  if(new Date(end) < new Date(start)){showToast('End date cannot be before the start date','warning');return;}
   const payload={action:'save',id:document.getElementById('event_id').value,title,
     event_type:document.getElementById('event_type').value,status:document.getElementById('event_status').value,
     description:document.getElementById('event_desc').value,start_date:start.replace('T',' '),end_date:end.replace('T',' '),
@@ -285,10 +409,14 @@ async function changeEventStatus(id,status){
   showToast('Event published!','success');setTimeout(()=>location.reload(),600);
 }
 function deleteEvent(id){
-  showConfirm('Delete Event','This will remove the event and all registrations. Continue?',async()=>{
+  showConfirm('Delete Event','This hides the event from the storefront. Its registrations are kept, and you can restore it from the "Deleted" filter. Continue?',async()=>{
     await fetch('events.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'delete',id})});
     showToast('Event deleted','success');setTimeout(()=>location.reload(),700);
   });
+}
+function restoreEvent(id){
+  fetch('events.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'restore',id})})
+  .then(r=>r.json()).then(d=>{if(d.success){showToast('Event restored','success');setTimeout(()=>location.reload(),600);}});
 }
 async function viewRegistrations(id,name){
   document.getElementById('regsTitle').textContent='Registrations — '+name;
@@ -296,16 +424,19 @@ async function viewRegistrations(id,name){
   const data=await res.json();
   const body=document.getElementById('regsBody');
   if(!data.registrations?.length){body.innerHTML='<div class="empty-state"><i class="fa-solid fa-users-slash"></i><p>No registrations yet</p></div>';return;}
-  body.innerHTML=`<div style="margin-bottom:12px;color:var(--text-muted);font-size:.82rem;">${data.registrations.length} registrations total</div>`+
+  body.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <span style="color:var(--text-muted);font-size:.82rem;">${data.registrations.length} registrations total</span>
+      <a href="events.php?export_regs=${id}" class="btn btn-ghost btn-sm"><i class="fa-solid fa-file-csv"></i> Export CSV</a>
+    </div>`+
   data.registrations.map(r=>`
     <div class="reg-row">
       <div>
-        <div style="font-weight:600;font-size:.9rem;">${r.name}</div>
-        <div style="font-size:.78rem;color:var(--text-muted);">${r.email}${r.clinic_name?' · '+r.clinic_name:''}</div>
+        <div style="font-weight:600;font-size:.9rem;">${escapeHtml(r.name)}</div>
+        <div style="font-size:.78rem;color:var(--text-muted);">${escapeHtml(r.email)}${r.clinic_name?' · '+escapeHtml(r.clinic_name):''}</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
         <span class="badge badge-${r.attended?'success':'secondary'}">${r.attended?'Attended':'Registered'}</span>
-        <span class="badge badge-${r.payment_status==='paid'?'success':r.payment_status==='free'?'info':'warning'}">${r.payment_status}</span>
+        <span class="badge badge-${r.payment_status==='paid'?'success':r.payment_status==='free'?'info':'warning'}">${escapeHtml(r.payment_status||'')}</span>
         <button class="btn btn-ghost btn-sm btn-icon" onclick="toggleAttendance(${r.id},${r.attended?0:1})" title="${r.attended?'Mark Absent':'Mark Present'}">
           <i class="fa-solid fa-${r.attended?'user-minus':'user-check'}" style="color:${r.attended?'var(--warning)':'var(--success)'}"></i>
         </button>
