@@ -212,6 +212,143 @@ function sendOrderAdminMail(array $order, array $items, ?array $customer, string
     return omcSendWithConfig(orderMailConfig(), $order, $items, $customer, $type);
 }
 
+// ─── Customer confirmation email (short summary in body + full invoice PDF attached) ───────
+//
+// Sent to the BUYER (not the admin) ONLY on a successful order:
+//   * COD order placed         (orders.php — COD is confirmed at placement)
+//   * online order paid        (payment_razorpay.php — after the gateway confirms capture)
+// NEVER sent on payment failure (the failure path does not call this).
+//
+// The body is a short summary (order #, total, item count, status, thank-you); the itemised
+// invoice rides as a PDF attachment (includes/invoice_pdf.php). Best-effort: returns false and
+// logs on any problem, never throws — must not break the order/payment flow.
+
+// Default customer subject/body templates (used when the admin hasn't picked/edited one).
+function omcCustomerDefaultSubject(): string {
+    return 'Your order {{order_id}} is confirmed — {{total}}';
+}
+function omcCustomerDefaultBody(): string {
+    // Deliberately a SHORT summary — the full itemised invoice is the attached PDF.
+    return '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;color:#222;">'
+        . '<h2 style="color:#16a34a;margin:0 0 6px;">Thank you for your order!</h2>'
+        . '<p style="margin:0 0 18px;color:#555;">Hi {{customer_name}}, your order is confirmed. A detailed invoice is attached as a PDF.</p>'
+        . '<table style="width:100%;font-size:14px;border-collapse:collapse;margin-bottom:18px;">'
+        . '<tr><td style="padding:6px 0;color:#888;">Order Number</td><td style="padding:6px 0;text-align:right;font-weight:600;">{{order_id}}</td></tr>'
+        . '<tr><td style="padding:6px 0;color:#888;">Items</td><td style="padding:6px 0;text-align:right;">{{item_count}}</td></tr>'
+        . '<tr><td style="padding:6px 0;color:#888;">Payment</td><td style="padding:6px 0;text-align:right;">{{payment_method}} — {{payment_status}}</td></tr>'
+        . '<tr><td style="padding:10px 0;color:#222;font-weight:700;font-size:16px;border-top:2px solid #222;">Total</td>'
+        . '<td style="padding:10px 0;text-align:right;font-weight:700;font-size:16px;border-top:2px solid #222;">{{total}}</td></tr>'
+        . '</table>'
+        . '<p style="color:#555;font-size:13px;">We will notify you as your order is processed and shipped.</p>'
+        . '<p style="margin-top:22px;color:#aaa;font-size:12px;">This is an automated confirmation • {{order_id}}</p>'
+        . '</div>';
+}
+
+// Resolve the ACTIVE customer template from config. The admin can save several named templates
+// under cfg.customerTemplates [{name,subject,body}] and select one via cfg.customerTemplate
+// (the dropdown). Blank/missing -> built-in default. Returns ['subject'=>..., 'body'=>...].
+function omcCustomerTemplate(array $cfg): array {
+    $subject = ''; $body = '';
+    $tpls = $cfg['customerTemplates'] ?? null;
+    $sel  = (string)($cfg['customerTemplate'] ?? '');
+    if (is_array($tpls) && $sel !== '') {
+        foreach ($tpls as $t) {
+            if (is_array($t) && (string)($t['name'] ?? '') === $sel) {
+                $subject = (string)($t['subject'] ?? '');
+                $body    = (string)($t['body'] ?? '');
+                break;
+            }
+        }
+    }
+    // Legacy single-template fields (back-compat) then built-in default.
+    if (trim($subject) === '') $subject = (string)($cfg['customerSubject'] ?? '');
+    if (trim($body) === '')    $body    = (string)($cfg['customerBody'] ?? '');
+    if (trim($subject) === '') $subject = omcCustomerDefaultSubject();
+    if (trim($body) === '')    $body    = omcCustomerDefaultBody();
+    return ['subject' => $subject, 'body' => $body];
+}
+
+// Send the customer confirmation. Returns true if accepted by the server.
+function sendOrderCustomerMail(array $order, array $items, ?array $customer): bool {
+    $cfg = orderMailConfig();
+    try {
+        // Feature gate: a dedicated toggle, falling back to the main 'enabled' flag.
+        $on = array_key_exists('customerEnabled', $cfg) ? !empty($cfg['customerEnabled']) : !empty($cfg['enabled']);
+        if (!$on) return false;
+
+        // Recipient = the customer's real email. Skip placeholder/blank addresses silently.
+        $to = trim((string)($customer['email'] ?? ''));
+        if ($to === '' || str_ends_with($to, '@storefront.local') || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            omcLog($order, 'customer', $to, '', 'skipped', 'No valid customer email on the order.');
+            return false;
+        }
+
+        // SMTP: admin-panel values win; fall back to config.php constants when blank.
+        $host     = trim((string)($cfg['smtpHost'] ?? '')) ?: SMTP_HOST;
+        $port     = (int)($cfg['smtpPort'] ?? 0) ?: SMTP_PORT;
+        $user     = trim((string)($cfg['smtpUser'] ?? '')) ?: SMTP_USER;
+        $pass     = (string)($cfg['smtpPass'] ?? '') !== '' ? (string)$cfg['smtpPass'] : SMTP_PASS;
+        $from     = trim((string)($cfg['fromEmail'] ?? '')) ?: SMTP_FROM;
+        $fromName = trim((string)($cfg['fromName'] ?? '')) ?: SMTP_FROM_NAME;
+        if ($user === '' || $pass === '') {
+            omcLog($order, 'customer', $to, '', 'pending', 'SMTP credentials missing (smtpUser / smtpPass blank and no config.php fallback).');
+            return false;
+        }
+
+        // Render subject + summary body from the active template.
+        $vars = omcVars($order, $items, $customer, 'placed');
+        $tpl  = omcCustomerTemplate($cfg);
+        $subject = omcRender($tpl['subject'], $vars);
+        $body    = omcRender($tpl['body'], $vars);
+
+        // Build the PDF invoice (best-effort: a PDF failure must not block the email).
+        $attachment = null;
+        try {
+            require_once __DIR__ . '/invoice_pdf.php';
+            $pdf = buildOrderInvoicePdf($order, $items, $customer);
+            $attachment = [
+                'name' => 'invoice-' . preg_replace('/[^A-Za-z0-9_-]/', '', (string)($order['order_number'] ?? 'order')) . '.pdf',
+                'mime' => 'application/pdf',
+                'data' => $pdf,
+            ];
+        } catch (Throwable $e) {
+            error_log('invoice PDF build: ' . $e->getMessage());
+        }
+
+        try {
+            $ok = $attachment
+                ? omcSmtpSendHtmlWithAttachment($host, $port, $user, $pass, $from, $fromName, $to, $subject, $body, $attachment)
+                : omcSmtpSendHtml($host, $port, $user, $pass, $from, $fromName, $to, $subject, $body); // fallback: body only
+            omcLog($order, 'customer', $to, $subject, $ok ? 'sent' : 'failed', $ok ? null : 'Server did not confirm delivery (250 expected).');
+            return $ok;
+        } catch (Throwable $e) {
+            error_log('sendOrderCustomerMail send: ' . $e->getMessage());
+            omcLog($order, 'customer', $to, $subject, 'failed', $e->getMessage());
+            return false;
+        }
+    } catch (Throwable $e) {
+        error_log('sendOrderCustomerMail: ' . $e->getMessage());
+        return false;
+    }
+}
+
+// Re-send the customer confirmation for an existing order (admin "Retry" on a 'customer' row).
+function resendOrderCustomerMail(int $orderId): bool {
+    try {
+        $db    = db();
+        $order = $db->fetchOne("SELECT * FROM orders WHERE id=?", [$orderId]);
+        if (!$order) return false;
+        $items = $db->fetchAll("SELECT * FROM order_items WHERE order_id=?", [$orderId]);
+        $customer = !empty($order['customer_id'])
+            ? $db->fetchOne("SELECT * FROM customers WHERE id=?", [$order['customer_id']])
+            : null;
+        return sendOrderCustomerMail($order, $items, $customer ?: null);
+    } catch (Throwable $e) {
+        error_log('resendOrderCustomerMail: ' . $e->getMessage());
+        return false;
+    }
+}
+
 // Re-send the admin notification for an existing order (admin "Retry" button). Reloads the
 // order + items + customer from the DB so the email is rebuilt from current data, then sends
 // via the live config (which updates the same order_mail_log row). type = 'placed' | 'failed'.
@@ -323,6 +460,59 @@ function omcSmtpSendHtml($host, $port, $user, $pass, $from, $fromName, $to, $sub
     // SMTP dot-stuffing: lines beginning with '.' must be doubled.
     $safeBody = preg_replace('/^\./m', '..', $htmlBody);
     $cmd($headers . "\r\n" . $safeBody . "\r\n."); $resp = $read();
+    $cmd("QUIT"); fclose($fp);
+    return strpos((string)$resp, '250') === 0;
+}
+
+// Raw-SMTP HTML send WITH a single binary attachment (the order-invoice PDF), over STARTTLS.
+// Same handshake as omcSmtpSendHtml, but the DATA payload is a multipart/mixed MIME message:
+//   part 1 = the HTML body, part 2 = the base64-encoded file.
+// $attachment = ['name'=>'invoice-XYZ.pdf', 'mime'=>'application/pdf', 'data'=><raw bytes>].
+// Returns true when the server confirms the queued message (250). Never silently corrupts the
+// stream — the body is dot-stuffed and the base64 is hard-wrapped at 76 cols per RFC 2045.
+function omcSmtpSendHtmlWithAttachment($host, $port, $user, $pass, $from, $fromName, $to, $subject, $htmlBody, array $attachment): bool {
+    $fp = stream_socket_client("tcp://$host:$port", $errno, $errstr, 20);
+    if (!$fp) throw new Exception("connect failed: $errstr");
+    $read = function () use ($fp) { return fgets($fp, 515); };
+    $cmd  = function ($c) use ($fp) { fputs($fp, $c . "\r\n"); };
+    $read();
+    $cmd("EHLO localhost"); while (($l = $read()) && isset($l[3]) && $l[3] === '-') {}
+    $cmd("STARTTLS"); $read();
+    stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+    $cmd("EHLO localhost"); while (($l = $read()) && isset($l[3]) && $l[3] === '-') {}
+    $cmd("AUTH LOGIN"); $read();
+    $cmd(base64_encode($user)); $read();
+    $cmd(base64_encode($pass)); $resp = $read();
+    if (strpos((string)$resp, '235') !== 0) throw new Exception('SMTP auth failed');
+    $cmd("MAIL FROM:<$from>"); $read();
+    $cmd("RCPT TO:<$to>"); $read();
+    $cmd("DATA"); $read();
+
+    $boundary  = 'sdi_bnd_' . bin2hex(random_bytes(12));
+    $encSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
+    $fileName  = (string)($attachment['name'] ?? 'attachment.pdf');
+    $fileMime  = (string)($attachment['mime'] ?? 'application/octet-stream');
+    $fileB64   = chunk_split(base64_encode((string)($attachment['data'] ?? '')), 76, "\r\n");
+
+    $headers = "From: $fromName <$from>\r\nTo: <$to>\r\nSubject: $encSubject\r\n"
+        . "MIME-Version: 1.0\r\n"
+        . "Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n";
+
+    // multipart/mixed body: HTML part, then the file part.
+    $mime  = "--$boundary\r\n";
+    $mime .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $mime .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
+    $mime .= $htmlBody . "\r\n";
+    $mime .= "--$boundary\r\n";
+    $mime .= "Content-Type: $fileMime; name=\"$fileName\"\r\n";
+    $mime .= "Content-Transfer-Encoding: base64\r\n";
+    $mime .= "Content-Disposition: attachment; filename=\"$fileName\"\r\n\r\n";
+    $mime .= $fileB64 . "\r\n";
+    $mime .= "--$boundary--\r\n";
+
+    // SMTP dot-stuffing on the whole MIME payload.
+    $safe = preg_replace('/^\./m', '..', $mime);
+    $cmd($headers . "\r\n" . $safe . "\r\n."); $resp = $read();
     $cmd("QUIT"); fclose($fp);
     return strpos((string)$resp, '250') === 0;
 }

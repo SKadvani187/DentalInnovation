@@ -565,6 +565,64 @@ include __DIR__ . '/../includes/header.php';
         <div class="form-group"><label class="form-label">❌ Payment Failed — Body (HTML)</label><textarea class="form-control" id="om_fbody" rows="4" style="font-family:monospace;font-size:.78rem;" placeholder="Leave blank for the styled default template."><?= htmlspecialchars($omc['failedBody'] ?? '') ?></textarea></div>
       </div>
 
+      <!-- ── Customer confirmation email (sent to the buyer, with PDF invoice) ── -->
+      <?php
+        $custTpls = is_array($omc['customerTemplates'] ?? null) ? $omc['customerTemplates'] : [];
+        $custSel  = (string)($omc['customerTemplate'] ?? '');
+      ?>
+      <div style="border-top:1px solid var(--border-color);padding-top:14px;margin-top:14px;">
+        <div class="font-bold" style="margin-bottom:4px;color:var(--gold-primary);"><i class="fa-solid fa-user-check" style="margin-right:6px;"></i>Customer Confirmation Email <small class="text-muted">(buyer gets this + a PDF invoice on success)</small></div>
+        <small class="text-muted" style="font-size:.73rem;display:block;margin-bottom:10px;">Sent only when an order succeeds (COD placed / online paid). The full itemised invoice is attached as a PDF; the body is a short summary. Never sent on payment failure.</small>
+        <label class="toggle" style="margin-bottom:12px;display:inline-flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="om_cust_on" <?= !empty($omc['customerEnabled']) ? 'checked' : '' ?>> <span>Send confirmation emails to customers</span>
+        </label>
+        <div class="form-group">
+          <label class="form-label">Active Template</label>
+          <select class="form-control" id="om_cust_tpl" onchange="loadCustTpl()">
+            <option value="">— Built-in default —</option>
+            <?php foreach($custTpls as $t): $nm = htmlspecialchars((string)($t['name'] ?? '')); ?>
+            <option value="<?= $nm ?>" <?= $custSel === ($t['name'] ?? '') ? 'selected' : '' ?>><?= $nm ?></option>
+            <?php endforeach; ?>
+          </select>
+          <small class="text-muted" style="font-size:.72rem;">Pick a saved template, or edit the fields below and "Save as template" to add a new one to this list.</small>
+        </div>
+        <div class="form-group"><label class="form-label">Customer — Subject</label><input type="text" class="form-control" id="om_csubj" value="<?= htmlspecialchars($omc['customerSubject'] ?? '') ?>" placeholder="Your order {{order_id}} is confirmed — {{total}}"></div>
+        <div class="form-group"><label class="form-label">Customer — Body (HTML)</label><textarea class="form-control" id="om_cbody" rows="4" style="font-family:monospace;font-size:.78rem;" placeholder="Leave blank for the styled default summary template."><?= htmlspecialchars($omc['customerBody'] ?? '') ?></textarea></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <input type="text" class="form-control" id="om_cust_newname" placeholder="Template name (e.g. Festive)" style="max-width:220px;">
+          <button class="btn btn-outline btn-sm" type="button" onclick="saveCustTplAs()"><i class="fa-solid fa-plus"></i> Save as template</button>
+          <button class="btn btn-ghost btn-sm" type="button" onclick="deleteCustTpl()"><i class="fa-solid fa-trash"></i> Delete selected</button>
+        </div>
+        <script>
+        // Saved customer templates live in the config; the dropdown swaps the subject/body fields.
+        window.__custTpls = <?= json_encode(array_values($custTpls), JSON_UNESCAPED_UNICODE) ?>;
+        function loadCustTpl(){
+          const sel=document.getElementById('om_cust_tpl').value;
+          const t=(window.__custTpls||[]).find(x=>x.name===sel);
+          if(t){ document.getElementById('om_csubj').value=t.subject||''; document.getElementById('om_cbody').value=t.body||''; }
+        }
+        function saveCustTplAs(){
+          const name=(document.getElementById('om_cust_newname').value||'').trim();
+          if(!name){ showToast('Enter a template name','warning'); return; }
+          const subject=document.getElementById('om_csubj').value, body=document.getElementById('om_cbody').value;
+          window.__custTpls=(window.__custTpls||[]).filter(x=>x.name!==name);
+          window.__custTpls.push({name,subject,body});
+          const dd=document.getElementById('om_cust_tpl');
+          if(![...dd.options].some(o=>o.value===name)){ const o=document.createElement('option'); o.value=name; o.textContent=name; dd.appendChild(o); }
+          dd.value=name; document.getElementById('om_cust_newname').value='';
+          showToast('Template "'+name+'" ready — click Save Order Email Config to persist','info');
+        }
+        function deleteCustTpl(){
+          const sel=document.getElementById('om_cust_tpl').value;
+          if(!sel){ showToast('Select a template to delete','warning'); return; }
+          window.__custTpls=(window.__custTpls||[]).filter(x=>x.name!==sel);
+          const dd=document.getElementById('om_cust_tpl'); [...dd.options].forEach(o=>{ if(o.value===sel) o.remove(); });
+          dd.value=''; loadCustTpl();
+          showToast('Removed — click Save Order Email Config to persist','info');
+        }
+        </script>
+      </div>
+
       <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
         <button class="btn btn-gold" onclick="saveOrderMailConfig()"><i class="fa-solid fa-floppy-disk"></i> Save Order Email Config</button>
         <button class="btn btn-ghost" onclick="testOrderMail()"><i class="fa-solid fa-paper-plane"></i> Send Test Email</button>
@@ -638,6 +696,12 @@ include __DIR__ . '/../includes/header.php';
         successBody:    document.getElementById('om_sbody').value,
         failedSubject:  _omv('om_fsubj'),
         failedBody:     document.getElementById('om_fbody').value,
+        // Customer confirmation email (buyer + PDF invoice).
+        customerEnabled:   _omc('om_cust_on'),
+        customerTemplate:  _omv('om_cust_tpl'),
+        customerTemplates: window.__custTpls || [],
+        customerSubject:   _omv('om_csubj'),
+        customerBody:      document.getElementById('om_cbody').value,
       };
     }
     function saveOrderMailConfig(){ saveSetting('orderMailConfig', orderMailCfg(), 'Order Email Config'); }

@@ -236,12 +236,15 @@ if ($action === 'verify') {
         if (!empty($cust['phone']) && $ord) waPaymentSuccess($cust, $ord);
     } catch (Throwable $e) { error_log('WA payVerify: ' . $e->getMessage()); }
 
-    // Best-effort admin "order placed (paid)" email — fires once, on the real paid transition.
+    // Best-effort order emails — fire once, on the real paid transition:
+    //   * admin "order placed (paid)" notification, and
+    //   * customer confirmation + PDF invoice.
     try {
         require_once __DIR__ . '/../../includes/order_mailer.php';
         if ($ord) {
             $omItems = $db->fetchAll("SELECT * FROM order_items WHERE order_id=?", [$o['id']]);
             sendOrderAdminMail($ord, $omItems, $cust, 'placed');
+            sendOrderCustomerMail($ord, $omItems, $cust);
         }
     } catch (Throwable $e) { error_log('orderMail paid: ' . $e->getMessage()); }
 
