@@ -2,14 +2,17 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Testimonials';
+requireView('testimonials');
 
 // Image upload (shared products folder)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['t_image'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    requireAction('testimonials', 'edit');
     $upload_dir = __DIR__ . '/../assets/images/products/';
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
     $file = $_FILES['t_image'];
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) { echo json_encode(['success'=>false,'message'=>'Upload failed (error code '.($file['error'] ?? '?').')']); exit; }
     $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     if (!in_array($ext, ['jpg','jpeg','png','webp','gif'])) { echo json_encode(['success'=>false,'message'=>'Invalid file type']); exit; }
     // Verify the actual file CONTENT, not just the extension (a .jpg could be a PHP script).
@@ -35,6 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     try {
     $d = json_decode(file_get_contents('php://input'), true);
     $action = $d['action'] ?? '';
+    requireAction('testimonials', rbacCrudVerb($action, $d));
 
     if ($action === 'save') {
         $rating = max(1, min(5, (int)($d['rating'] ?? 5)));
@@ -85,7 +89,7 @@ include __DIR__ . '/../includes/header.php';
         <h1>Testimonials</h1>
         <p>Customer reviews shown on the storefront home page</p>
     </div>
-    <button class="btn btn-gold" onclick="openTstModal()"><i class="fa-solid fa-plus"></i> Add Testimonial</button>
+    <?php if (can('testimonials','create')): ?><button class="btn btn-gold" onclick="openTstModal()"><i class="fa-solid fa-plus"></i> Add Testimonial</button><?php endif; ?>
 </div>
 
 <div class="filter-bar fade-in" style="flex-wrap:wrap;gap:8px;">
@@ -112,9 +116,8 @@ include __DIR__ . '/../includes/header.php';
                 </div>
             </div>
             <div style="margin-top:12px;display:flex;justify-content:flex-end;gap:6px;">
-                <button class="btn btn-ghost btn-sm btn-icon" title="Activate/Deactivate" onclick="toggleTst(<?= $t['id'] ?>)"><i class="fa-solid fa-power-off" style="color:<?= $t['is_active']?'var(--success)':'var(--text-muted)' ?>;"></i></button>
-                <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick='openTstModal(<?= json_encode($t) ?>)'><i class="fa-solid fa-pen"></i></button>
-                <button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteTst(<?= $t['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+                <?php if (can('testimonials','edit')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick='openTstModal(<?= htmlspecialchars(json_encode($t, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT), ENT_QUOTES) ?>)'><i class="fa-solid fa-pen"></i></button><?php endif; ?>
+                <?php if (can('testimonials','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick="deleteTst(<?= $t['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
             </div>
         </div>
     </div>

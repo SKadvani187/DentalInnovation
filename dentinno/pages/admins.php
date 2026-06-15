@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Admin Users';
+requireView('admins');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
@@ -18,9 +19,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     $action = $data['action'] ?? '';
     $selfId = (int)($_SESSION['admin_id'] ?? 0);
 
-    // Allowlist roles — never trust the client-supplied role string verbatim (mass-assignment).
-    $ALLOWED_ROLES = ['super_admin','admin','staff'];
-    $role = in_array($data['role'] ?? '', $ALLOWED_ROLES, true) ? $data['role'] : 'staff';
+    // Resolve the selected role from the roles table (role_id preferred; slug as a fallback).
+    // Never trust a client value verbatim — it must be an existing, active role.
+    $roleRow = null;
+    if (!empty($data['role_id'])) {
+        $roleRow = db()->fetchOne("SELECT id, slug, is_super FROM roles WHERE id=? AND is_active=1", [(int)$data['role_id']]);
+    } elseif (!empty($data['role'])) {
+        $roleRow = db()->fetchOne("SELECT id, slug, is_super FROM roles WHERE slug=? AND is_active=1", [(string)$data['role']]);
+    }
+    if (!$roleRow) { $roleRow = db()->fetchOne("SELECT id, slug, is_super FROM roles WHERE slug='staff'"); }
+    $roleId     = (int)($roleRow['id'] ?? 0);
+    $role       = (string)($roleRow['slug'] ?? 'staff');   // kept in admin_users.role for display/back-compat
 
     // Append-only audit of admin-account changes. Wrapped so a logging failure never blocks the action.
     $audit = function(string $act, ?int $targetId, ?string $targetEmail, string $details) {
@@ -58,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $dupe = db()->fetchOne("SELECT id FROM admin_users WHERE email=? AND id<>?", [$email, $targetId]);
             if ($dupe) { echo json_encode(['success'=>false,'message'=>'Email already in use']); exit; }
             $extra = !empty($data['password']) ? ", password=?" : "";
-            $params = [$name,$email,$role,$isActive];
+            $params = [$name,$email,$role,$roleId,$isActive];
             if (!empty($data['password'])) $params[] = password_hash($data['password'], PASSWORD_DEFAULT);
             $params[] = $targetId;
             db()->execute("UPDATE admin_users SET name=?,email=?,role=?,is_active=?$extra WHERE id=?", $params);
@@ -114,7 +123,7 @@ include __DIR__ . '/../includes/header.php';
         <h1>Admin Users</h1>
         <p>Manage CRM access and staff permissions</p>
     </div>
-    <button class="btn btn-gold" onclick="openAdminModal()"><i class="fa-solid fa-user-plus"></i> Add Admin</button>
+    <?php if (can('admins','create')): ?><button class="btn btn-gold" onclick="openAdminModal()"><i class="fa-solid fa-user-plus"></i> Add Admin</button><?php endif; ?>
 </div>
 
 <div class="card fade-in">
@@ -145,14 +154,14 @@ include __DIR__ . '/../includes/header.php';
                     <td class="text-muted"><?= htmlspecialchars($a['email']) ?></td>
                     <td>
                         <span class="badge badge-<?= $a['role']==='super_admin'?'warning':($a['role']==='admin'?'info':'secondary') ?>">
-                            <?= ucfirst(str_replace('_',' ',$a['role'])) ?>
+                            <?= htmlspecialchars($a['role_name'] ?? ucfirst(str_replace('_',' ',$a['role'] ?? ''))) ?>
                         </span>
                     </td>
                     <td><?= $a['last_login'] ? formatDate($a['last_login'],'d M Y, h:i A').' <span class="text-muted" style="font-size:.7rem;">('.timeAgo($a['last_login']).')</span>' : '<span class="text-muted">Never</span>' ?></td>
                     <td><span class="badge badge-<?= $a['is_active']?'success':'secondary' ?>"><?= $a['is_active']?'Active':'Inactive' ?></span></td>
                     <td>
                         <div style="display:flex;gap:6px;">
-                            <button class="btn btn-ghost btn-sm btn-icon" onclick='openAdminModal(<?= json_encode(['id'=>$a['id'],'name'=>$a['name'],'email'=>$a['email'],'role'=>$a['role'],'is_active'=>$a['is_active']]) ?>)'><i class="fa-solid fa-pen"></i></button>
+                            <button class="btn btn-ghost btn-sm btn-icon" onclick='openAdminModal(<?= htmlspecialchars(json_encode(['id'=>$a['id'],'name'=>$a['name'],'email'=>$a['email'],'role_id'=>$a['role_id'],'is_active'=>$a['is_active']]), ENT_QUOTES) ?>)'><i class="fa-solid fa-pen"></i></button>
                             <?php if($a['id'] != $_SESSION['admin_id']): ?>
                             <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteAdmin(<?= $a['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
                             <?php endif; ?>
@@ -221,9 +230,9 @@ include __DIR__ . '/../includes/header.php';
                 <div class="form-group">
                     <label class="form-label">Role</label>
                     <select class="form-control" id="adm_role">
-                        <option value="staff">Staff</option>
-                        <option value="admin">Admin</option>
-                        <option value="super_admin">Super Admin</option>
+                        <?php foreach ($allRoles as $ro): ?>
+                        <option value="<?= $ro['id'] ?>"><?= htmlspecialchars($ro['name']) ?></option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
             </div>
@@ -246,17 +255,12 @@ include __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
-const CURRENT_ADMIN_ID = <?= (int)$_SESSION['admin_id'] ?>;
-function togglePw(){
-    const i=document.getElementById('adm_password'), e=document.getElementById('pwEye');
-    if(i.type==='password'){ i.type='text'; e.className='fa-solid fa-eye-slash'; }
-    else { i.type='password'; e.className='fa-solid fa-eye'; }
-}
+const STAFF_ROLE_ID = '<?= $staffRoleId ?>';
 function openAdminModal(a = null) {
     document.getElementById('adm_id').value       = a?.id || '';
     document.getElementById('adm_name').value     = a?.name || '';
     document.getElementById('adm_email').value    = a?.email || '';
-    document.getElementById('adm_role').value     = a?.role || 'staff';
+    document.getElementById('adm_role').value     = (a && a.role_id) ? String(a.role_id) : STAFF_ROLE_ID;
     document.getElementById('adm_status').value   = a?.is_active ?? 1;
     document.getElementById('adm_password').value = '';
     document.getElementById('passNote').style.display = a ? 'inline' : 'none';
@@ -278,7 +282,7 @@ async function saveAdmin() {
     const data = {
         action:'save', id:document.getElementById('adm_id').value,
         name, email, password:document.getElementById('adm_password').value,
-        role:document.getElementById('adm_role').value,
+        role_id:document.getElementById('adm_role').value,
         is_active:document.getElementById('adm_status').value,
     };
     const res = await fetch('admins.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(data)});

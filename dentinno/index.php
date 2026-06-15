@@ -7,10 +7,30 @@ $page_title = 'Dashboard';
 $stats = getDashboardStats();
 include __DIR__ . '/includes/header.php';
 
-// Order status counts for doughnut chart
-$orderStatusData = [];
-$statuses = db()->fetchAll("SELECT status, COUNT(*) as cnt FROM orders GROUP BY status");
-foreach ($statuses as $s) $orderStatusData[ucfirst($s['status'])] = (int)$s['cnt'];
+// Order status breakdown (doughnut). Map each status to a STABLE, meaningful colour and cover
+// all 7 enum statuses — a fixed 6-colour positional list left one slice blank and made the
+// legend colour depend on GROUP BY order rather than on the status itself.
+$statusColorMap = [
+    'pending'    => '#F39C12',
+    'processing' => '#3498DB',
+    'confirmed'  => '#C9A84C',
+    'shipped'    => '#9B59B6',
+    'delivered'  => '#2ECC71',
+    'cancelled'  => '#E74C3C',
+    'refunded'   => '#95A5A6',
+];
+$statusCounts = [];
+foreach (db()->fetchAll("SELECT status, COUNT(*) as cnt FROM orders GROUP BY status") as $s) {
+    $statusCounts[$s['status']] = (int)$s['cnt'];
+}
+$orderStatusData   = [];   // label => count, in a fixed semantic order
+$orderStatusColors = [];   // colours parallel to the labels above
+foreach ($statusColorMap as $st => $col) {
+    if (!empty($statusCounts[$st])) { $orderStatusData[ucfirst($st)] = $statusCounts[$st]; $orderStatusColors[] = $col; }
+}
+foreach ($statusCounts as $st => $cnt) {   // defensively include any status outside the known enum
+    if (!isset($statusColorMap[$st]) && $cnt > 0) { $orderStatusData[ucfirst($st)] = $cnt; $orderStatusColors[] = '#7F8C8D'; }
+}
 ?>
 
 <div class="page-header fade-in">
@@ -181,7 +201,7 @@ foreach ($statuses as $s) $orderStatusData[ucfirst($s['status'])] = (int)$s['cnt
         <div class="stat-card-icon" style="background:rgba(201,168,76,.12);color:var(--gold-primary);width:42px;height:42px;border-radius:10px;display:grid;place-items:center;font-size:1.1rem;margin-bottom:12px;">
             <i class="fa-regular fa-star"></i>
         </div>
-        <div class="stat-value"><?= $stats['avg_rating'] ?: '—' ?></div>
+        <div class="stat-value"><?= ($stats['avg_rating'] ?? 0) > 0 ? $stats['avg_rating'] : '—' ?></div>
         <div class="stat-label">Avg Rating</div>
         <div class="stat-change up" style="margin-top:5px;">
             <i class="fa-solid fa-star"></i> from <?= number_format((int)($stats['rating_count'] ?? 0)) ?> review<?= ((int)($stats['rating_count'] ?? 0)) !== 1 ? 's' : '' ?>
@@ -332,9 +352,9 @@ function chartEmpty(id, msg){
 const revenueData = <?= json_encode($stats['revenue_chart']) ?>;
 if(!revenueData || !revenueData.length) chartEmpty('revenueChart','No paid revenue yet'); else initRevenueChart(revenueData);
 
-// Order Status Doughnut
+// Order Status Doughnut (colours mapped to status, parallel to the labels)
 const orderData = <?= json_encode($orderStatusData) ?>;
-if(!orderData || !Object.keys(orderData).length) chartEmpty('orderChart','No orders yet'); else initOrderChart(orderData);
+initOrderChart(orderData, <?= json_encode($orderStatusColors) ?>);
 </script>
 
 <?php include __DIR__ . '/includes/footer.php'; ?>

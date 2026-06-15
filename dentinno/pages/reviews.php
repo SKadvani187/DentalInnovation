@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Product Reviews';
+requireView('reviews');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
@@ -10,6 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     try {
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
+    requireAction('reviews', rbacCrudVerb($action, $data));
     if ($action === 'approve') {
         $approved = !empty($data['approved']) ? 1 : 0;   // coerce to a strict 0/1
         db()->execute("UPDATE product_reviews SET is_approved=? WHERE id=?", [$approved, (int)($data['id'] ?? 0)]);
@@ -201,6 +203,10 @@ include __DIR__ . '/../includes/header.php';
                 <i class="fa-solid fa-circle-check" style="color:#3498DB;"></i>
               </button>
               <?php endif; ?>
+              <button class="btn btn-ghost btn-sm btn-icon" onclick="viewReview(<?= $r['id'] ?>)" title="View Full">
+                <i class="fa-solid fa-eye" style="color:var(--gold-primary);"></i>
+              </button>
+              <?php if (can('reviews','delete')): ?>
               <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteReview(<?= $r['id'] ?>)" title="Delete">
                 <i class="fa-solid fa-trash" style="color:var(--danger);"></i>
               </button>

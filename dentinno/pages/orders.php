@@ -3,6 +3,7 @@ require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/order_effects.php';
 $page_title = 'Orders';
+requireView('orders');
 
 // Order status lifecycle — forward-only. SINGLE source of truth used by both the POST
 // handler (validation) and the UI (which next-states to offer). 'refunded' is reachable
@@ -73,6 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
+    requireAction('orders', rbacCrudVerb($action, $data));
 
     if ($action === 'update_status') {
         $newStatus = (string)($data['status'] ?? '');
@@ -317,7 +319,7 @@ include __DIR__ . '/../includes/header.php';
 <div class="card fade-in" style="margin-bottom:24px;">
     <div class="card-header">
         <div>
-            <span class="card-title">Order: <span class="text-gold"><?= $order_detail['order_number'] ?></span></span>
+            <span class="card-title">Order: <span class="text-gold"><?= htmlspecialchars($order_detail['order_number']) ?></span></span>
             <span class="badge badge-<?= statusBadge($order_detail['status']) ?>" style="margin-left:10px;"><?= $order_detail['status'] ?></span>
         </div>
         <div style="display:flex;gap:8px;">
@@ -458,8 +460,8 @@ include __DIR__ . '/../includes/header.php';
                         <option value="<?= $s ?>" <?= $order_detail['status']===$s?'selected':'' ?>><?= ucwords(str_replace('_',' ',$s)) ?></option>
                         <?php endforeach; ?>
                     </select>
-                    <input type="text" class="form-control" id="detailTracking" placeholder="Tracking number" value="<?= $order_detail['tracking_number'] ?>" style="margin-bottom:10px;">
-                    <input type="text" class="form-control" id="detailCourier" placeholder="Courier name (e.g. Blue Dart)" value="<?= $order_detail['courier_name'] ?>" style="margin-bottom:10px;">
+                    <input type="text" class="form-control" id="detailTracking" placeholder="Tracking number" value="<?= htmlspecialchars($order_detail['tracking_number'] ?? '') ?>" style="margin-bottom:10px;">
+                    <input type="text" class="form-control" id="detailCourier" placeholder="Courier name (e.g. Blue Dart)" value="<?= htmlspecialchars($order_detail['courier_name'] ?? '') ?>" style="margin-bottom:10px;">
                     <button class="btn btn-gold btn-sm" onclick="updateOrderDetail(<?= $order_detail['id'] ?>)">
                         <i class="fa-solid fa-floppy-disk"></i> Update
                     </button>
@@ -569,7 +571,7 @@ include __DIR__ . '/../includes/header.php';
                 <?php foreach($orders as $o): ?>
                 <tr id="order-row-<?= $o['id'] ?>">
                     <td><input type="checkbox" class="order-check" value="<?= $o['id'] ?>" onchange="updateBulkBar()" style="width:15px;height:15px;accent-color:var(--gold-primary);cursor:pointer;"></td>
-                    <td><a href="?view=<?= $o['id'] ?>" class="text-gold font-bold"><?= $o['order_number'] ?></a></td>
+                    <td><a href="?view=<?= $o['id'] ?>" class="text-gold font-bold"><?= htmlspecialchars($o['order_number']) ?></a></td>
                     <td>
                         <div class="font-bold" style="font-size:0.84rem;"><?= htmlspecialchars($o['customer_name']) ?></div>
                         <div class="text-muted" style="font-size:0.73rem;"><?= htmlspecialchars($o['phone'] ?? '') ?></div>

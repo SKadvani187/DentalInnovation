@@ -2,12 +2,14 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Products';
+requireView('products');   // RBAC: block direct access if the role can't view this page
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
+    requireAction('products', rbacCrudVerb($action, $data));
 
     // Surface the real DB error (e.g. "Unknown column …" when a migration is missing)
     // instead of letting a PDOException corrupt the JSON response and show a generic
@@ -157,10 +159,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $reviews = db()->fetchAll("SELECT * FROM product_reviews WHERE product_id=? ORDER BY created_at DESC", [$data['product_id']]);
         echo json_encode(['success' => true, 'reviews' => $reviews]);
     } elseif ($action === 'approve_review') {
-        db()->execute("UPDATE product_reviews SET is_approved=? WHERE id=?", [$data['approved'],$data['id']]);
+        db()->execute("UPDATE product_reviews SET is_approved=? WHERE id=?", [(int)(bool)($data['approved'] ?? 0),(int)($data['id'] ?? 0)]);
         echo json_encode(['success' => true]);
     } elseif ($action === 'delete_review') {
-        db()->execute("DELETE FROM product_reviews WHERE id=?", [$data['id']]);
+        db()->execute("DELETE FROM product_reviews WHERE id=?", [(int)($data['id'] ?? 0)]);
         echo json_encode(['success' => true]);
     } elseif ($action === 'bulk') {
         $ids = array_values(array_filter(array_map('intval', (array)($data['ids'] ?? []))));
@@ -185,6 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['catalogue_pdf'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    requireAction('products', 'edit');
     $dir = __DIR__ . '/../assets/catalogues/';
     if (!is_dir($dir)) mkdir($dir, 0755, true);
     $f = $_FILES['catalogue_pdf'];
@@ -193,7 +196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['catalogue_pdf'])) {
     if ($ext !== 'pdf') { echo json_encode(['success'=>false,'message'=>'Only PDF files are allowed']); exit; }
     $fi = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : false;
     $mime = $fi ? finfo_file($fi, $f['tmp_name']) : '';
-    if ($mime && $mime !== 'application/pdf') { echo json_encode(['success'=>false,'message'=>'The file is not a valid PDF (content check failed)']); exit; }
+    if (!$mime || $mime !== 'application/pdf') { echo json_encode(['success'=>false,'message'=>'The file is not a valid PDF (content check failed)']); exit; }
     if ($f['size'] > 15*1024*1024) { echo json_encode(['success'=>false,'message'=>'File too large (max 15MB)']); exit; }
     $fname = 'catalogue_' . time() . '_' . rand(1000,9999) . '.pdf';
     if (move_uploaded_file($f['tmp_name'], $dir . $fname)) {
@@ -207,6 +210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['catalogue_pdf'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['products_csv'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    requireAction('products', 'create');
     $f = $_FILES['products_csv'];
     if ($f['error'] !== UPLOAD_ERR_OK) { echo json_encode(['success'=>false,'message'=>'Upload error (code '.$f['error'].')']); exit; }
     if (strtolower(pathinfo($f['name'], PATHINFO_EXTENSION)) !== 'csv') { echo json_encode(['success'=>false,'message'=>'Please upload a .csv file']); exit; }
@@ -228,7 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['products_csv'])) {
             $name  = $get($row, $idx['name'] ?? null);
             $price = $get($row, $idx['price'] ?? null);
             $stock = $get($row, $idx['stock'] ?? null);
-            if ($name === '' || !is_numeric($price) || (float)$price <= 0 || !is_numeric($stock)) { $skipped++; continue; }
+            if ($name === '' || !is_numeric($price) || (float)$price <= 0 || !is_numeric($stock) || (int)$stock < 0) { $skipped++; continue; }
             $sku   = $get($row, $idx['sku'] ?? null);
             $catId = $catMap[strtolower($get($row, $idx['category'] ?? null))] ?? null;
             $discRaw = $get($row, $idx['discount price'] ?? null);
@@ -260,6 +264,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['products_csv'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['product_image'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    requireAction('products', 'edit');
     $upload_dir = __DIR__ . '/../assets/images/products/';
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
     $file = $_FILES['product_image'];
@@ -283,7 +288,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['product_image'])) {
     // Verify the actual file CONTENT, not just the extension (a .jpg could be a PHP script).
     $fi = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : false;
     $mime = $fi ? finfo_file($fi, $file['tmp_name']) : '';
-    if ($mime && !in_array($mime, ['image/jpeg','image/png','image/webp','image/gif'], true)) {
+    if (!$mime || !in_array($mime, ['image/jpeg','image/png','image/webp','image/gif'], true)) {
         echo json_encode(['success'=>false,'message'=>'The file is not a valid image (content check failed)']); exit;
     }
     if (!imageDimsOk($file['tmp_name'])) { echo json_encode(['success'=>false,'message'=>'Image must be a valid file no larger than 6000×6000 px']); exit; }
@@ -398,7 +403,7 @@ include __DIR__ . '/../includes/header.php';
     <button class="btn btn-outline btn-sm" onclick="exportCsv()" title="Export the filtered list to CSV"><i class="fa-solid fa-file-csv"></i> Export</button>
     <button class="btn btn-outline btn-sm" onclick="document.getElementById('csvImportInput').click()" title="Import/update products from a CSV"><i class="fa-solid fa-file-import"></i> Import</button>
     <input type="file" id="csvImportInput" accept=".csv" style="display:none" onchange="importCsv(this)">
-    <button class="btn btn-gold" onclick="openProductModal()"><i class="fa-solid fa-plus"></i> Add Product</button>
+    <?php if (can('products','create')): ?><button class="btn btn-gold" onclick="openProductModal()"><i class="fa-solid fa-plus"></i> Add Product</button><?php endif; ?>
   </div>
 </div>
 
@@ -480,13 +485,13 @@ include __DIR__ . '/../includes/header.php';
           <td>
             <div style="display:flex;gap:4px;">
               <?php if(!empty($p['is_deleted'])): ?>
-              <button class="btn btn-ghost btn-sm" onclick="restoreProduct(<?= $p['id'] ?>)" title="Restore product"><i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i> Restore</button>
+              <?php if (can('products','edit')): ?><button class="btn btn-ghost btn-sm" onclick="restoreProduct(<?= $p['id'] ?>)" title="Restore product"><i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i> Restore</button><?php endif; ?>
               <?php else: ?>
-              <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick='openProductModal(<?= htmlspecialchars(json_encode($p), ENT_QUOTES, "UTF-8") ?>)'><i class="fa-solid fa-pen"></i></button>
+              <?php if (can('products','edit')): ?><button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick='openProductModal(<?= htmlspecialchars(json_encode($p), ENT_QUOTES, "UTF-8") ?>)'><i class="fa-solid fa-pen"></i></button><?php endif; ?>
               <button class="btn btn-ghost btn-sm btn-icon" title="FAQs" onclick="openFaqModal(<?= $p['id'] ?>)"><i class="fa-regular fa-circle-question"></i></button>
               <button class="btn btn-ghost btn-sm btn-icon" title="Reviews" onclick="openReviewsModal(<?= $p['id'] ?>,'<?= addslashes(htmlspecialchars($p['name'])) ?>')"><i class="fa-regular fa-star"></i></button>
-              <button class="btn btn-ghost btn-sm btn-icon" title="Toggle" onclick="toggleProduct(<?= $p['id'] ?>)"><i class="fa-solid fa-power-off" style="color:<?= $p['is_active']?'var(--success)':'var(--text-muted)' ?>;"></i></button>
-              <button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteProduct(<?= $p['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+              <?php if (can('products','edit')): ?><button class="btn btn-ghost btn-sm btn-icon" title="Toggle" onclick="toggleProduct(<?= $p['id'] ?>)"><i class="fa-solid fa-power-off" style="color:<?= $p['is_active']?'var(--success)':'var(--text-muted)' ?>;"></i></button><?php endif; ?>
+              <?php if (can('products','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteProduct(<?= $p['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
               <?php endif; ?>
             </div>
           </td>

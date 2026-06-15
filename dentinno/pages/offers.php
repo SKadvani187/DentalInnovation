@@ -2,11 +2,13 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Offers';
+requireView('offers');
 
 // Image upload (shared products folder)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['offer_image'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    requireAction('offers', 'edit');
     $upload_dir = __DIR__ . '/../assets/images/products/';
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
     $file = $_FILES['offer_image'];
@@ -29,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['offer_image'])) {
     // Verify the actual file CONTENT, not just the extension (a .jpg could be a PHP script).
     $fi = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : false;
     $mime = $fi ? finfo_file($fi, $file['tmp_name']) : '';
-    if ($mime && !in_array($mime, ['image/jpeg','image/png','image/webp','image/gif'], true)) {
+    if (!$mime || !in_array($mime, ['image/jpeg','image/png','image/webp','image/gif'], true)) {
         echo json_encode(['success'=>false,'message'=>'The file is not a valid image (content check failed)']); exit;
     }
     if (!imageDimsOk($file['tmp_name'])) { echo json_encode(['success'=>false,'message'=>'Image must be a valid file no larger than 6000×6000 px']); exit; }
@@ -50,6 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     try {
     $d = json_decode(file_get_contents('php://input'), true);
     $action = $d['action'] ?? '';
+    requireAction('offers', rbacCrudVerb($action, $d));
 
     if ($action === 'save') {
         $mainProduct = $d['main_product'] ?? null;   // {productId,name,variant,image,price,mrp}
@@ -250,7 +253,7 @@ include __DIR__ . '/../includes/header.php';
         <h1>Offers</h1>
         <p>Offer Zone deals shown on the storefront. Total MRP &amp; You-Save are calculated automatically.</p>
     </div>
-    <button class="btn btn-gold" onclick="openOfferModal()"><i class="fa-solid fa-plus"></i> Add Offer</button>
+    <?php if (can('offers','create')): ?><button class="btn btn-gold" onclick="openOfferModal()"><i class="fa-solid fa-plus"></i> Add Offer</button><?php endif; ?>
 </div>
 
 <div class="filter-bar fade-in" style="flex-wrap:wrap;gap:8px;">
@@ -288,7 +291,9 @@ include __DIR__ . '/../includes/header.php';
     <?php foreach($offers as $o):
         $mp = json_decode($o['main_product'] ?? 'null', true);
         $fi = json_decode($o['free_items'] ?? '[]', true) ?: [];
-        $expired = $o['valid_till'] && $o['valid_till'] < date('Y-m-d');
+        // Compare full datetimes (valid_till is stored as '... 23:59:59'); using a bare date here
+        // would disagree with the SQL `valid_till < NOW()` filter for same-day expiries.
+        $expired = $o['valid_till'] && strtotime($o['valid_till']) < time();
         // Recompute totals from parts (same as API mapOffer) so the card never shows stale stored values.
         $cardMrp = (float)($mp['mrp'] ?? 0);
         foreach ($fi as $f) $cardMrp += (float)($f['mrp'] ?? 0);
@@ -327,9 +332,13 @@ include __DIR__ . '/../includes/header.php';
                 <?php if(!empty($o['is_deleted'])): ?>
                 <button class="btn btn-ghost btn-sm" onclick="restoreOffer(<?= $o['id'] ?>)" title="Restore offer"><i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i> Restore</button>
                 <?php else: ?>
+                <?php if (can('offers','edit')): ?>
                 <button class="btn btn-ghost btn-sm btn-icon" title="Activate/Deactivate" onclick="toggleOffer(<?= $o['id'] ?>)"><i class="fa-solid fa-power-off" style="color:<?= $o['is_active']?'var(--success)':'var(--text-muted)' ?>;"></i></button>
                 <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick="openOfferModal(<?= htmlspecialchars(json_encode($o), ENT_QUOTES) ?>)"><i class="fa-solid fa-pen"></i></button>
+                <?php endif; ?>
+                <?php if (can('offers','delete')): ?>
                 <button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteOffer(<?= $o['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+                <?php endif; ?>
                 <?php endif; ?>
             </div>
         </div>

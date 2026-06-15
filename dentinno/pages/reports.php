@@ -3,17 +3,25 @@ require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Analytics & Reports';
 
-// Date range — validate the format, fall back to sane defaults on anything unexpected.
+// Financial reports are business-sensitive: gate to roles that can VIEW the reports page.
+requireView('reports');
+
+// Date range
 $from = sanitize($_GET['from'] ?? date('Y-m-01'));
 $to   = sanitize($_GET['to']   ?? date('Y-m-d'));
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) $from = date('Y-m-01');
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $to))   $to   = date('Y-m-d');
 
-// Summary stats for range
-$range_revenue  = db()->fetchOne("SELECT COALESCE(SUM(total),0) as v FROM orders WHERE payment_status='paid' AND DATE(created_at) BETWEEN ? AND ?", [$from,$to])['v'];
+// Summary stats for range.
+// Revenue = NET SALES (subtotal, excl. tax & shipping) on PAID orders — same basis as the dashboard.
+// (by_status order value, pay_methods received, and customer total_spent below are CASH metrics
+//  and intentionally remain on `total`.)
+$range_revenue  = db()->fetchOne("SELECT COALESCE(SUM(subtotal),0) as v FROM orders WHERE payment_status='paid' AND DATE(created_at) BETWEEN ? AND ?", [$from,$to])['v'];
 $range_orders   = db()->fetchOne("SELECT COUNT(*) as v FROM orders WHERE DATE(created_at) BETWEEN ? AND ?", [$from,$to])['v'];
+$range_paid_orders = db()->fetchOne("SELECT COUNT(*) as v FROM orders WHERE payment_status='paid' AND DATE(created_at) BETWEEN ? AND ?", [$from,$to])['v'];
 $range_customers= db()->fetchOne("SELECT COUNT(*) as v FROM customers WHERE DATE(created_at) BETWEEN ? AND ?", [$from,$to])['v'];
-$avg_order_val  = $range_orders > 0 ? ($range_revenue / $range_orders) : 0;
+// AOV = paid revenue / paid orders (both on the same 'paid' basis, otherwise the value is understated).
+$avg_order_val  = $range_paid_orders > 0 ? ($range_revenue / $range_paid_orders) : 0;
 
 // --- Returns / refunds (range, by completion date) ---
 $returns = db()->fetchOne("SELECT COUNT(*) cnt, COALESCE(SUM(refund_amount),0) amt FROM refund_requests WHERE status='completed' AND DATE(completed_at) BETWEEN ? AND ?", [$from,$to]);
@@ -179,7 +187,7 @@ include __DIR__ . '/../includes/header.php';
             <?php foreach($by_status as $s): ?>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
                 <div style="display:flex;align-items:center;gap:10px;">
-                    <span class="badge badge-<?= statusBadge($s['status']) ?>"><?= ucfirst($s['status']) ?></span>
+                    <span class="badge <?= statusBadge($s['status']) ?>"><?= ucfirst(htmlspecialchars($s['status'])) ?></span>
                     <span class="text-muted" style="font-size:0.8rem;"><?= $s['cnt'] ?> orders</span>
                 </div>
                 <span class="font-bold"><?= formatCurrency($s['total']) ?></span>
@@ -199,7 +207,7 @@ include __DIR__ . '/../includes/header.php';
             <?php foreach($pay_methods as $pm): ?>
             <div style="margin-bottom:14px;">
                 <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-                    <span style="font-size:0.84rem;font-weight:600;"><?= htmlspecialchars($pm['payment_method']) ?></span>
+                    <span style="font-size:0.84rem;font-weight:600;"><?= htmlspecialchars($pm['payment_method'] ?? '') ?></span>
                     <span class="text-gold font-bold"><?= formatCurrency($pm['total']) ?></span>
                 </div>
                 <div style="background:var(--bg-elevated);border-radius:99px;height:5px;">

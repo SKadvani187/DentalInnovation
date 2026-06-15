@@ -23,8 +23,9 @@
 //   socials            {facebook,instagram,...}                  — footer social links
 //   otpConfig    (PRIVATE — never exposed)  {provider, fast2sms{}, twofactor{}, msg91{}}
 //   whatsappConfig (PRIVATE — never exposed) {token, phoneId, templates{}}
-// PRIVATE keys (otpConfig, whatsappConfig) are stripped in api/v1/settings.php — do not
-// add a new secret-bearing key without adding it to that $PRIVATE list.
+//   orderMailConfig (PRIVATE — never exposed) {enabled, adminEmail, smtp*, from*, *Subject, *Body}
+// PRIVATE keys (otpConfig, whatsappConfig, orderMailConfig) are stripped in api/v1/settings.php —
+// do not add a new secret-bearing key without adding it to that $PRIVATE list.
 
 if (!function_exists('productSelect')) {
 

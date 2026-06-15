@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Wishlists';
+requireView('wishlists');
 
 $wishlists = db()->fetchAll("SELECT w.*, c.name as customer_name, c.phone, c.email, p.name as product_name, p.price, p.sku FROM wishlists w JOIN customers c ON w.customer_id=c.id JOIN products p ON w.product_id=p.id ORDER BY w.created_at DESC");
 

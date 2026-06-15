@@ -2,12 +2,14 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Categories';
+requireView('categories');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
+    requireAction('categories', rbacCrudVerb($action, $data));
     // Never let a PHP warning/exception leak HTML into the JSON response (breaks res.json()).
     try {
     if ($action === 'save') {
@@ -88,6 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['category_image'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    requireAction('categories', 'edit');
     $dir = __DIR__ . '/../assets/images/categories/';
     if (!is_dir($dir)) mkdir($dir, 0755, true);
     $file = $_FILES['category_image'];
@@ -96,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['category_image'])) {
     if (!in_array($ext, ['jpg','jpeg','png','webp','gif'])) { echo json_encode(['success'=>false,'message'=>'Invalid file type']); exit; }
     $finfo = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : false;
     $mime  = $finfo ? finfo_file($finfo, $file['tmp_name']) : '';
-    if ($mime && !in_array($mime, ['image/jpeg','image/png','image/webp','image/gif'], true)) {
+    if (!$mime || !in_array($mime, ['image/jpeg','image/png','image/webp','image/gif'], true)) {
         echo json_encode(['success'=>false,'message'=>'The file is not a valid image (content check failed)']); exit;
     }
     if (!imageDimsOk($file['tmp_name'])) { echo json_encode(['success'=>false,'message'=>'Image must be a valid file no larger than 6000×6000 px']); exit; }
@@ -131,7 +134,7 @@ include __DIR__ . '/../includes/header.php';
         <h1>Categories</h1>
         <p>Organize your products by category</p>
     </div>
-    <button class="btn btn-gold" onclick="openCatModal()"><i class="fa-solid fa-plus"></i> Add Category</button>
+    <?php if (can('categories','create')): ?><button class="btn btn-gold" onclick="openCatModal()"><i class="fa-solid fa-plus"></i> Add Category</button><?php endif; ?>
 </div>
 
 <div class="filter-bar fade-in" style="flex-wrap:wrap;gap:8px;">
@@ -184,9 +187,13 @@ include __DIR__ . '/../includes/header.php';
                     <?php if((int)($c['sort_order']??0) !== 0): ?><span class="text-muted" style="font-size:.7rem;margin-left:8px;">· order <?= (int)$c['sort_order'] ?></span><?php endif; ?>
                 </div>
                 <div style="display:flex;gap:6px;">
+                    <?php if (can('categories','edit')): ?>
                     <button class="btn btn-ghost btn-sm btn-icon" title="Activate/Deactivate" onclick="toggleCat(<?= $c['id'] ?>)"><i class="fa-solid fa-power-off" style="color:<?= $c['is_active']?'var(--success)':'var(--text-muted)' ?>;"></i></button>
                     <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick='openCatModal(<?= htmlspecialchars(json_encode($c), ENT_QUOTES, "UTF-8") ?>)'><i class="fa-solid fa-pen"></i></button>
+                    <?php endif; ?>
+                    <?php if (can('categories','delete')): ?>
                     <button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteCat(<?= $c['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

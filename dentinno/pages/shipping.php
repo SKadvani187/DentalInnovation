@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Shipping';
+requireView('shipping');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
@@ -10,6 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     try {
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
+    requireAction('shipping', rbacCrudVerb($action, $data));
 
     if ($action === 'save_method') {
         $d = $data;
@@ -189,7 +191,7 @@ include __DIR__ . '/../includes/header.php';
 <div id="ship-methods" class="ship-section active fade-in">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
     <h3 style="font-family:'Playfair Display',serif;">Shipping Methods</h3>
-    <button class="btn btn-gold btn-sm" onclick="openMethodModal()"><i class="fa-solid fa-plus"></i> Add Method</button>
+    <?php if (can('shipping','create')): ?><button class="btn btn-gold btn-sm" onclick="openMethodModal()"><i class="fa-solid fa-plus"></i> Add Method</button><?php endif; ?>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;">
     <?php foreach($methods as $m): ?>
@@ -200,9 +202,11 @@ include __DIR__ . '/../includes/header.php';
           <span class="ship-type-badge type-<?= $m['type'] ?>"><i class="fa-solid fa-<?= ['flat'=>'truck','free'=>'gift','product'=>'box','weight'=>'weight-scale','price'=>'tag','flexible'=>'sliders'][$m['type']]??'truck' ?>"></i> <?= ucfirst($m['type']) ?></span>
         </div>
         <div style="display:flex;gap:6px;">
-          <button class="btn btn-ghost btn-sm btn-icon" onclick='openMethodModal(<?= json_encode($m) ?>)'><i class="fa-solid fa-pen"></i></button>
+          <?php if (can('shipping','edit')): ?>
+          <button class="btn btn-ghost btn-sm btn-icon" onclick='openMethodModal(<?= htmlspecialchars(json_encode($m), ENT_QUOTES) ?>)'><i class="fa-solid fa-pen"></i></button>
           <button class="btn btn-ghost btn-sm btn-icon" onclick="toggleMethod(<?= $m['id'] ?>)"><i class="fa-solid fa-power-off" style="color:<?= $m['is_active']?'var(--success)':'var(--text-muted)' ?>;"></i></button>
-          <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteMethod(<?= $m['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+          <?php endif; ?>
+          <?php if (can('shipping','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick="deleteMethod(<?= $m['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
         </div>
       </div>
       <?php if($m['description']): ?><p style="color:var(--text-secondary);font-size:.82rem;margin-bottom:10px;"><?= htmlspecialchars($m['description']) ?></p><?php endif; ?>
@@ -220,7 +224,7 @@ include __DIR__ . '/../includes/header.php';
 <div id="ship-rules" class="ship-section fade-in">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
     <h3 style="font-family:'Playfair Display',serif;">Shipping Rules</h3>
-    <button class="btn btn-gold btn-sm" onclick="openRuleModal()"><i class="fa-solid fa-plus"></i> Add Rule</button>
+    <?php if (can('shipping','create')): ?><button class="btn btn-gold btn-sm" onclick="openRuleModal()"><i class="fa-solid fa-plus"></i> Add Rule</button><?php endif; ?>
   </div>
   <div class="card">
     <div class="table-responsive">
@@ -261,8 +265,8 @@ include __DIR__ . '/../includes/header.php';
             <td><span class="badge badge-<?= $r['is_active']?'success':'secondary' ?>"><?= $r['is_active']?'Active':'Inactive' ?></span></td>
             <td>
               <div style="display:flex;gap:5px;">
-                <button class="btn btn-ghost btn-sm btn-icon" onclick='openRuleModal(<?= json_encode($r) ?>)'><i class="fa-solid fa-pen"></i></button>
-                <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteRule(<?= $r['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+                <?php if (can('shipping','edit')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick='openRuleModal(<?= htmlspecialchars(json_encode($r), ENT_QUOTES) ?>)'><i class="fa-solid fa-pen"></i></button><?php endif; ?>
+                <?php if (can('shipping','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick="deleteRule(<?= $r['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
               </div>
             </td>
           </tr>
@@ -278,7 +282,7 @@ include __DIR__ . '/../includes/header.php';
 <div id="ship-zones" class="ship-section fade-in">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
     <h3 style="font-family:'Playfair Display',serif;">Shipping Zones</h3>
-    <button class="btn btn-gold btn-sm" onclick="openZoneModal()"><i class="fa-solid fa-plus"></i> Add Zone</button>
+    <?php if (can('shipping','create')): ?><button class="btn btn-gold btn-sm" onclick="openZoneModal()"><i class="fa-solid fa-plus"></i> Add Zone</button><?php endif; ?>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">
     <?php foreach($zones as $z):
@@ -288,8 +292,8 @@ include __DIR__ . '/../includes/header.php';
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <div style="font-weight:600;"><i class="fa-solid fa-map-location-dot" style="color:var(--gold-primary);margin-right:7px;"></i><?= htmlspecialchars($z['name']) ?></div>
         <div style="display:flex;gap:5px;">
-          <button class="btn btn-ghost btn-sm btn-icon" onclick='openZoneModal(<?= json_encode($z) ?>)'><i class="fa-solid fa-pen"></i></button>
-          <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteZone(<?= $z['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+          <?php if (can('shipping','edit')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick='openZoneModal(<?= htmlspecialchars(json_encode($z), ENT_QUOTES) ?>)'><i class="fa-solid fa-pen"></i></button><?php endif; ?>
+          <?php if (can('shipping','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick="deleteZone(<?= $z['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
         </div>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:5px;">
@@ -309,7 +313,7 @@ include __DIR__ . '/../includes/header.php';
       <h3 style="font-family:'Playfair Display',serif;">Pincode Delivery & COD</h3>
       <p class="text-muted" style="font-size:.8rem;margin-top:2px;">Powers the "Delivery Details" pincode check on the product page. Longest matching prefix wins (e.g. <b>395006</b> overrides <b>39</b>).</p>
     </div>
-    <button class="btn btn-gold btn-sm" onclick="openPinModal()"><i class="fa-solid fa-plus"></i> Add Pincode</button>
+    <?php if (can('shipping','create')): ?><button class="btn btn-gold btn-sm" onclick="openPinModal()"><i class="fa-solid fa-plus"></i> Add Pincode</button><?php endif; ?>
   </div>
   <div class="card">
     <div class="table-responsive">
@@ -325,8 +329,8 @@ include __DIR__ . '/../includes/header.php';
             <td><span class="badge badge-<?= $pc['is_active']?'success':'secondary' ?>"><?= $pc['is_active']?'Active':'Inactive' ?></span></td>
             <td>
               <div style="display:flex;gap:5px;">
-                <button class="btn btn-ghost btn-sm btn-icon" onclick='openPinModal(<?= json_encode($pc) ?>)'><i class="fa-solid fa-pen"></i></button>
-                <button class="btn btn-ghost btn-sm btn-icon" onclick="deletePin(<?= $pc['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+                <?php if (can('shipping','edit')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick='openPinModal(<?= htmlspecialchars(json_encode($pc), ENT_QUOTES) ?>)'><i class="fa-solid fa-pen"></i></button><?php endif; ?>
+                <?php if (can('shipping','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick="deletePin(<?= $pc['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
               </div>
             </td>
           </tr>
@@ -662,6 +666,31 @@ function calcQuickFill(sel){
   document.getElementById('calc_weight').value=opt.dataset.weight||'';
   document.getElementById('calc_qty').value=1;
   calcRun();
+let calcTimer;
+function calcShipping(){
+  const price=parseFloat(document.getElementById('calc_price').value)||0;
+  const weight=parseFloat(document.getElementById('calc_weight').value)||0;
+  const zone=document.getElementById('calc_zone').value;
+  const out=document.getElementById('calcOutput');
+  if(!price&&!weight){out.innerHTML='<i class="fa-solid fa-calculator" style="font-size:2rem;opacity:.3;"></i><br><span style="color:var(--text-muted)">Enter order details</span>';return;}
+  clearTimeout(calcTimer);
+  calcTimer=setTimeout(async()=>{
+    const res=await fetch('shipping.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'calc',price,weight,qty:1,zone_id:zone||0})});
+    const d=await res.json();
+    if(!d.success){out.innerHTML='<span style="color:var(--text-muted)">Could not calculate</span>';return;}
+    const actual=d.actual;
+    let html=`<div style="display:flex;justify-content:space-between;align-items:center;padding:14px;margin-bottom:14px;background:rgba(46,204,113,.08);border:1px solid var(--success);border-radius:8px;">
+      <div><div style="font-weight:700;">Customer pays</div><div style="font-size:.72rem;color:var(--text-muted);">Auto-picked by the live engine</div></div>
+      <div style="font-size:1.25rem;font-weight:800;color:${actual<=0?'var(--success)':'var(--gold-primary)'};">${actual<=0?'FREE':'₹'+Number(actual).toLocaleString('en-IN')}</div>
+    </div>`;
+    const apl=(d.methods||[]).filter(m=>m.applicable);
+    if(apl.length){html+='<div style="font-size:.72rem;color:var(--text-muted);margin-bottom:8px;">All applicable methods:</div>'+apl.map(m=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bg-elevated);border-radius:8px;margin-bottom:6px;">
+        <div><div style="font-weight:600;font-size:.88rem;">${escapeHtml(m.name||'')}</div><div style="font-size:.72rem;color:var(--text-muted);">${escapeHtml(m.type||'')}</div></div>
+        <div style="font-weight:700;color:${m.free?'var(--success)':'var(--gold-primary)'};">${m.free?'FREE':'₹'+Number(m.cost).toLocaleString('en-IN')}</div>
+      </div>`).join('');}
+    out.innerHTML=html;
+  },350);
 }
 
 let calcTimer;

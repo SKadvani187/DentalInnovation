@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Courses';
+requireView('courses');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
@@ -10,6 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     try {
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
+    requireAction('courses', rbacCrudVerb($action, $data));
 
     if ($action === 'save') {
         $d = $data;
@@ -49,8 +51,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         db()->execute("UPDATE courses SET is_deleted=0 WHERE id=?",[(int)($data['id'] ?? 0)]);
         echo json_encode(['success'=>true,'message'=>'Course restored']);
     } elseif ($action === 'toggle_status') {
-        $new = ($data['current'] ?? '') === 'published' ? 'draft' : 'published';
-        db()->execute("UPDATE courses SET status=? WHERE id=?",[$new,(int)($data['id'] ?? 0)]);
+        // Read the CURRENT status from the DB (never trust the client's claim of it).
+        $cid = (int)($data['id'] ?? 0);
+        $cur = db()->fetchOne("SELECT status FROM courses WHERE id=?", [$cid]);
+        if (!$cur) { echo json_encode(['success'=>false,'message'=>'Course not found']); exit; }
+        $new = $cur['status'] === 'published' ? 'draft' : 'published';
+        db()->execute("UPDATE courses SET status=? WHERE id=?",[$new,$cid]);
         echo json_encode(['success'=>true,'message'=>'Status updated to '.$new]);
     } elseif ($action === 'get_enrollments') {
         $enrollments = db()->fetchAll("SELECT * FROM course_enrollments WHERE course_id=? ORDER BY enrollment_date DESC",[(int)($data['course_id'] ?? 0)]);
@@ -147,7 +153,7 @@ include __DIR__ . '/../includes/header.php';
     <h1><i class="fa-solid fa-graduation-cap" style="color:var(--gold-primary);margin-right:10px;"></i>Course Management</h1>
     <p>Online, offline & hybrid dental education courses — <?= count($courses) ?> courses</p>
   </div>
-  <button class="btn btn-gold" onclick="openCourseModal()"><i class="fa-solid fa-plus"></i> Add Course</button>
+  <?php if (can('courses','create')): ?><button class="btn btn-gold" onclick="openCourseModal()"><i class="fa-solid fa-plus"></i> Add Course</button><?php endif; ?>
 </div>
 
 <div class="filter-bar fade-in" style="flex-wrap:wrap;">
@@ -200,12 +206,13 @@ include __DIR__ . '/../includes/header.php';
         <button class="btn btn-ghost btn-sm" title="Restore course" onclick="restoreCourse(<?= $c['id'] ?>)"><i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i> Restore</button>
         <?php else: ?>
         <button class="btn btn-ghost btn-sm btn-icon" title="Modules" onclick="manageModules(<?= $c['id'] ?>,'<?= addslashes(htmlspecialchars($c['title'])) ?>')"><i class="fa-solid fa-list"></i></button>
-        <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick='openCourseModal(<?= json_encode($c) ?>)'><i class="fa-solid fa-pen"></i></button>
+        <?php if (can('courses','edit')): ?>
+        <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick='openCourseModal(<?= htmlspecialchars(json_encode($c), ENT_QUOTES) ?>)'><i class="fa-solid fa-pen"></i></button>
         <button class="btn btn-ghost btn-sm btn-icon" title="<?= $c['status']==='published'?'Unpublish':'Publish' ?>" onclick="toggleCourseStatus(<?= $c['id'] ?>,'<?= $c['status'] ?>')">
           <i class="fa-solid fa-<?= $c['status']==='published'?'eye-slash':'rocket' ?>" style="color:<?= $c['status']==='published'?'var(--warning)':'var(--success)' ?>;"></i>
         </button>
-        <button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteCourse(<?= $c['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
         <?php endif; ?>
+        <?php if (can('courses','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteCourse(<?= $c['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
       </div>
     </div>
   </div>
@@ -399,15 +406,15 @@ async function viewEnrollments(id,name){
   data.enrollments.map(e=>`
     <div class="enroll-row">
       <div>
-        <div style="font-weight:600;font-size:.88rem;">${e.student_name}</div>
-        <div style="font-size:.75rem;color:var(--text-muted);">${e.student_email}</div>
+        <div style="font-weight:600;font-size:.88rem;">${escapeHtml(e.student_name||'')}</div>
+        <div style="font-size:.75rem;color:var(--text-muted);">${escapeHtml(e.student_email||'')}</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
         <div style="text-align:right;">
           <div style="font-size:.75rem;color:var(--text-muted);">Progress</div>
           <div style="font-size:.85rem;font-weight:600;color:var(--gold-primary);">${e.progress_percent}%</div>
         </div>
-        <span class="badge badge-${e.payment_status==='paid'?'success':e.payment_status==='free'?'info':'warning'}">${e.payment_status}</span>
+        <span class="badge badge-${e.payment_status==='paid'?'success':e.payment_status==='free'?'info':'warning'}">${escapeHtml(e.payment_status||'')}</span>
         ${e.certificate_issued?'<span class="badge badge-gold"><i class="fa-solid fa-certificate"></i> Cert</span>':''}
       </div>
     </div>`).join('');

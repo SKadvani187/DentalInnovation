@@ -3,6 +3,7 @@ require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/order_effects.php';
 $page_title = 'Refunds';
+requireView('refunds');
 $current_page = 'refunds';
 
 // Razorpay refund call (admin-side, self-contained — mirrors rzpRequest in the storefront
@@ -54,11 +55,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         [$rid]
     );
     if (!$rr) { echo json_encode(['success' => false, 'message' => 'Request not found']); exit; }
-    if (!in_array($rr['status'], ['pending', 'approved'], true)) {
+
+    // RECOVERY CASE: a prior approve already issued the gateway refund (razorpay_refund_id is
+    // set) but crashed before the DB transaction could mark the order refunded, leaving the
+    // request stuck in 'processing'. Allow a re-approve to FINISH the DB side only — never a
+    // second gateway call. Any other non-actionable status is rejected.
+    $gatewayAlreadyDone = ($rr['status'] === 'processing' && !empty($rr['razorpay_refund_id']));
+    if (!in_array($rr['status'], ['pending', 'approved'], true) && !$gatewayAlreadyDone) {
         echo json_encode(['success' => false, 'message' => 'Request already ' . $rr['status']]); exit;
     }
 
     if ($action === 'reject') {
+        // Cannot reject once a refund is already in flight / paid out.
+        if (!in_array($rr['status'], ['pending', 'approved'], true)) {
+            echo json_encode(['success' => false, 'message' => 'Cannot reject — refund already in progress or paid out']); exit;
+        }
         db()->execute(
             "UPDATE refund_requests SET status='rejected', admin_note=?, actioned_by=?, actioned_at=NOW() WHERE id=?",
             [$note, $actedBy, $rid]
@@ -83,42 +94,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             echo json_encode(['success'=>false,'message'=>'Amount exceeds the refundable balance (₹'.number_format($balance,2).' left of ₹'.number_format($orderTotal,2).')']); exit;
         }
 
-        // SECURITY (double-refund prevention): atomically claim this request BEFORE calling the
-        // gateway. Only the row-update that transitions pending/approved -> processing proceeds;
-        // a concurrent second click / re-submit gets rowCount()===0 and bails, so rzpRefund()
-        // fires at most once per request.
-        $claimed = db()->execute(
-            "UPDATE refund_requests SET status='processing' WHERE id=? AND status IN ('pending','approved') AND (razorpay_refund_id IS NULL OR razorpay_refund_id='')",
-            [$rid]
-        );
-        if ($claimed < 1) {
-            echo json_encode(['success' => false, 'message' => 'Refund already being processed or completed']); exit;
-        }
+        if (!$gatewayAlreadyDone) {
+            // --- Amount validation (applies to EVERY method, incl. COD/manual) ---
+            if ($amount <= 0) {
+                echo json_encode(['success' => false, 'message' => 'Refund amount must be greater than zero']); exit;
+            }
+            // Cumulative cap: this refund + everything already refunded on the order must not
+            // exceed the order total. Prevents two separate requests each paying out a slice
+            // that together exceed 100% (real money out twice).
+            $already = (float) db()->fetchOne(
+                "SELECT COALESCE(SUM(refund_amount),0) v FROM refund_requests WHERE order_id=? AND status='completed'",
+                [$orderId]
+            )['v'];
+            if ($amount > ($orderTotal - $already) + 0.001) {
+                echo json_encode(['success' => false, 'message' =>
+                    'Refund exceeds the order total. Already refunded ' . formatCurrency($already) .
+                    ' of ' . formatCurrency($orderTotal) . '; this request is ' . formatCurrency($amount) . '.']); exit;
+            }
 
-        // For an online order with a captured Razorpay payment, fire a real gateway refund.
-        $pay = db()->fetchOne(
-            "SELECT * FROM payments WHERE order_id=? AND status='completed' AND transaction_id LIKE 'pay\_%' ESCAPE '\\\\' ORDER BY id DESC LIMIT 1",
-            [$orderId]
-        );
-        if ($pay && ($rr['payment_method'] ?? '') !== 'cod') {
-            // Guard: refund amount must be within the captured payment amount.
-            $captured = (float)$pay['amount'];
-            if ($amount <= 0 || $amount > $captured + 0.001) {
-                db()->execute("UPDATE refund_requests SET status='approved' WHERE id=?", [$rid]); // release claim
-                echo json_encode(['success' => false, 'message' => 'Invalid refund amount (exceeds captured payment)']); exit;
+            // SECURITY (double-refund prevention): atomically claim this request BEFORE calling the
+            // gateway. Only the row-update that transitions pending/approved -> processing proceeds;
+            // a concurrent second click / re-submit gets rowCount()===0 and bails, so rzpRefund()
+            // fires at most once per request.
+            $claimed = db()->execute(
+                "UPDATE refund_requests SET status='processing' WHERE id=? AND status IN ('pending','approved') AND (razorpay_refund_id IS NULL OR razorpay_refund_id='')",
+                [$rid]
+            );
+            if ($claimed < 1) {
+                echo json_encode(['success' => false, 'message' => 'Refund already being processed or completed']); exit;
             }
-            try {
-                $res = rzpRefund($pay['transaction_id'], $amount);
-                $rzpRefId = $res['id'] ?? null;
-            } catch (Throwable $e) {
-                db()->execute("UPDATE refund_requests SET status='approved' WHERE id=?", [$rid]); // release claim on gateway failure
-                echo json_encode(['success' => false, 'message' => $e->getMessage()]); exit;
+
+            // For an online order with a captured Razorpay payment, fire a real gateway refund.
+            $pay = db()->fetchOne(
+                "SELECT * FROM payments WHERE order_id=? AND status='completed' AND transaction_id LIKE 'pay\_%' ESCAPE '\\\\' ORDER BY id DESC LIMIT 1",
+                [$orderId]
+            );
+            if ($pay && ($rr['payment_method'] ?? '') !== 'cod') {
+                // Guard: refund amount must be within the captured payment amount.
+                $captured = (float)$pay['amount'];
+                if ($amount > $captured + 0.001) {
+                    db()->execute("UPDATE refund_requests SET status='approved' WHERE id=?", [$rid]); // release claim
+                    echo json_encode(['success' => false, 'message' => 'Invalid refund amount (exceeds captured payment)']); exit;
+                }
+                try {
+                    $res = rzpRefund($pay['transaction_id'], $amount);
+                    $rzpRefId = $res['id'] ?? null;
+                } catch (Throwable $e) {
+                    db()->execute("UPDATE refund_requests SET status='approved' WHERE id=?", [$rid]); // release claim on gateway failure
+                    echo json_encode(['success' => false, 'message' => $e->getMessage()]); exit;
+                }
+                // Persist the gateway refund id IMMEDIATELY so a crash before the txn below can't
+                // cause a second real refund (the claim guard above also blocks re-entry).
+                db()->execute("UPDATE refund_requests SET razorpay_refund_id=? WHERE id=?", [$rzpRefId, $rid]);
             }
-            // Persist the gateway refund id IMMEDIATELY so a crash before the txn below can't
-            // cause a second real refund (the claim guard above also blocks re-entry).
-            db()->execute("UPDATE refund_requests SET razorpay_refund_id=? WHERE id=?", [$rzpRefId, $rid]);
+            // COD / no gateway payment → manual refund (recorded, money returned out-of-band).
         }
-        // COD / no gateway payment → manual refund (recorded, money returned out-of-band).
+        // else: $gatewayAlreadyDone — skip validation/claim/gateway; the prior txn rolled back
+        // so no order effects were applied yet. Just finish the DB side below with $rzpRefId.
 
         $pdo = db()->getConnection();
         $pdo->beginTransaction();
@@ -144,7 +176,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $pdo->commit();
         } catch (Throwable $e) {
             $pdo->rollBack();
-            echo json_encode(['success' => false, 'message' => 'DB error: ' . $e->getMessage()]); exit;
+            error_log('Refund DB error (request #' . $rid . '): ' . $e->getMessage());
+            if ($rzpRefId) {
+                // Gateway money already went out but the order couldn't be updated. The request
+                // stays in 'processing' WITH its razorpay_refund_id — click "Approve" again to
+                // re-run ONLY the DB updates (no second gateway refund). Surfaced clearly so it's
+                // not silently lost.
+                echo json_encode(['success' => false, 'message' =>
+                    'Gateway refund succeeded (' . htmlspecialchars($rzpRefId) . ') but saving the order failed. '
+                    . 'The request is marked "processing" — re-click Approve to finish (it will NOT refund again).']); exit;
+            }
+            echo json_encode(['success' => false, 'message' => 'Could not save the refund. No money was sent. Please try again.']); exit;
         }
 
         $kind = $isFull ? 'Full refund' : 'Partial refund';
@@ -281,6 +323,9 @@ function refundBadge($s) {
                         <?php if (in_array($r['status'], ['pending','approved'], true)): ?>
                         <button class="btn btn-gold btn-sm" onclick="openApprove(<?= $r['id'] ?>, <?= (float)$r['refund_amount'] ?>, <?= (float)$r['order_total'] ?>)"><i class="fa-solid fa-check"></i> Approve &amp; Refund</button>
                         <button class="btn btn-ghost btn-sm" onclick="actOnRefund(<?= $r['id'] ?>, 'reject')"><i class="fa-solid fa-xmark"></i> Reject</button>
+                        <?php elseif ($r['status'] === 'processing' && !empty($r['razorpay_refund_id'])): ?>
+                        <button class="btn btn-warning btn-sm" onclick="actOnRefund(<?= $r['id'] ?>, 'approve')" title="Gateway already refunded — re-run the DB update only"><i class="fa-solid fa-rotate"></i> Finish refund</button>
+                        <div class="text-muted" style="font-size:0.7rem;">Gateway ref: <?= htmlspecialchars($r['razorpay_refund_id']) ?></div>
                         <?php else: ?>
                         <span class="text-muted">—<?= $r['razorpay_refund_id'] ? ' ' . htmlspecialchars($r['razorpay_refund_id']) : '' ?></span>
                         <?php endif; ?>

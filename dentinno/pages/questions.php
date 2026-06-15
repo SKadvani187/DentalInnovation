@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Product Q&A';
+requireView('questions');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
@@ -10,6 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     try {
     $d = json_decode(file_get_contents('php://input'), true);
     $action = $d['action'] ?? '';
+    requireAction('questions', rbacCrudVerb($action, $d));
     if ($action === 'answer') {
         $ans = trim((string)($d['answer'] ?? ''));
         if ($ans === '') { echo json_encode(['success'=>false,'message'=>'Answer cannot be empty']); exit; }
@@ -104,15 +106,11 @@ include __DIR__ . '/../includes/header.php';
           <td><span class="badge badge-<?= $q['is_answered'] ? 'success' : 'warning' ?>"><?= $q['is_answered'] ? 'Answered' : 'Pending' ?></span></td>
           <td>
             <div style="display:flex;gap:4px;">
-              <?php if(!empty($q['is_deleted'])): ?>
-              <button class="btn btn-ghost btn-sm btn-icon" onclick="restoreQ(<?= $q['id'] ?>)" title="Restore"><i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i></button>
-              <?php else: ?>
-              <button class="btn btn-ghost btn-sm btn-icon" onclick='openAnswer(<?= json_encode($q) ?>)' title="Answer"><i class="fa-solid fa-reply" style="color:var(--gold-primary);"></i></button>
+              <button class="btn btn-ghost btn-sm btn-icon" onclick='openAnswer(<?= htmlspecialchars(json_encode($q, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT), ENT_QUOTES) ?>)' title="Answer"><i class="fa-solid fa-reply" style="color:var(--gold-primary);"></i></button>
               <?php if($q['is_answered']): ?>
               <button class="btn btn-ghost btn-sm btn-icon" onclick="approveQ(<?= $q['id'] ?>,<?= $q['is_approved']?0:1 ?>)" title="<?= $q['is_approved']?'Hide':'Publish' ?>"><i class="fa-solid fa-<?= $q['is_approved']?'eye-slash':'eye' ?>" style="color:<?= $q['is_approved']?'var(--warning)':'var(--success)' ?>;"></i></button>
               <?php endif; ?>
-              <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteQ(<?= $q['id'] ?>)" title="Delete"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
-              <?php endif; ?>
+              <?php if (can('questions','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick="deleteQ(<?= $q['id'] ?>)" title="Delete"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
             </div>
           </td>
         </tr>

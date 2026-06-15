@@ -41,186 +41,64 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
     </div>
 
     <nav class="sidebar-nav">
-        <div class="nav-section">
-            <span class="nav-section-label">MAIN</span>
-            <a href="<?= APP_URL ?>/index.php" class="nav-item <?= $current_page === 'index' ? 'active' : '' ?>">
-                <i class="fa-solid fa-gauge-high"></i>
-                <span>Dashboard</span>
-            </a>
-        </div>
-
-        <div class="nav-section">
-            <span class="nav-section-label">CATALOG</span>
-            <a href="<?= APP_URL ?>/pages/products.php" class="nav-item <?= $current_page === 'products' ? 'active' : '' ?>">
-                <i class="fa-solid fa-boxes-stacked"></i>
-                <span>Products</span>
-                <?php if($navBadges['low_stock'] > 0): ?>
-                <span class="nav-badge warn"><?= $navBadges['low_stock'] ?></span>
-                <?php endif; ?>
-            </a>
-            <a href="<?= APP_URL ?>/pages/inventory.php" class="nav-item <?= $current_page === 'inventory' ? 'active' : '' ?>">
-                <i class="fa-solid fa-warehouse"></i>
-                <span>Inventory</span>
-            </a>
-            <a href="<?= APP_URL ?>/pages/categories.php" class="nav-item <?= $current_page === 'categories' ? 'active' : '' ?>">
-                <i class="fa-solid fa-layer-group"></i>
-                <span>Categories</span>
-            </a>
-            <a href="<?= APP_URL ?>/pages/combos.php" class="nav-item <?= $current_page === 'combos' ? 'active' : '' ?>">
-                <i class="fa-solid fa-boxes-packing"></i>
-                <span>Combos</span>
-            </a>
-            <a href="<?= APP_URL ?>/pages/offers.php" class="nav-item <?= $current_page === 'offers' ? 'active' : '' ?>">
-                <i class="fa-solid fa-tags"></i>
-                <span>Offers</span>
-            </a>
-            <a href="<?= APP_URL ?>/pages/testimonials.php" class="nav-item <?= $current_page === 'testimonials' ? 'active' : '' ?>">
-                <i class="fa-solid fa-quote-left"></i>
-                <span>Testimonials</span>
-            </a>
-        </div>
-
-        <div class="nav-section">
-            <span class="nav-section-label">SALES</span>
-            <a href="<?= APP_URL ?>/pages/orders.php" class="nav-item <?= $current_page === 'orders' ? 'active' : '' ?>">
-                <i class="fa-solid fa-cart-shopping"></i>
-                <span>Orders</span>
-                <?php if($navBadges['pending_orders'] > 0): ?>
-                <span class="nav-badge"><?= $navBadges['pending_orders'] ?></span>
-                <?php endif; ?>
-            </a>
-            <a href="<?= APP_URL ?>/pages/refunds.php" class="nav-item <?= $current_page === 'refunds' ? 'active' : '' ?>">
-                <i class="fa-solid fa-rotate-left"></i>
-                <span>Refunds</span>
-                <?php if(($navBadges['pending_refunds'] ?? 0) > 0): ?>
-                <span class="nav-badge"><?= (int)$navBadges['pending_refunds'] ?></span>
-                <?php endif; ?>
-            </a>
-            <a href="<?= APP_URL ?>/pages/customers.php" class="nav-item <?= $current_page === 'customers' ? 'active' : '' ?>">
-                <i class="fa-solid fa-user-group"></i>
-                <span>Customers</span>
-            </a>
-            <a href="<?= APP_URL ?>/pages/payments.php" class="nav-item <?= $current_page === 'payments' ? 'active' : '' ?>">
-                <i class="fa-solid fa-indian-rupee-sign"></i>
-                <span>Payments</span>
-            </a>
-            <a href="<?= APP_URL ?>/pages/messages.php" class="nav-item <?= $current_page === 'messages' ? 'active' : '' ?>">
-                <i class="fa-solid fa-envelope"></i>
-                <span>Messages</span>
-                <?php if(($navBadges['unread_messages'] ?? 0) > 0): ?>
-                <span class="nav-badge"><?= (int)$navBadges['unread_messages'] ?></span>
-                <?php endif; ?>
-            </a>
-            <a href="<?= APP_URL ?>/pages/bulk_quotes.php" class="nav-item <?= $current_page === 'bulk_quotes' ? 'active' : '' ?>">
-                <i class="fa-solid fa-file-invoice-dollar"></i>
-                <span>Bulk Quotes</span>
-                <?php if(($navBadges['new_quotes'] ?? 0) > 0): ?>
-                <span class="nav-badge"><?= (int)$navBadges['new_quotes'] ?></span>
-                <?php endif; ?>
-            </a>
-        </div>
-
-        <div class="nav-section">
-            <span class="nav-section-label">MARKETING</span>
-            <a href="<?= APP_URL ?>/pages/coupons.php" class="nav-item <?= $current_page === 'coupons' ? 'active' : '' ?>">
-                <i class="fa-solid fa-tag"></i>
-                <span>Coupons</span>
-            </a>
-            <a href="<?= APP_URL ?>/pages/reviews.php" class="nav-item <?= $current_page === 'reviews' ? 'active' : '' ?>">
-                <i class="fa-regular fa-star"></i>
-                <span>Reviews</span>
-                <?php if(($navBadges['pending_reviews'] ?? 0) > 0): ?>
-                <span class="nav-badge warn"><?= (int)$navBadges['pending_reviews'] ?></span>
-                <?php endif; ?>
-            </a>
-            <a href="<?= APP_URL ?>/pages/questions.php" class="nav-item <?= $current_page === 'questions' ? 'active' : '' ?>">
-                <i class="fa-regular fa-circle-question"></i>
-                <span>Q&amp;A</span>
-                <?php if(($navBadges['unanswered_questions'] ?? 0) > 0): ?>
-                <span class="nav-badge"><?= (int)$navBadges['unanswered_questions'] ?></span>
-                <?php endif; ?>
-            </a>
-            <a href="<?= APP_URL ?>/pages/wishlists.php" class="nav-item <?= $current_page === 'wishlists' ? 'active' : '' ?>">
-                <i class="fa-solid fa-heart"></i>
-                <span>Wishlists</span>
-            </a>
-        </div>
-
-        <div class="nav-section">
-            <span class="nav-section-label">SHIPPING</span>
-            <a href="<?= APP_URL ?>/pages/shipping.php" class="nav-item <?= $current_page === 'shipping' ? 'active' : '' ?>">
-                <i class="fa-solid fa-truck"></i>
-                <span>Shipping</span>
-            </a>
-        </div>
-
-        <div class="nav-section">
-            <span class="nav-section-label">ENGAGE</span>
-            <a href="<?= APP_URL ?>/pages/events.php" class="nav-item <?= $current_page === 'events' ? 'active' : '' ?>">
-                <i class="fa-solid fa-calendar-star"></i>
-                <span>Events</span>
-            </a>
-            <a href="<?= APP_URL ?>/pages/courses.php" class="nav-item <?= $current_page === 'courses' ? 'active' : '' ?>">
-                <i class="fa-solid fa-graduation-cap"></i>
-                <span>Courses</span>
-            </a>
-        </div>
-
-        <div class="nav-section">
-            <span class="nav-section-label">REPORTS</span>
-            <a href="<?= APP_URL ?>/pages/reports.php" class="nav-item <?= $current_page === 'reports' ? 'active' : '' ?>">
-                <i class="fa-solid fa-chart-line"></i>
-                <span>Analytics</span>
-            </a>
-        </div>
-
+<?php
+// ---- Dynamic, permission-filtered navigation (DB-driven page_registry via navTree()) ----
+// Only pages the current role may VIEW are shown; empty groups disappear automatically.
+$nav = function_exists('navTree') ? navTree() : [];
+// Per-page badges (only a few pages carry them).
+$rfc = 0;
+try { $rfc = (int)(db()->fetchOne("SELECT COUNT(*) c FROM refund_requests WHERE status='pending'")['c'] ?? 0); } catch (Throwable $e) {}
+$navBadgeHtml = [
+    'products' => (($navBadges['low_stock'] ?? 0) > 0)     ? '<span class="nav-badge warn">' . (int)$navBadges['low_stock'] . '</span>' : '',
+    'orders'   => (($navBadges['pending_orders'] ?? 0) > 0) ? '<span class="nav-badge">' . (int)$navBadges['pending_orders'] . '</span>' : '',
+    'refunds'  => ($rfc > 0)                                 ? '<span class="nav-badge">' . $rfc . '</span>' : '',
+];
+// NOTE: use $navPages (not $pages) as the loop var — header.php is included midway through
+// list pages (orders/products/customers) that hold their pagination count in $pages. A generic
+// $pages here would clobber it, turning `for($i=1;$i<=$pages;...)` into an array comparison that
+// is always true → an effectively infinite pagination loop (multi-GB page, minutes to "load").
+foreach ($nav as $group => $navPages):
+    // Super-only "Settings" sub-tabs as a CONFIGURATION quick-links block, just before SYSTEM.
+    if ($group === 'SYSTEM' && can('settings', 'view')):
+        $cfgNow = ($current_page === 'settings' && isset($_GET['page'])) ? preg_replace('/[^a-z]/', '', $_GET['page']) : '';
+?>
         <div class="nav-section">
             <span class="nav-section-label">CONFIGURATION</span>
-            <?php $cfgNow = ($current_page === 'settings' && isset($_GET['page'])) ? preg_replace('/[^a-z]/','', $_GET['page']) : ''; ?>
-            <a href="<?= APP_URL ?>/pages/settings.php?page=home" class="nav-item <?= $cfgNow === 'home' ? 'active' : '' ?>">
-                <i class="fa-solid fa-house"></i><span>Home Page</span>
-            </a>
-            <a href="<?= APP_URL ?>/pages/settings.php?page=contact" class="nav-item <?= $cfgNow === 'contact' ? 'active' : '' ?>">
-                <i class="fa-solid fa-headset"></i><span>Contact Page</span>
-            </a>
-            <a href="<?= APP_URL ?>/pages/settings.php?page=about" class="nav-item <?= $cfgNow === 'about' ? 'active' : '' ?>">
-                <i class="fa-solid fa-circle-info"></i><span>About Page</span>
-            </a>
-            <a href="<?= APP_URL ?>/pages/settings.php?page=catalog" class="nav-item <?= $cfgNow === 'catalog' ? 'active' : '' ?>">
-                <i class="fa-solid fa-box-open"></i><span>Catalog / Products</span>
-            </a>
-            <a href="<?= APP_URL ?>/pages/settings.php?page=general" class="nav-item <?= $cfgNow === 'general' ? 'active' : '' ?>">
-                <i class="fa-solid fa-sliders"></i><span>General</span>
-            </a>
+            <a href="<?= APP_URL ?>/pages/settings.php?page=home" class="nav-item <?= $cfgNow === 'home' ? 'active' : '' ?>"><i class="fa-solid fa-house"></i><span>Home Page</span></a>
+            <a href="<?= APP_URL ?>/pages/settings.php?page=contact" class="nav-item <?= $cfgNow === 'contact' ? 'active' : '' ?>"><i class="fa-solid fa-headset"></i><span>Contact Page</span></a>
+            <a href="<?= APP_URL ?>/pages/settings.php?page=about" class="nav-item <?= $cfgNow === 'about' ? 'active' : '' ?>"><i class="fa-solid fa-circle-info"></i><span>About Page</span></a>
+            <a href="<?= APP_URL ?>/pages/settings.php?page=catalog" class="nav-item <?= $cfgNow === 'catalog' ? 'active' : '' ?>"><i class="fa-solid fa-box-open"></i><span>Catalog / Products</span></a>
+            <a href="<?= APP_URL ?>/pages/settings.php?page=general" class="nav-item <?= $cfgNow === 'general' ? 'active' : '' ?>"><i class="fa-solid fa-sliders"></i><span>General</span></a>
         </div>
-
+<?php endif; ?>
         <div class="nav-section">
-            <span class="nav-section-label">SYSTEM</span>
-            <?php if(hasPermission('manage_admins')): // super admin only — hide these links for others ?>
-            <a href="<?= APP_URL ?>/pages/admins.php" class="nav-item <?= $current_page === 'admins' ? 'active' : '' ?>">
-                <i class="fa-solid fa-shield-halved"></i>
-                <span>Admin Users</span>
+            <span class="nav-section-label"><?= htmlspecialchars($group) ?></span>
+            <?php foreach ($navPages as $p):
+                $key = $p['page_key'];
+                $isActive = ($current_page === $key) || ($key === 'dashboard' && $current_page === 'index');
+                if ($key === 'settings') $isActive = ($current_page === 'settings' && !isset($_GET['page']));
+                $href = APP_URL . '/' . ltrim($p['url'], '/');
+            ?>
+            <a href="<?= htmlspecialchars($href) ?>" class="nav-item <?= $isActive ? 'active' : '' ?>">
+                <i class="fa-solid <?= htmlspecialchars($p['icon'] ?: 'fa-circle') ?>"></i>
+                <span><?= htmlspecialchars($p['label']) ?></span>
+                <?= $navBadgeHtml[$key] ?? '' ?>
             </a>
-            <a href="<?= APP_URL ?>/pages/activity.php" class="nav-item <?= $current_page === 'activity' ? 'active' : '' ?>">
-                <i class="fa-solid fa-clock-rotate-left"></i>
-                <span>Activity Log</span>
-            </a>
-            <?php endif; ?>
-            <a href="<?= APP_URL ?>/pages/settings.php" class="nav-item <?= ($current_page === 'settings' && !isset($_GET['page'])) ? 'active' : '' ?>">
-                <i class="fa-solid fa-gear"></i>
-                <span>Settings</span>
-            </a>
+            <?php endforeach; ?>
         </div>
+<?php endforeach; ?>
     </nav>
 
     <div class="sidebar-footer">
-        <div class="admin-info">
+        <!-- Links to Settings (account/profile + password) — available to every logged-in admin,
+             even roles that don't have the Settings page in their nav. -->
+        <a href="<?= APP_URL ?>/pages/settings.php" class="admin-info" title="My account &amp; password" style="text-decoration:none;color:inherit;">
             <div class="admin-avatar"><?= strtoupper(substr($admin['name'] ?? '', 0, 1)) ?></div>
             <div class="admin-details">
                 <span class="admin-name"><?= htmlspecialchars($admin['name'] ?? '') ?></span>
                 <span class="admin-role"><?= ucfirst(str_replace('_', ' ', $admin['role'] ?? '')) ?></span>
             </div>
-        </div>
+        </a>
         <a href="<?= APP_URL ?>/logout.php" class="logout-btn" title="Logout">
             <i class="fa-solid fa-right-from-bracket"></i>
         </a>

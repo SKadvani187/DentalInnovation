@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Bulk Quotes';
+requireView('bulk_quotes');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
@@ -10,7 +11,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     try {
     $d = json_decode(file_get_contents('php://input'), true);
     $action = $d['action'] ?? '';
-    if ($action === 'read')   { db()->execute("UPDATE bulk_quotes SET is_read=1 WHERE id=?", [(int)($d['id'] ?? 0)]); echo json_encode(['success'=>true]); }
+    requireAction('bulk_quotes', rbacCrudVerb($action, $d));
+    if ($action === 'read')   { db()->execute("UPDATE bulk_quotes SET is_read=1 WHERE id=?", [$d['id']]); echo json_encode(['success'=>true]); }
     elseif ($action === 'status') {
         $allowed = ['new','contacted','quoted','closed'];
         $s = in_array($d['status'] ?? '', $allowed, true) ? $d['status'] : 'new';
@@ -119,11 +121,7 @@ include __DIR__ . '/../includes/header.php';
                 </td>
                 <td style="font-size:.78rem;" class="text-muted"><?= timeAgo($q['created_at']) ?></td>
                 <td>
-                    <?php if(!empty($q['is_deleted'])): ?>
-                    <button class="btn btn-ghost btn-sm" onclick="restoreQuote(<?= $q['id'] ?>)" title="Restore"><i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i> Restore</button>
-                    <?php else: ?>
-                    <button class="btn btn-ghost btn-sm btn-icon" onclick="delQuote(<?= $q['id'] ?>)" title="Delete"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
-                    <?php endif; ?>
+                    <?php if (can('bulk_quotes','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick="delQuote(<?= $q['id'] ?>)" title="Delete"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
                 </td>
             </tr>
             <?php endforeach; ?>
@@ -165,9 +163,10 @@ function applyFilters(){ window.location.href='bulk_quotes.php?'+buildBqQuery();
 function exportCsv(){ window.location.href='bulk_quotes.php?'+buildBqQuery({export:'csv'}); }
 function goPage(p){const q=new URLSearchParams(window.location.search);q.set('page',p);window.location.href='bulk_quotes.php?'+q.toString();}
 async function setStatus(id, status){
-  await fetch('bulk_quotes.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'status',id,status})});
-  showToast && showToast('Status updated','success');
-  const row=document.getElementById('bq-'+id); if(row) row.style.background='';
+  const res = await fetch('bulk_quotes.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'status',id,status})});
+  const r = await res.json().catch(()=>({success:false,message:'Request failed'}));
+  showToast && showToast(r.message || (r.success?'Status updated':'Failed'), r.success?'success':'error');
+  if (r.success){ const row=document.getElementById('bq-'+id); if(row) row.style.background=''; }
 }
 function delQuote(id){
   showConfirm('Delete Quote Request','This hides the lead. You can restore it from the "Deleted" filter. Continue?', async () => {

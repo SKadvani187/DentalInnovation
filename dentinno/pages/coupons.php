@@ -3,12 +3,14 @@ require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/validate.php';
 $page_title = 'Coupons';
+requireView('coupons');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
+    requireAction('coupons', rbacCrudVerb($action, $data));
 
     if ($action === 'save') {
         $d = $data;
@@ -81,9 +83,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $value  = (float)($data['value'] ?? 0);
         if ($value <= 0) { echo json_encode(['success'=>false,'message'=>'Discount value must be greater than 0']); exit; }
         if ($type === 'percent' && $value > 100) { echo json_encode(['success'=>false,'message'=>'Percentage cannot exceed 100']); exit; }
-        $minOrder = (float)($data['min_order'] ?? 0);
-        $maxDisc  = !empty($data['max_discount']) ? (float)$data['max_discount'] : null;
-        $usesLimit= !empty($data['uses_limit']) ? (int)$data['uses_limit'] : null;
+        // Clamp money/limit fields — this path bypasses the Validator the 'save' path uses.
+        $minOrder = max(0, (float)($data['min_order'] ?? 0));
+        $maxDisc  = (!empty($data['max_discount']) && (float)$data['max_discount'] > 0) ? (float)$data['max_discount'] : null;
+        // A non-positive uses_limit (0 / negative) would make a coupon unusable; treat as unlimited.
+        $usesLimit= (isset($data['uses_limit']) && (int)$data['uses_limit'] > 0) ? (int)$data['uses_limit'] : null;
         $perUser  = (isset($data['per_user_limit']) && $data['per_user_limit'] !== '') ? max(1,(int)$data['per_user_limit']) : null;
         $startD   = !empty($data['start_date']) ? $data['start_date'] : null;
         $expD     = !empty($data['expires_at']) ? $data['expires_at'] : null;
@@ -134,8 +138,10 @@ include __DIR__ . '/../includes/header.php';
         <p>Manage discount coupons and promotional codes</p>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
+        <?php if (can('coupons','create')): ?>
         <button class="btn btn-outline btn-sm" onclick="openGenModal()" title="Generate many campaign codes"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate Codes</button>
         <button class="btn btn-gold" onclick="openCouponModal()"><i class="fa-solid fa-plus"></i> Add Coupon</button>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -241,11 +247,13 @@ include __DIR__ . '/../includes/header.php';
                     <td>
                         <div style="display:flex;gap:6px;">
                             <?php if(!empty($c['is_deleted'])): ?>
-                            <button class="btn btn-ghost btn-sm" onclick="restoreCoupon(<?= $c['id'] ?>)" title="Restore coupon"><i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i> Restore</button>
+                            <?php if (can('coupons','edit')): ?><button class="btn btn-ghost btn-sm" onclick="restoreCoupon(<?= $c['id'] ?>)" title="Restore coupon"><i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i> Restore</button><?php endif; ?>
                             <?php else: ?>
+                            <?php if (can('coupons','edit')): ?>
                             <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick='openCouponModal(<?= htmlspecialchars(json_encode($c), ENT_QUOTES, "UTF-8") ?>)'><i class="fa-solid fa-pen"></i></button>
                             <button class="btn btn-ghost btn-sm btn-icon" title="Activate/Deactivate" onclick="toggleCoupon(<?= $c['id'] ?>)"><i class="fa-solid fa-power-off" style="color:<?= $c['is_active']?'var(--success)':'var(--text-muted)' ?>;"></i></button>
-                            <button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteCoupon(<?= $c['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+                            <?php endif; ?>
+                            <?php if (can('coupons','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteCoupon(<?= $c['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
                             <?php endif; ?>
                         </div>
                     </td>
@@ -445,7 +453,9 @@ async function saveCoupon() {
 
 async function toggleCoupon(id) {
     const res = await fetch('coupons.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'toggle',id})});
-    showToast('Status updated','success'); setTimeout(()=>location.reload(),600);
+    const r = await res.json().catch(()=>({success:false,message:'Request failed'}));
+    showToast(r.message || (r.success ? 'Status updated' : 'Failed'), r.success ? 'success' : 'error');
+    if (r.success) setTimeout(()=>location.reload(),600);
 }
 function deleteCoupon(id) {
     showConfirm('Delete Coupon','This hides the coupon and stops it working at checkout. Order history and usage stats are kept, and you can restore it from the "Deleted" filter. Continue?', async () => {

@@ -1,5 +1,13 @@
 Options -Indexes
 
+# Allow product/offer image uploads up to the app's 5MB limit. PHP's default
+# upload_max_filesize (2MB on XAMPP) silently rejects larger files, which surfaced
+# as a generic "Upload failed". Guarded so non-mod_php (FastCGI) hosts don't 500.
+<IfModule mod_php.c>
+    php_value upload_max_filesize 6M
+    php_value post_max_size 8M
+</IfModule>
+
 # Pass the HTTP Authorization header through to PHP. Apache often strips it, which
 # breaks Bearer-token auth on the storefront API (orders, wishlist, payments).
 <IfModule mod_rewrite.c>

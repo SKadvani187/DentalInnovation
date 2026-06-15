@@ -338,4 +338,11 @@ try {
     if (!empty($cust['phone'])) waOrderPlaced($cust, $o, $oi);
 } catch (Throwable $e) { error_log('WA orderPlaced: ' . $e->getMessage()); }
 
+// Best-effort admin order-placed email. COD only here — online orders are emailed once the
+// payment is captured (see payment_razorpay.php). Never blocks the response.
+try {
+    require_once __DIR__ . '/../../includes/order_mailer.php';
+    if ($payMethod === 'cod') sendOrderAdminMail($o, $oi, $cust, 'placed');
+} catch (Throwable $e) { error_log('orderMail placed: ' . $e->getMessage()); }
+
 jsonOut(['success' => true, 'order' => mapOrder($o, $oi)], 201);

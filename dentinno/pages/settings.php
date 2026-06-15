@@ -8,9 +8,11 @@ $page_title = 'Settings';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['banner_image'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    requirePermissionAjax('manage_settings');   // settings are super_admin only
     $upload_dir = __DIR__ . '/../assets/images/products/';
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
     $file = $_FILES['banner_image'];
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) { echo json_encode(['success'=>false,'message'=>'Upload failed (error code '.($file['error'] ?? '?').')']); exit; }
     $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     if (!in_array($ext, ['jpg','jpeg','png','webp','gif'])) { echo json_encode(['success'=>false,'message'=>'Invalid file type']); exit; }
     // Verify the actual file CONTENT, not just the extension (a .jpg could be a PHP script).
@@ -32,11 +34,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['banner_image'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
-    // Never let a PHP warning/exception leak HTML into the JSON response (breaks res.json()).
-    try {
+    // ALL settings writes (storefront config, pricing/tax rules, secrets, mail tests) are
+    // super_admin only. manage_settings is in no role list, so admin/staff are rejected here.
+    requirePermissionAjax('manage_settings');
     $d = json_decode(file_get_contents('php://input'), true);
     if (($d['action'] ?? '') === 'save_setting') {
-        $key = preg_replace('/[^a-zA-Z]/', '', $d['key'] ?? '');
+        // Allow letters, digits and underscores so keys like 'gvp_threshold' aren't silently mangled.
+        $key = preg_replace('/[^a-zA-Z0-9_]/', '', $d['key'] ?? '');
         $val = $d['value'] ?? null;
         // Only known storefront-config keys may be written — reject anything else so a bug or a
         // crafted request can't pollute site_settings with arbitrary rows.
@@ -133,13 +137,24 @@ $otpProvider = $otpCfg['provider'] ?? 'fast2sms';
 $otpF2 = $otpCfg['fast2sms']  ?? []; $otp2F = $otpCfg['twofactor'] ?? []; $otpM9 = $otpCfg['msg91'] ?? [];
 $waCfg = is_array($site['whatsappConfig'] ?? null) ? $site['whatsappConfig'] : [];
 $waTpl = is_array($waCfg['templates'] ?? null) ? $waCfg['templates'] : [];
+// Order-email admin config + recent delivery log (super admin only; orderMailConfig is private).
+$omc = is_array($site['orderMailConfig'] ?? null) ? $site['orderMailConfig'] : [];
+$omcLog = []; $omcStats = ['sent'=>0,'pending'=>0,'failed'=>0];
+if ($isSuper) {
+    try {
+        $omcLog = db()->fetchAll("SELECT * FROM order_mail_log ORDER BY COALESCE(updated_at, sent_at, created_at) DESC, id DESC LIMIT 50");
+        foreach (db()->fetchAll("SELECT status, COUNT(*) c FROM order_mail_log GROUP BY status") as $row) {
+            if (isset($omcStats[$row['status']])) $omcStats[$row['status']] = (int)$row['c'];
+        }
+    } catch (Throwable $e) { $omcLog = []; } // table not migrated yet -> empty log
+}
 include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-header fade-in">
     <div class="page-header-left">
         <?php
-        $cfgTitles = ['account'=>['Settings','Manage your account and system preferences'],'home'=>['Home Page Config','Customize the storefront home page'],'contact'=>['Contact Page Config','Contact info, departments, FAQs'],'about'=>['About Page Config','Story, values, team, milestones'],'catalog'=>['Catalog Config','Products, payments, pricing rules'],'general'=>['General Config','Socials and site-wide settings'],'otp'=>['OTP / SMS Provider','Choose and configure the OTP gateway (super admin)'],'whatsapp'=>['WhatsApp Notifications','Meta Cloud API config + templates (super admin)']];
+        $cfgTitles = ['account'=>['Settings','Manage your account and system preferences'],'home'=>['Home Page Config','Customize the storefront home page'],'contact'=>['Contact Page Config','Contact info, departments, FAQs'],'about'=>['About Page Config','Story, values, team, milestones'],'catalog'=>['Catalog Config','Products, payments, pricing rules'],'general'=>['General Config','Socials and site-wide settings'],'otp'=>['OTP / SMS Provider','Choose and configure the OTP gateway (super admin)'],'whatsapp'=>['WhatsApp Notifications','Meta Cloud API config + templates (super admin)'],'ordermail'=>['Order Email Notifications','Admin order/payment emails + delivery log (super admin)']];
         $ct = $cfgTitles[$cfgPage ?? 'account'] ?? $cfgTitles['account'];
         ?>
         <h1><?= $ct[0] ?></h1>
@@ -172,7 +187,7 @@ include __DIR__ . '/../includes/header.php';
                 </div>
                 <div>
                     <div class="font-bold" style="font-size:1rem;"><?= htmlspecialchars($current_admin['name'] ?? '') ?></div>
-                    <div class="text-muted"><?= $current_admin['email'] ?></div>
+                    <div class="text-muted"><?= htmlspecialchars($current_admin['email'] ?? '') ?></div>
                     <span class="badge badge-warning" style="margin-top:6px;"><?= ucfirst(str_replace('_',' ',$current_admin['role'] ?? '')) ?></span>
                 </div>
             </div>
@@ -289,7 +304,7 @@ include __DIR__ . '/../includes/header.php';
 <!-- ===== Storefront Configuration (page-wise tabs) ===== -->
 <div class="card fade-in" style="margin-top:24px;padding:6px;">
   <div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px;">
-    <?php $tabs = ['home'=>'🏠 Home Page','contact'=>'📞 Contact Page','about'=>'ℹ️ About Page','catalog'=>'🛒 Catalog / Products','general'=>'⚙️ General']; if ($isSuper) $tabs['otp']='🔐 OTP / SMS'; if ($isSuper) $tabs['whatsapp']='💬 WhatsApp'; ?>
+    <?php $tabs = ['home'=>'🏠 Home Page','contact'=>'📞 Contact Page','about'=>'ℹ️ About Page','catalog'=>'🛒 Catalog / Products','general'=>'⚙️ General']; if ($isSuper) $tabs['otp']='🔐 OTP / SMS'; if ($isSuper) $tabs['whatsapp']='💬 WhatsApp'; if ($isSuper) $tabs['ordermail']='📧 Order Emails'; ?>
     <?php foreach($tabs as $k=>$lbl): ?>
       <a href="<?= APP_URL ?>/pages/settings.php?page=<?= $k ?>" class="btn <?= $cfgPage===$k?'btn-gold':'btn-ghost' ?> btn-sm"><?= $lbl ?></a>
     <?php endforeach; ?>
@@ -488,6 +503,156 @@ include __DIR__ . '/../includes/header.php';
         },
       };
       saveSetting('whatsappConfig', cfg, 'WhatsApp Config');
+    }
+  </script>
+<?php endif; ?>
+</div>
+
+<!-- ===== Order Email Notifications (super admin only) ===== -->
+<div data-cfg="ordermail">
+<?php if (!$isSuper): ?>
+  <div class="card fade-in" style="margin-top:18px;">
+    <div class="card-body" style="text-align:center;padding:40px;">
+      <i class="fa-solid fa-lock" style="font-size:2rem;color:var(--danger);"></i>
+      <h3 style="margin-top:12px;">Not authorized</h3>
+      <p class="text-muted">Order email configuration is restricted to Super Admins.</p>
+    </div>
+  </div>
+<?php else:
+  $omBadge = ['sent'=>'badge-success','failed'=>'badge-danger','pending'=>'badge-warning','skipped'=>'badge-secondary'];
+?>
+  <!-- Config card -->
+  <div class="card fade-in" style="margin-top:18px;">
+    <div class="card-header">
+      <span class="card-title"><i class="fa-solid fa-envelope-circle-check text-gold" style="margin-right:8px;"></i>Admin Order Emails (SMTP)</span>
+      <small class="text-muted">Notify the admin when an order is placed/paid or a payment fails. Credentials are private (never exposed to the storefront).</small>
+    </div>
+    <div class="card-body">
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;cursor:pointer;">
+        <input type="checkbox" id="om_enabled" <?= !empty($omc['enabled']) ? 'checked' : '' ?>>
+        <span class="font-bold">Enable admin order/payment emails</span>
+      </label>
+
+      <div class="form-group">
+        <label class="form-label">Admin Recipient Email(s)</label>
+        <input type="text" class="form-control" id="om_admin" value="<?= htmlspecialchars($omc['adminEmail'] ?? '') ?>" placeholder="admin@example.com, sales@example.com">
+        <small class="text-muted" style="font-size:.73rem;">Where notifications are sent. Separate multiple addresses with a comma or semicolon.</small>
+      </div>
+
+      <div style="border-top:1px solid var(--border-color);padding-top:14px;margin-top:8px;">
+        <div class="font-bold" style="margin-bottom:10px;color:var(--gold-primary);">SMTP Server <small class="text-muted">(leave blank to use the server's config.php defaults)</small></div>
+        <div class="form-row">
+          <div class="form-group" style="flex:2;"><label class="form-label">Host</label><input type="text" class="form-control" id="om_host" value="<?= htmlspecialchars($omc['smtpHost'] ?? '') ?>" placeholder="<?= htmlspecialchars(SMTP_HOST) ?>"></div>
+          <div class="form-group"><label class="form-label">Port</label><input type="number" class="form-control" id="om_port" value="<?= htmlspecialchars((string)($omc['smtpPort'] ?? '')) ?>" placeholder="<?= htmlspecialchars((string)SMTP_PORT) ?>"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Username</label><input type="text" class="form-control" id="om_user" value="<?= htmlspecialchars($omc['smtpUser'] ?? '') ?>" placeholder="<?= htmlspecialchars(SMTP_USER ?: 'smtp login') ?>" autocomplete="off"></div>
+          <div class="form-group"><label class="form-label">Password</label><input type="password" class="form-control" id="om_pass" value="<?= htmlspecialchars($omc['smtpPass'] ?? '') ?>" placeholder="app password" autocomplete="new-password"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">From Email</label><input type="text" class="form-control" id="om_from" value="<?= htmlspecialchars($omc['fromEmail'] ?? '') ?>" placeholder="<?= htmlspecialchars(SMTP_FROM) ?>"></div>
+          <div class="form-group"><label class="form-label">From Name</label><input type="text" class="form-control" id="om_fromname" value="<?= htmlspecialchars($omc['fromName'] ?? '') ?>" placeholder="<?= htmlspecialchars(SMTP_FROM_NAME) ?>"></div>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border-color);padding-top:14px;margin-top:8px;">
+        <div class="font-bold" style="margin-bottom:4px;color:var(--gold-primary);">Email Templates <small class="text-muted">(blank = built-in default)</small></div>
+        <small class="text-muted" style="font-size:.73rem;display:block;margin-bottom:10px;">Placeholders: <code>{{order_id}}</code> <code>{{order_date}}</code> <code>{{customer_name}}</code> <code>{{customer_email}}</code> <code>{{customer_phone}}</code> <code>{{address}}</code> <code>{{payment_method}}</code> <code>{{payment_status}}</code> <code>{{status_message}}</code> <code>{{item_count}}</code> <code>{{items_table}}</code> <code>{{subtotal}}</code> <code>{{discount}}</code> <code>{{shipping}}</code> <code>{{tax}}</code> <code>{{total}}</code>. The body is HTML.</small>
+        <div class="form-group"><label class="form-label">✅ Order Placed — Subject</label><input type="text" class="form-control" id="om_ssubj" value="<?= htmlspecialchars($omc['successSubject'] ?? '') ?>" placeholder="✅ New Order {{order_id}} — {{total}} ({{payment_status}})"></div>
+        <div class="form-group"><label class="form-label">✅ Order Placed — Body (HTML)</label><textarea class="form-control" id="om_sbody" rows="4" style="font-family:monospace;font-size:.78rem;" placeholder="Leave blank for the styled default template."><?= htmlspecialchars($omc['successBody'] ?? '') ?></textarea></div>
+        <div class="form-group"><label class="form-label">❌ Payment Failed — Subject</label><input type="text" class="form-control" id="om_fsubj" value="<?= htmlspecialchars($omc['failedSubject'] ?? '') ?>" placeholder="❌ Payment Failed — Order {{order_id}}"></div>
+        <div class="form-group"><label class="form-label">❌ Payment Failed — Body (HTML)</label><textarea class="form-control" id="om_fbody" rows="4" style="font-family:monospace;font-size:.78rem;" placeholder="Leave blank for the styled default template."><?= htmlspecialchars($omc['failedBody'] ?? '') ?></textarea></div>
+      </div>
+
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-gold" onclick="saveOrderMailConfig()"><i class="fa-solid fa-floppy-disk"></i> Save Order Email Config</button>
+        <button class="btn btn-ghost" onclick="testOrderMail()"><i class="fa-solid fa-paper-plane"></i> Send Test Email</button>
+      </div>
+      <small class="text-muted" style="font-size:.73rem;display:block;margin-top:8px;"><i class="fa-solid fa-circle-info"></i> Save first, then Test — the test uses the values currently in the form. Delivery requires running <code>database_order_mail_log.sql</code> for the log below.</small>
+    </div>
+  </div>
+
+  <!-- Delivery log card -->
+  <div class="card fade-in" style="margin-top:18px;">
+    <div class="card-header">
+      <span class="card-title"><i class="fa-solid fa-list-check text-gold" style="margin-right:8px;"></i>Delivery Log</span>
+      <small class="text-muted">
+        <span class="badge badge-success"><?= (int)$omcStats['sent'] ?> sent</span>
+        <span class="badge badge-warning"><?= (int)$omcStats['pending'] ?> pending</span>
+        <span class="badge badge-danger"><?= (int)$omcStats['failed'] ?> failed</span>
+      </small>
+    </div>
+    <div class="card-body">
+      <?php if (empty($omcLog)): ?>
+        <p class="text-muted" style="text-align:center;padding:24px;">No notifications logged yet. Once an order is placed (or you run <code>database_order_mail_log.sql</code> if the table is missing), each admin email's status appears here.</p>
+      <?php else: ?>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:.82rem;">
+          <thead><tr style="text-align:left;border-bottom:2px solid var(--border-color);">
+            <th style="padding:8px;">Order</th><th style="padding:8px;">Type</th><th style="padding:8px;">Recipient</th>
+            <th style="padding:8px;">Status</th><th style="padding:8px;text-align:center;">Tries</th><th style="padding:8px;">When</th><th style="padding:8px;"></th>
+          </tr></thead>
+          <tbody>
+          <?php foreach ($omcLog as $lg):
+            $st = $lg['status'] ?? 'pending';
+            $when = $lg['sent_at'] ?: ($lg['updated_at'] ?: $lg['created_at']);
+          ?>
+            <tr style="border-bottom:1px solid var(--border-color);">
+              <td style="padding:8px;font-weight:600;"><?= htmlspecialchars($lg['order_number'] ?: ('#'.$lg['order_id'])) ?></td>
+              <td style="padding:8px;"><?= $lg['mail_type'] === 'failed' ? '❌ Payment failed' : '✅ Order placed' ?></td>
+              <td style="padding:8px;color:var(--text-secondary);"><?= htmlspecialchars($lg['recipient'] ?? '') ?></td>
+              <td style="padding:8px;"><span class="badge <?= $omBadge[$st] ?? 'badge-secondary' ?>"><?= htmlspecialchars(ucfirst($st)) ?></span>
+                <?php if (!empty($lg['error'])): ?><i class="fa-solid fa-circle-exclamation" style="color:var(--danger);margin-left:4px;cursor:help;" title="<?= htmlspecialchars($lg['error']) ?>"></i><?php endif; ?>
+              </td>
+              <td style="padding:8px;text-align:center;"><?= (int)($lg['attempts'] ?? 0) ?></td>
+              <td style="padding:8px;color:var(--text-secondary);white-space:nowrap;"><?= htmlspecialchars($when ? date('d M, H:i', strtotime($when)) : '-') ?></td>
+              <td style="padding:8px;text-align:right;">
+                <?php if ($st !== 'sent' && !empty($lg['order_id'])): ?>
+                  <button class="btn btn-ghost btn-sm" onclick="retryOrderMail(<?= (int)$lg['order_id'] ?>,'<?= htmlspecialchars($lg['mail_type']) ?>',this)"><i class="fa-solid fa-rotate-right"></i> Retry</button>
+                <?php endif; ?>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <?php endif; ?>
+    </div>
+  </div>
+
+  <script>
+    function _omv(id){ const el=document.getElementById(id); return el ? el.value.trim() : ''; }
+    function _omc(id){ const el=document.getElementById(id); return el ? el.checked : false; }
+    function orderMailCfg(){
+      return {
+        enabled:        _omc('om_enabled'),
+        adminEmail:     _omv('om_admin'),
+        smtpHost:       _omv('om_host'),
+        smtpPort:       parseInt(_omv('om_port'), 10) || 0,
+        smtpUser:       _omv('om_user'),
+        smtpPass:       _omv('om_pass'),
+        fromEmail:      _omv('om_from'),
+        fromName:       _omv('om_fromname'),
+        successSubject: _omv('om_ssubj'),
+        successBody:    document.getElementById('om_sbody').value,
+        failedSubject:  _omv('om_fsubj'),
+        failedBody:     document.getElementById('om_fbody').value,
+      };
+    }
+    function saveOrderMailConfig(){ saveSetting('orderMailConfig', orderMailCfg(), 'Order Email Config'); }
+    async function testOrderMail(){
+      showToast('Sending test email…','info');
+      const res = await fetch('settings.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'send_test_order_mail',config:orderMailCfg(),type:'placed'})});
+      const r = await res.json();
+      showToast(r.message || (r.success?'Sent':'Failed'), r.success?'success':'danger');
+    }
+    async function retryOrderMail(orderId, type, btn){
+      if (btn){ btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending…'; }
+      const res = await fetch('settings.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'retry_order_mail',orderId,type})});
+      const r = await res.json();
+      showToast(r.message || (r.success?'Sent':'Failed'), r.success?'success':'danger');
+      if (r.success) setTimeout(()=>location.reload(), 700);
+      else if (btn){ btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-rotate-right"></i> Retry'; }
     }
   </script>
 <?php endif; ?>
@@ -920,7 +1085,7 @@ async function saveSetting(key, value, label, silent) {
     <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;border-top:1px solid var(--border-color);padding-top:12px;">
       <span class="text-muted" style="font-size:.8rem;">Add a category section:</span>
       <select class="form-control" id="add_section_cat" style="width:auto;min-width:200px;">
-        <?php foreach ($linkProducts ? db()->fetchAll("SELECT slug,name FROM categories WHERE is_active=1 ORDER BY name") : [] as $cat): ?>
+        <?php foreach (db()->fetchAll("SELECT slug,name FROM categories WHERE is_active=1 ORDER BY name") as $cat): ?>
           <option value="<?= htmlspecialchars($cat['slug']) ?>"><?= htmlspecialchars($cat['name']) ?></option>
         <?php endforeach; ?>
       </select>

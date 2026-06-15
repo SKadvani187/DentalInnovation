@@ -2,11 +2,13 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Combos';
+requireView('combos');
 
 // Image upload (multipart) — reuse products image folder.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['combo_image'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    requireAction('combos', 'edit');
     $upload_dir = __DIR__ . '/../assets/images/products/';
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
     $file = $_FILES['combo_image'];
@@ -29,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['combo_image'])) {
     // Verify the actual file CONTENT, not just the extension (a .jpg could be a PHP script).
     $fi = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : false;
     $mime = $fi ? finfo_file($fi, $file['tmp_name']) : '';
-    if ($mime && !in_array($mime, ['image/jpeg','image/png','image/webp','image/gif'], true)) {
+    if (!$mime || !in_array($mime, ['image/jpeg','image/png','image/webp','image/gif'], true)) {
         echo json_encode(['success'=>false,'message'=>'The file is not a valid image (content check failed)']); exit;
     }
     if (!imageDimsOk($file['tmp_name'])) { echo json_encode(['success'=>false,'message'=>'Image must be a valid file no larger than 6000×6000 px']); exit; }
@@ -49,6 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     try {
     $d = json_decode(file_get_contents('php://input'), true);
     $action = $d['action'] ?? '';
+    requireAction('combos', rbacCrudVerb($action, $d));
 
     if ($action === 'save') {
         $name  = trim($d['name'] ?? '');
@@ -134,7 +137,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         echo json_encode(['success'=>true,'message'=>$msg]);
     }
     } catch (Throwable $e) {
-        echo json_encode(['success'=>false,'message'=>'Server error: ' . $e->getMessage()]);
+        // Log the real reason; only expose internals (column names, SQL) on local dev.
+        error_log('Combos handler error: ' . $e->getMessage());
+        $msg = (defined('APP_DEBUG') && APP_DEBUG) ? ('Server error: ' . $e->getMessage()) : 'Server error. Please try again.';
+        echo json_encode(['success'=>false,'message'=>$msg]);
     }
     exit;
 }
@@ -170,7 +176,7 @@ include __DIR__ . '/../includes/header.php';
         <h1>Combos</h1>
         <p>Bundle deals shown on the storefront combos page</p>
     </div>
-    <button class="btn btn-gold" onclick="openComboModal()"><i class="fa-solid fa-plus"></i> Add Combo</button>
+    <?php if (can('combos','create')): ?><button class="btn btn-gold" onclick="openComboModal()"><i class="fa-solid fa-plus"></i> Add Combo</button><?php endif; ?>
 </div>
 
 <div class="filter-bar fade-in" style="flex-wrap:wrap;gap:8px;">
@@ -233,9 +239,13 @@ include __DIR__ . '/../includes/header.php';
                 <?php if(!empty($c['is_deleted'])): ?>
                 <button class="btn btn-ghost btn-sm" onclick="restoreCombo(<?= $c['id'] ?>)" title="Restore combo"><i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i> Restore</button>
                 <?php else: ?>
+                <?php if (can('combos','edit')): ?>
                 <button class="btn btn-ghost btn-sm btn-icon" title="Activate/Deactivate" onclick="toggleCombo(<?= $c['id'] ?>)"><i class="fa-solid fa-power-off" style="color:<?= $c['is_active']?'var(--success)':'var(--text-muted)' ?>;"></i></button>
                 <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick="openComboModal(<?= htmlspecialchars(json_encode($c), ENT_QUOTES) ?>)"><i class="fa-solid fa-pen"></i></button>
+                <?php endif; ?>
+                <?php if (can('combos','delete')): ?>
                 <button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteCombo(<?= $c['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+                <?php endif; ?>
                 <?php endif; ?>
             </div>
         </div>

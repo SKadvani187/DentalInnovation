@@ -223,7 +223,9 @@ function initRevenueChart(chartData) {
 }
 
 // ── Order Status Doughnut ──
-function initOrderChart(data) {
+// `colors` (optional) is an array parallel to the labels so each status keeps a stable,
+// meaningful colour; falls back to a default palette if not supplied.
+function initOrderChart(data, colors) {
     const ctx = document.getElementById('orderChart');
     if (!ctx) return;
     new Chart(ctx, {
@@ -232,7 +234,7 @@ function initOrderChart(data) {
             labels: Object.keys(data),
             datasets: [{
                 data: Object.values(data),
-                backgroundColor: ['#F39C12','#3498DB','#C9A84C','#9B59B6','#2ECC71','#E74C3C'],
+                backgroundColor: (colors && colors.length) ? colors : ['#F39C12','#3498DB','#C9A84C','#9B59B6','#2ECC71','#E74C3C'],
                 borderWidth: 0,
                 hoverOffset: 8,
             }]

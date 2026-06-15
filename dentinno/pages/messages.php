@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Messages';
+requireView('messages');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
@@ -10,9 +11,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     try {
     $d = json_decode(file_get_contents('php://input'), true);
     $action = $d['action'] ?? '';
-    if ($action === 'read')   { db()->execute("UPDATE contact_messages SET is_read=1 WHERE id=?", [(int)($d['id'] ?? 0)]); echo json_encode(['success'=>true]); }
-    elseif ($action === 'delete')  { db()->execute("UPDATE contact_messages SET is_deleted=1 WHERE id=?", [(int)($d['id'] ?? 0)]); echo json_encode(['success'=>true]); }
-    elseif ($action === 'restore') { db()->execute("UPDATE contact_messages SET is_deleted=0 WHERE id=?", [(int)($d['id'] ?? 0)]); echo json_encode(['success'=>true]); }
+    requireAction('messages', rbacCrudVerb($action, $d));
+    if ($action === 'read')   { db()->execute("UPDATE contact_messages SET is_read=1 WHERE id=?", [$d['id']]); echo json_encode(['success'=>true]); }
+    elseif ($action === 'delete') { db()->execute("DELETE FROM contact_messages WHERE id=?", [$d['id']]); echo json_encode(['success'=>true]); }
     else echo json_encode(['success'=>false]);
     } catch (Throwable $e) {
         echo json_encode(['success'=>false,'message'=>'Server error: ' . $e->getMessage()]);
@@ -104,8 +105,7 @@ include __DIR__ . '/../includes/header.php';
                         <button class="btn btn-ghost btn-sm btn-icon" onclick="restoreMsg(<?= $m['id'] ?>)" title="Restore"><i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i></button>
                         <?php else: ?>
                         <?php if (!$m['is_read']): ?><button class="btn btn-ghost btn-sm btn-icon" onclick="markRead(<?= $m['id'] ?>)" title="Mark read"><i class="fa-solid fa-check text-gold"></i></button><?php endif; ?>
-                        <button class="btn btn-ghost btn-sm btn-icon" onclick="delMsg(<?= $m['id'] ?>)" title="Delete"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
-                        <?php endif; ?>
+                        <?php if (can('messages','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick="delMsg(<?= $m['id'] ?>)" title="Delete"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
                     </div>
                 </td>
             </tr>
@@ -148,8 +148,10 @@ function applyFilters(){ window.location.href='messages.php?'+buildMsgQuery(); }
 function exportCsv(){ window.location.href='messages.php?'+buildMsgQuery({export:'csv'}); }
 function goPage(p){const q=new URLSearchParams(window.location.search);q.set('page',p);window.location.href='messages.php?'+q.toString();}
 async function markRead(id){
-  await fetch('messages.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'read',id})});
-  location.reload();
+  const res = await fetch('messages.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'read',id})});
+  const r = await res.json().catch(()=>({success:false,message:'Request failed'}));
+  if (r.success) location.reload();
+  else showToast(r.message || 'Failed', 'error');
 }
 function delMsg(id){
   showConfirm('Delete Message','This hides the inquiry. You can restore it from the "Deleted" filter. Continue?', async () => {

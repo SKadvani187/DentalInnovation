@@ -5,7 +5,8 @@ require_once __DIR__ . '/_bootstrap.php';
 $rows = db()->fetchAll("SELECT skey, svalue FROM site_settings");
 // Private keys that must never be exposed to the public storefront (contain secrets / admin-only).
 // whatsappConfig holds the Meta WhatsApp permanent access token — leaking it = account takeover.
-$PRIVATE = ['otpConfig', 'whatsappConfig'];
+// orderMailConfig holds the admin SMTP host/user/PASSWORD — leaking it = mailbox takeover.
+$PRIVATE = ['otpConfig', 'whatsappConfig', 'orderMailConfig'];
 $out = [];
 foreach ($rows as $r) {
     if (in_array($r['skey'], $PRIVATE, true)) continue;

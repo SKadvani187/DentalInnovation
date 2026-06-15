@@ -3,6 +3,7 @@ require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/validate.php';
 $page_title = 'Customers';
+requireView('customers');
 
 // AJAX
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
@@ -10,6 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
+    requireAction('customers', rbacCrudVerb($action, $data));
 
     if ($action === 'save') {
         $d = $data;
@@ -17,6 +19,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $v = new Validator($d);
         $v->required('name')->maxLen('name', 120)
           ->emailOpt('email')->phoneOpt('phone')->pincodeOpt('pincode')
+          ->maxLen('city', 80)->maxLen('state', 80)->maxLen('address', 255)
+          ->maxLen('clinic_name', 150)->maxLen('notes', 2000)
           ->inOpt('customer_type', ['individual','clinic','hospital','distributor']);
         if ($v->fails()) { echo json_encode(['success'=>false,'message'=>$v->firstError()]); exit; }
 
@@ -26,11 +30,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $email = trim((string)($d['email'] ?? ''));
         $email = $email !== '' ? $email : null;
 
+        // Normalize phone to digits ONCE and store that canonical form, so the dupe check
+        // (which normalizes) and the stored value never diverge — '98765 43210' and
+        // '9876543210' must be treated as the same number.
+        $phone = !empty($d['phone']) ? preg_replace('/\D/', '', (string)$d['phone']) : null;
+
         // Uniqueness: phone must not collide with another customer.
-        if (!empty($d['phone'])) {
+        if ($phone !== null && $phone !== '') {
             $dupe = db()->fetchOne(
                 "SELECT id FROM customers WHERE phone=? AND id<>?",
-                [preg_replace('/\D/','',(string)$d['phone']), $cid]
+                [$phone, $cid]
             );
             if ($dupe) { echo json_encode(['success'=>false,'message'=>'Another customer already uses this phone number.']); exit; }
         }
@@ -110,6 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['customers_csv'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    requireAction('customers', 'create');
     $f = $_FILES['customers_csv'];
     if ($f['error'] !== UPLOAD_ERR_OK) { echo json_encode(['success'=>false,'message'=>'Upload error (code '.$f['error'].')']); exit; }
     if (strtolower(pathinfo($f['name'], PATHINFO_EXTENSION)) !== 'csv') { echo json_encode(['success'=>false,'message'=>'Please upload a .csv file']); exit; }
@@ -272,7 +282,7 @@ include __DIR__ . '/../includes/header.php';
         <button class="btn btn-outline btn-sm" onclick="exportCsv()" title="Export the filtered list to CSV"><i class="fa-solid fa-file-csv"></i> Export</button>
         <button class="btn btn-outline btn-sm" onclick="document.getElementById('csvImportInput').click()" title="Import/update customers from a CSV"><i class="fa-solid fa-file-import"></i> Import</button>
         <input type="file" id="csvImportInput" accept=".csv" style="display:none" onchange="importCsv(this)">
-        <button class="btn btn-gold" onclick="openCustModal()"><i class="fa-solid fa-user-plus"></i> Add Customer</button>
+        <?php if (can('customers','create')): ?><button class="btn btn-gold" onclick="openCustModal()"><i class="fa-solid fa-user-plus"></i> Add Customer</button><?php endif; ?>
     </div>
 </div>
 
@@ -521,12 +531,14 @@ $waPhone     = preg_replace('/\D/', '', (string)($cust_detail['phone'] ?? ''));
                         <div style="display:flex;gap:6px;">
                             <?php if(!empty($c['is_deleted'])): ?>
                             <a href="?view=<?= $c['id'] ?>" class="btn btn-ghost btn-sm btn-icon" title="View"><i class="fa-solid fa-eye"></i></a>
-                            <button class="btn btn-ghost btn-sm" onclick="restoreCust(<?= $c['id'] ?>)" title="Restore customer"><i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i> Restore</button>
+                            <?php if (can('customers','edit')): ?><button class="btn btn-ghost btn-sm" onclick="restoreCust(<?= $c['id'] ?>)" title="Restore customer"><i class="fa-solid fa-trash-arrow-up" style="color:var(--success);"></i> Restore</button><?php endif; ?>
                             <?php else: ?>
                             <a href="?view=<?= $c['id'] ?>" class="btn btn-ghost btn-sm btn-icon" title="View"><i class="fa-solid fa-eye"></i></a>
+                            <?php if (can('customers','edit')): ?>
                             <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick='openCustModal(<?= htmlspecialchars(json_encode($c), ENT_QUOTES, "UTF-8") ?>)'><i class="fa-solid fa-pen"></i></button>
                             <button class="btn btn-ghost btn-sm btn-icon" title="Activate/Deactivate" onclick="toggleCust(<?= $c['id'] ?>)"><i class="fa-solid fa-power-off" style="color:<?= ($c['is_active']??1)?'var(--success)':'var(--text-muted)' ?>;"></i></button>
-                            <button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteCust(<?= $c['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+                            <?php endif; ?>
+                            <?php if (can('customers','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteCust(<?= $c['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
                             <?php endif; ?>
                         </div>
                     </td>
