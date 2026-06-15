@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Inventory Ledger';
+requireView('inventory');   // RBAC page guard, same as other admin pages
 
 // --- Filters ---
 $search = sanitize($_GET['search'] ?? '');

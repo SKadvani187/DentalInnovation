@@ -4,6 +4,34 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/order_effects.php';
 $page_title = 'Orders';
 
+// Accent colour per PAYMENT status — drives the coloured payment pills in the list.
+function paymentColor(string $p): string {
+    return ['paid'=>'#27AE60','unpaid'=>'#E74C3C','partial'=>'#F39C12','pending'=>'#95A5A6','refunded'=>'#7F8C8D'][$p] ?? '#95A5A6';
+}
+// Font Awesome icon per payment method.
+function paymentMethodIcon(string $m): string {
+    $m = strtolower($m);
+    if ($m === 'upi') return 'fa-mobile-screen-button';
+    if ($m === 'card' || strpos($m,'credit')!==false || strpos($m,'debit')!==false) return 'fa-credit-card';
+    if (strpos($m,'bank')!==false || strpos($m,'net')!==false || $m==='online') return 'fa-building-columns';
+    if ($m === 'cod' || strpos($m,'cash')!==false) return 'fa-money-bill-wave';
+    if (strpos($m,'cheque')!==false) return 'fa-money-check-dollar';
+    return 'fa-wallet';
+}
+// Friendly label for a payment method (cod -> COD, online -> Online, etc.).
+function paymentMethodLabel(string $m): string {
+    $m2 = strtolower($m);
+    if ($m2 === 'cod') return 'COD';
+    if ($m2 === 'online') return 'Online';
+    return $m;
+}
+// One accent colour per ORDER status — green=delivered, red=cancelled, etc.
+function statusColor(string $status): string {
+    return ['pending'=>'#F39C12','processing'=>'#3498DB','confirmed'=>'#2980B9','shipped'=>'#9B59B6',
+        'out_for_delivery'=>'#16A085','delivered'=>'#27AE60','returning'=>'#E67E22','returned'=>'#7F8C8D',
+        'cancelled'=>'#E74C3C','rejected'=>'#C0392B','refunded'=>'#7F8C8D'][$status] ?? '#7F8C8D';
+}
+
 // Allowed next-states per current state. Forward-only lifecycle; terminal states are
 // dead ends. 'refunded' is NOT settable here — it must go through the refunds module
 // (pages/refunds.php) so the gateway refund + effect reversal stay coupled.
@@ -106,6 +134,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         // Best-effort WhatsApp shipping update with the new tracking details.
         notifyOrderStatusWA((int)$data['id'], null);
         echo json_encode(['success' => true, 'message' => 'Tracking updated']);
+    } elseif ($action === 'bulk_status') {
+        // Apply one target status to many orders — each validated against the same transition
+        // map; illegal ones are skipped (not failed) and reported back.
+        $ids       = array_values(array_filter(array_map('intval', (array)($data['ids'] ?? []))));
+        $newStatus = (string)($data['status'] ?? '');
+        if (!$ids) { echo json_encode(['success'=>false,'message'=>'No orders selected']); exit; }
+        if (!array_key_exists($newStatus, $ORDER_TRANSITIONS)) { echo json_encode(['success'=>false,'message'=>'Invalid status']); exit; }
+        $updated = 0; $skipped = 0;
+        foreach ($ids as $oid) {
+            $cur = db()->fetchOne("SELECT status, payment_method, payment_status FROM orders WHERE id=?", [$oid]);
+            if (!$cur) { $skipped++; continue; }
+            if ($newStatus === $cur['status']) { continue; } // no-op
+            if (!in_array($newStatus, $ORDER_TRANSITIONS[$cur['status']] ?? [], true)) { $skipped++; continue; }
+            $extra = [];
+            if ($newStatus === 'shipped')   $extra[] = "shipped_at = NOW()";
+            if ($newStatus === 'delivered') $extra[] = "delivered_at = NOW()";
+            // COD cash collected on delivery — auto-mark paid (same rule as single update).
+            if ($newStatus === 'delivered' && strtolower((string)($cur['payment_method'] ?? '')) === 'cod' && ($cur['payment_status'] ?? '') !== 'paid') {
+                $extra[] = "payment_status = 'paid'";
+            }
+            $extraStr   = $extra ? ', ' . implode(', ', $extra) : '';
+            $isTerminal = in_array($newStatus, ['cancelled','rejected','returned'], true);
+            $pdo = db()->getConnection();
+            try {
+                if ($isTerminal) {
+                    $pdo->beginTransaction();
+                    db()->execute("UPDATE orders SET status = ? $extraStr WHERE id = ?", [$newStatus, $oid]);
+                    reverseOrderEffects($oid);
+                    $pdo->commit();
+                } else {
+                    db()->execute("UPDATE orders SET status = ? $extraStr WHERE id = ?", [$newStatus, $oid]);
+                }
+                notifyOrderStatusWA($oid, $newStatus);
+                $updated++;
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                error_log('bulk_status: ' . $e->getMessage());
+                $skipped++;
+            }
+        }
+        $msg = "$updated order(s) updated" . ($skipped ? ", $skipped skipped (illegal transition)" : "");
+        echo json_encode(['success' => true, 'message' => $msg, 'updated' => $updated, 'skipped' => $skipped]);
     }
     exit;
 }
@@ -141,6 +211,24 @@ if ($status)  { $where[] = "o.status = ?"; $params[] = $status; }
 if ($payment) { $where[] = "o.payment_status = ?"; $params[] = $payment; }
 $whereStr = implode(' AND ', $where);
 
+// CSV export of the CURRENT (filtered) result set — respects search/status/payment.
+if (($_GET['export'] ?? '') === 'csv') {
+    $rows = db()->fetchAll(
+        "SELECT o.order_number, c.name AS customer_name, c.phone, o.created_at, o.total,
+                o.status, o.payment_status, o.payment_method
+           FROM orders o JOIN customers c ON o.customer_id=c.id
+          WHERE $whereStr ORDER BY o.created_at DESC", $params);
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="orders-' . date('Ymd-His') . '.csv"');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['Order #','Customer','Phone','Date','Amount','Status','Payment Status','Payment Method']);
+    foreach ($rows as $r) {
+        fputcsv($out, [$r['order_number'], $r['customer_name'], $r['phone'], $r['created_at'],
+                       $r['total'], $r['status'], $r['payment_status'], $r['payment_method']]);
+    }
+    fclose($out); exit;
+}
+
 $total  = db()->fetchOne("SELECT COUNT(*) as cnt FROM orders o JOIN customers c ON o.customer_id=c.id WHERE $whereStr", $params)['cnt'];
 $pages  = ceil($total / $per_page);
 $orders = db()->fetchAll("SELECT o.*, c.name as customer_name, c.phone, c.email as customer_email FROM orders o JOIN customers c ON o.customer_id=c.id WHERE $whereStr ORDER BY o.created_at DESC LIMIT $per_page OFFSET $offset", $params);
@@ -164,6 +252,7 @@ include __DIR__ . '/../includes/header.php';
         <p>Manage all orders — <?= $total ?> total orders</p>
     </div>
     <div style="display:flex;gap:10px;">
+        <button class="btn btn-outline btn-sm" onclick="exportCsv()" title="Export the current filtered list to CSV"><i class="fa-solid fa-file-csv"></i> Export</button>
         <a href="?status=pending" class="btn btn-outline btn-sm"><i class="fa-solid fa-clock"></i> Pending (<?= db()->fetchOne("SELECT COUNT(*) as c FROM orders WHERE status='pending'")['c'] ?>)</a>
     </div>
 </div>
@@ -176,7 +265,11 @@ include __DIR__ . '/../includes/header.php';
             <span class="card-title">Order: <span class="text-gold"><?= $order_detail['order_number'] ?></span></span>
             <span class="badge <?= statusBadge($order_detail['status']) ?>" style="margin-left:10px;"><?= $order_detail['status'] ?></span>
         </div>
-        <a href="orders.php" class="btn btn-ghost btn-sm"><i class="fa-solid fa-arrow-left"></i> Back</a>
+        <div style="display:flex;gap:8px;">
+            <button class="btn btn-outline btn-sm" onclick="printInvoice()"><i class="fa-solid fa-print"></i> Print Invoice</button>
+            <button class="btn btn-outline btn-sm" onclick="printPacking()"><i class="fa-solid fa-box-open"></i> Packing Slip</button>
+            <a href="orders.php" class="btn btn-ghost btn-sm"><i class="fa-solid fa-arrow-left"></i> Back</a>
+        </div>
     </div>
     <div class="card-body">
         <div class="grid-2" style="margin-bottom:20px;">
@@ -334,10 +427,23 @@ include __DIR__ . '/../includes/header.php';
 
 <!-- Orders Table -->
 <div class="card fade-in">
+    <!-- Bulk action bar (shown when rows are selected) -->
+    <div id="bulkBar" style="display:none;padding:12px 16px;border-bottom:1px solid var(--border-color);gap:12px;align-items:center;background:var(--bg-elevated);">
+        <span id="bulkCount" style="font-size:.82rem;font-weight:600;"></span>
+        <select class="form-control" id="bulkStatus" style="max-width:190px;">
+            <option value="">Set status to…</option>
+            <?php foreach(['processing','confirmed','shipped','out_for_delivery','delivered','cancelled','rejected'] as $s): ?>
+            <option value="<?= $s ?>"><?= ucwords(str_replace('_',' ',$s)) ?></option>
+            <?php endforeach; ?>
+        </select>
+        <button class="btn btn-gold btn-sm" onclick="applyBulkStatus()"><i class="fa-solid fa-check"></i> Apply</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearBulk()">Clear</button>
+    </div>
     <div class="table-responsive">
         <table>
             <thead>
                 <tr>
+                    <th style="width:34px;"><input type="checkbox" id="selectAllOrders" onchange="toggleAllOrders(this)" style="width:15px;height:15px;accent-color:var(--gold-primary);cursor:pointer;"></th>
                     <th>Order #</th>
                     <th>Customer</th>
                     <th>Date</th>
@@ -350,6 +456,7 @@ include __DIR__ . '/../includes/header.php';
             <tbody>
                 <?php foreach($orders as $o): ?>
                 <tr id="order-row-<?= $o['id'] ?>">
+                    <td><input type="checkbox" class="order-check" value="<?= $o['id'] ?>" onchange="updateBulkBar()" style="width:15px;height:15px;accent-color:var(--gold-primary);cursor:pointer;"></td>
                     <td><a href="?view=<?= $o['id'] ?>" class="text-gold font-bold"><?= $o['order_number'] ?></a></td>
                     <td>
                         <div class="font-bold" style="font-size:0.84rem;"><?= htmlspecialchars((string)$o['customer_name']) ?></div>
@@ -371,9 +478,10 @@ include __DIR__ . '/../includes/header.php';
                         </select>
                     </td>
                     <td>
-                        <span class="badge <?= statusBadge($o['payment_status']) ?>"><?= $o['payment_status'] ?></span>
+                        <?php $pc = paymentColor($o['payment_status']); ?>
+                        <span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:600;color:<?= $pc ?>;background:<?= $pc ?>1a;border:1px solid <?= $pc ?>33;"><?= ucfirst($o['payment_status']) ?></span>
                         <?php if($o['payment_method']): ?>
-                        <div class="text-muted" style="font-size:0.72rem;margin-top:2px;"><?= $o['payment_method'] ?></div>
+                        <div class="text-muted" style="font-size:0.72rem;margin-top:3px;"><i class="fa-solid <?= paymentMethodIcon($o['payment_method']) ?>" style="margin-right:3px;"></i><?= htmlspecialchars(paymentMethodLabel($o['payment_method'])) ?></div>
                         <?php endif; ?>
                     </td>
                     <td>
@@ -384,7 +492,7 @@ include __DIR__ . '/../includes/header.php';
                 </tr>
                 <?php endforeach; ?>
                 <?php if(empty($orders)): ?>
-                <tr><td colspan="7"><div class="empty-state"><i class="fa-solid fa-cart-shopping"></i><p>No orders found</p></div></td></tr>
+                <tr><td colspan="8"><div class="empty-state"><i class="fa-solid fa-cart-shopping"></i><p>No orders found</p></div></td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
@@ -401,11 +509,131 @@ include __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
+<?php
+// Order detail exposed to JS for the Invoice / Packing Slip print views (open-in-new-window,
+// browser print dialog). Only present when viewing a single order.
+$printShip = $order_detail ? (json_decode((string)($order_detail['shipping_address'] ?? ''), true) ?: []) : [];
+?>
+const ORDER_DETAIL = <?= $order_detail ? json_encode([
+    'order_number'  => $order_detail['order_number'],
+    'created_at'    => $order_detail['created_at'],
+    'status'        => $order_detail['status'],
+    'payment_status'=> $order_detail['payment_status'],
+    'payment_method'=> $order_detail['payment_method'],
+    'customer_name' => $order_detail['customer_name'],
+    'phone'         => $order_detail['phone'],
+    'ship'          => $printShip,
+    'items'         => array_map(fn($i)=>['name'=>$i['product_name'],'qty'=>$i['quantity'],'price'=>$i['price'],'total'=>$i['total']], $order_detail['items'] ?? []),
+    'subtotal'      => $order_detail['subtotal'],
+    'discount'      => $order_detail['discount'],
+    'shipping'      => $order_detail['shipping_charge'],
+    'tax'           => $order_detail['tax'],
+    'total'         => $order_detail['total'],
+], JSON_UNESCAPED_UNICODE) : 'null' ?>;
+const COMPANY_NAME = <?= json_encode(APP_NAME) ?>;
+
+function printInvoice() {
+    const o = ORDER_DETAIL;
+    if (!o) return;
+    const inr = (n) => '₹' + Number(n || 0).toLocaleString('en-IN');
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    const ship = o.ship || {};
+    const addrLine = [ship.line1 || ship.building, ship.line2 || ship.area, ship.landmark, [ship.city, ship.district, ship.state].filter(Boolean).join(', '), ship.pincode].filter(Boolean).map(esc).join('<br>');
+    const addr = [ship.name ? esc(ship.name) : '', addrLine, ship.mobile ? esc(ship.mobile) : ''].filter(Boolean).join('<br>');
+    const rows = (o.items || []).map(it => `<tr>
+        <td>${esc(it.name)}</td><td style="text-align:center">${esc(it.qty)}</td>
+        <td style="text-align:right">${inr(it.price)}</td><td style="text-align:right">${inr(it.total)}</td></tr>`).join('');
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Invoice ${esc(o.order_number)}</title>
+        <style>body{font-family:Arial,sans-serif;color:#222;padding:30px;max-width:780px;margin:auto}
+        h1{margin:0;font-size:22px}.muted{color:#666;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:16px}
+        th,td{border-bottom:1px solid #ddd;padding:8px;font-size:13px;text-align:left}th{background:#f5f5f5}
+        .tot{text-align:right;font-size:13px}.tot strong{font-size:15px}.flex{display:flex;justify-content:space-between;gap:24px;margin-top:20px}</style></head>
+        <body>
+        <div class="flex"><div><h1>${esc(COMPANY_NAME)}</h1><div class="muted">Tax Invoice</div></div>
+        <div style="text-align:right"><div><strong>${esc(o.order_number)}</strong></div>
+        <div class="muted">${esc(new Date(o.created_at).toLocaleString('en-IN'))}</div>
+        <div class="muted">Status: ${esc(o.status)} · ${esc(o.payment_status)}</div></div></div>
+        <div class="flex"><div><div class="muted">BILL TO</div>${esc(o.customer_name)}<br>${esc(o.phone || '')}</div>
+        <div><div class="muted">SHIP TO</div>${addr || '—'}</div></div>
+        <table><thead><tr><th>Product</th><th style="text-align:center">Qty</th><th style="text-align:right">Unit</th><th style="text-align:right">Total</th></tr></thead><tbody>${rows}</tbody></table>
+        <div style="margin-top:16px" class="tot">Subtotal: ${inr(o.subtotal)}<br>Discount: ${inr(o.discount)}<br>Shipping: ${inr(o.shipping)}<br>${Number(o.tax)>0?('Tax: '+inr(o.tax)+'<br>'):''}<strong>Total: ${inr(o.total)}</strong></div>
+        </body></html>`;
+    const w = window.open('', '_blank');
+    w.document.write(html); w.document.close(); w.focus();
+    setTimeout(() => { w.print(); }, 300);
+}
+
+// Packing slip — warehouse pick/pack doc: items + qty + ship-to, NO prices, with a packed checkbox.
+function printPacking() {
+    const o = ORDER_DETAIL; if (!o) return;
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    const ship = o.ship || {};
+    const addrLine = [ship.line1 || ship.building, ship.line2 || ship.area, ship.landmark, [ship.city, ship.district, ship.state].filter(Boolean).join(', '), ship.pincode].filter(Boolean).map(esc).join('<br>');
+    const addr = [ship.name ? esc(ship.name) : '', addrLine, ship.mobile ? esc(ship.mobile) : ''].filter(Boolean).join('<br>');
+    const totalQty = (o.items || []).reduce((s,it)=>s+(parseInt(it.qty)||0),0);
+    const rows = (o.items || []).map(it => `<tr>
+        <td>${esc(it.name)}</td>
+        <td style="text-align:center;font-size:17px;font-weight:bold">${esc(it.qty)}</td>
+        <td style="text-align:center;width:64px"><span style="display:inline-block;width:18px;height:18px;border:1.5px solid #333;border-radius:3px"></span></td></tr>`).join('');
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Packing Slip ${esc(o.order_number)}</title>
+        <style>body{font-family:Arial,sans-serif;color:#222;padding:30px;max-width:780px;margin:auto}
+        h1{margin:0;font-size:22px}.muted{color:#666;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:16px}
+        th,td{border-bottom:1px solid #ddd;padding:10px;font-size:13px;text-align:left}th{background:#f5f5f5}
+        .flex{display:flex;justify-content:space-between;gap:24px;margin-top:20px}.box{border:1px solid #ddd;padding:12px;border-radius:6px}</style></head>
+        <body>
+        <div class="flex"><div><h1>${esc(COMPANY_NAME)}</h1><div class="muted">Packing Slip — not a tax invoice</div></div>
+        <div style="text-align:right"><div><strong>${esc(o.order_number)}</strong></div>
+        <div class="muted">${esc(new Date(o.created_at).toLocaleDateString('en-IN'))}</div></div></div>
+        <div class="flex"><div class="box" style="flex:1"><div class="muted">SHIP TO</div>${addr || '—'}</div>
+        <div class="box" style="text-align:center"><div class="muted">TOTAL ITEMS</div><div style="font-size:24px;font-weight:bold">${totalQty}</div><div class="muted">${(o.items||[]).length} line(s)</div></div></div>
+        <table><thead><tr><th>Product</th><th style="text-align:center">Qty</th><th style="text-align:center">Packed</th></tr></thead><tbody>${rows}</tbody></table>
+        <div style="margin-top:34px;font-size:12px;color:#666">Packed by: ______________________&nbsp;&nbsp;&nbsp; Checked by: ______________________&nbsp;&nbsp;&nbsp; Date: ____________</div>
+        </body></html>`;
+    const w = window.open('', '_blank');
+    w.document.write(html); w.document.close(); w.focus();
+    setTimeout(() => { w.print(); }, 300);
+}
+
 function filterUrl(page) {
     const s  = encodeURIComponent(document.getElementById('searchInput').value);
     const st = encodeURIComponent(document.getElementById('statusFilter').value);
     const p  = encodeURIComponent(document.getElementById('payFilter').value);
     return `orders.php?search=${s}&status=${st}&payment=${p}` + (page ? `&page=${page}` : '');
+}
+// Download the current filtered order list as CSV (server streams it; filters preserved).
+function exportCsv() { window.location.href = filterUrl() + '&export=csv'; }
+
+// ---- Bulk selection + bulk status update ----
+function selectedOrderIds() {
+    return [...document.querySelectorAll('.order-check:checked')].map(c => parseInt(c.value));
+}
+function updateBulkBar() {
+    const n = selectedOrderIds().length;
+    const bar = document.getElementById('bulkBar');
+    bar.style.display = n ? 'flex' : 'none';
+    if (n) document.getElementById('bulkCount').textContent = n + ' selected';
+    const all = document.getElementById('selectAllOrders');
+    const total = document.querySelectorAll('.order-check').length;
+    if (all) all.checked = n > 0 && n === total;
+}
+function toggleAllOrders(cb) {
+    document.querySelectorAll('.order-check').forEach(c => c.checked = cb.checked);
+    updateBulkBar();
+}
+function clearBulk() {
+    document.querySelectorAll('.order-check').forEach(c => c.checked = false);
+    const all = document.getElementById('selectAllOrders'); if (all) all.checked = false;
+    updateBulkBar();
+}
+async function applyBulkStatus() {
+    const ids = selectedOrderIds();
+    const status = document.getElementById('bulkStatus').value;
+    if (!ids.length) return;
+    if (!status) { showToast('Choose a status to set', 'info'); return; }
+    if (!confirm(`Set ${ids.length} order(s) to "${status}"? Orders where this isn't a valid next step are skipped.`)) return;
+    const r = await postOrders({ action:'bulk_status', ids, status });
+    showToast(r.message || 'Done', r.success ? 'success' : 'danger');
+    if (r.success) setTimeout(() => location.reload(), 800);
 }
 function applyFilters() { window.location.href = filterUrl(); }
 function goPage(p) { window.location.href = filterUrl(p); }
