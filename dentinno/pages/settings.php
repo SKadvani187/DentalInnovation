@@ -38,6 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     // super_admin only. manage_settings is in no role list, so admin/staff are rejected here.
     requirePermissionAjax('manage_settings');
     $d = json_decode(file_get_contents('php://input'), true);
+    try {
     if (($d['action'] ?? '') === 'save_setting') {
         // Allow letters, digits and underscores so keys like 'gvp_threshold' aren't silently mangled.
         $key = preg_replace('/[^a-zA-Z0-9_]/', '', $d['key'] ?? '');

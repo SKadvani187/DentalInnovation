@@ -211,6 +211,7 @@ include __DIR__ . '/../includes/header.php';
                 <i class="fa-solid fa-trash" style="color:var(--danger);"></i>
               </button>
               <?php endif; ?>
+              <?php endif; ?>
             </div>
           </td>
         </tr>

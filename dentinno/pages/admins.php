@@ -112,6 +112,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
 }
 
 $admins = db()->fetchAll("SELECT * FROM admin_users ORDER BY created_at DESC");
+// Assignable roles for the modal dropdown + the default (staff) the JS pre-selects on "Add".
+$allRoles = db()->fetchAll("SELECT id, name, slug, is_super FROM roles WHERE is_active=1 ORDER BY is_super DESC, name");
+$staffRow = db()->fetchOne("SELECT id FROM roles WHERE slug='staff'");
+$staffRoleId = (int)($staffRow['id'] ?? 0);
 // Recent admin-account activity (audit trail). Table may not exist on an un-migrated DB — guard it.
 try { $auditLog = db()->fetchAll("SELECT * FROM admin_audit_log ORDER BY created_at DESC LIMIT 20"); }
 catch (Throwable $e) { $auditLog = []; }
@@ -256,6 +260,7 @@ include __DIR__ . '/../includes/header.php';
 
 <script>
 const STAFF_ROLE_ID = '<?= $staffRoleId ?>';
+const CURRENT_ADMIN_ID = '<?= (int)($_SESSION['admin_id'] ?? 0) ?>';
 function openAdminModal(a = null) {
     document.getElementById('adm_id').value       = a?.id || '';
     document.getElementById('adm_name').value     = a?.name || '';
@@ -274,6 +279,13 @@ function openAdminModal(a = null) {
     document.getElementById('pwEye').className = 'fa-solid fa-eye';
     document.getElementById('adminModalTitle').textContent = a ? 'Edit Admin User' : 'Add Admin User';
     openModal('adminModal');
+}
+function togglePw() {
+    const inp = document.getElementById('adm_password');
+    const eye = document.getElementById('pwEye');
+    const show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    eye.className = show ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
 }
 async function saveAdmin() {
     const name  = document.getElementById('adm_name').value.trim();

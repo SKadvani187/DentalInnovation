@@ -213,6 +213,7 @@ include __DIR__ . '/../includes/header.php';
         </button>
         <?php endif; ?>
         <?php if (can('courses','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteCourse(<?= $c['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
+        <?php endif; ?>
       </div>
     </div>
   </div>

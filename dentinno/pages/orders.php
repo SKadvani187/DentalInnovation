@@ -182,10 +182,12 @@ include __DIR__ . '/../includes/header.php';
         <div class="grid-2" style="margin-bottom:20px;">
             <div>
                 <h3 style="font-size:0.8rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Customer Info</h3>
-                <div class="font-bold"><?= htmlspecialchars($order_detail['customer_name']) ?></div>
-                <?php if($order_detail['clinic_name']): ?><div class="text-muted"><?= htmlspecialchars($order_detail['clinic_name']) ?></div><?php endif; ?>
-                <div class="text-muted"><?= htmlspecialchars($order_detail['phone']) ?></div>
-                <div class="text-muted"><?= htmlspecialchars($order_detail['customer_email']) ?></div>
+                <div class="font-bold"><?= htmlspecialchars((string)$order_detail['customer_name']) ?></div>
+                <?php if($order_detail['clinic_name']): ?><div class="text-muted"><?= htmlspecialchars((string)$order_detail['clinic_name']) ?></div><?php endif; ?>
+                <div class="text-muted"><?= htmlspecialchars((string)$order_detail['phone']) ?></div>
+                <?php $oEmail = (string)($order_detail['customer_email'] ?? ''); if($oEmail !== '' && !str_ends_with($oEmail, '@storefront.local')): ?>
+                <div class="text-muted"><?= htmlspecialchars($oEmail) ?></div>
+                <?php endif; ?>
 
                 <?php
                 // Delivery address captured at checkout (free-form JSON from the storefront;
@@ -231,7 +233,7 @@ include __DIR__ . '/../includes/header.php';
                     <?php foreach($order_detail['items'] as $item): ?>
                     <tr>
                         <td>
-                            <?= htmlspecialchars($item['product_name']) ?>
+                            <?= htmlspecialchars((string)$item['product_name']) ?>
                             <?php if(($item['line_type'] ?? 'product') === 'gift'): ?>
                                 <span class="badge badge-success" style="margin-left:6px;">FREE GIFT</span>
                             <?php elseif(($item['line_type'] ?? '') === 'offer'): ?>
@@ -350,8 +352,8 @@ include __DIR__ . '/../includes/header.php';
                 <tr id="order-row-<?= $o['id'] ?>">
                     <td><a href="?view=<?= $o['id'] ?>" class="text-gold font-bold"><?= $o['order_number'] ?></a></td>
                     <td>
-                        <div class="font-bold" style="font-size:0.84rem;"><?= htmlspecialchars($o['customer_name']) ?></div>
-                        <div class="text-muted" style="font-size:0.73rem;"><?= htmlspecialchars($o['phone']) ?></div>
+                        <div class="font-bold" style="font-size:0.84rem;"><?= htmlspecialchars((string)$o['customer_name']) ?></div>
+                        <div class="text-muted" style="font-size:0.73rem;"><?= htmlspecialchars((string)$o['phone']) ?></div>
                     </td>
                     <td>
                         <div><?= formatDate($o['created_at']) ?></div>

@@ -666,31 +666,6 @@ function calcQuickFill(sel){
   document.getElementById('calc_weight').value=opt.dataset.weight||'';
   document.getElementById('calc_qty').value=1;
   calcRun();
-let calcTimer;
-function calcShipping(){
-  const price=parseFloat(document.getElementById('calc_price').value)||0;
-  const weight=parseFloat(document.getElementById('calc_weight').value)||0;
-  const zone=document.getElementById('calc_zone').value;
-  const out=document.getElementById('calcOutput');
-  if(!price&&!weight){out.innerHTML='<i class="fa-solid fa-calculator" style="font-size:2rem;opacity:.3;"></i><br><span style="color:var(--text-muted)">Enter order details</span>';return;}
-  clearTimeout(calcTimer);
-  calcTimer=setTimeout(async()=>{
-    const res=await fetch('shipping.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'calc',price,weight,qty:1,zone_id:zone||0})});
-    const d=await res.json();
-    if(!d.success){out.innerHTML='<span style="color:var(--text-muted)">Could not calculate</span>';return;}
-    const actual=d.actual;
-    let html=`<div style="display:flex;justify-content:space-between;align-items:center;padding:14px;margin-bottom:14px;background:rgba(46,204,113,.08);border:1px solid var(--success);border-radius:8px;">
-      <div><div style="font-weight:700;">Customer pays</div><div style="font-size:.72rem;color:var(--text-muted);">Auto-picked by the live engine</div></div>
-      <div style="font-size:1.25rem;font-weight:800;color:${actual<=0?'var(--success)':'var(--gold-primary)'};">${actual<=0?'FREE':'₹'+Number(actual).toLocaleString('en-IN')}</div>
-    </div>`;
-    const apl=(d.methods||[]).filter(m=>m.applicable);
-    if(apl.length){html+='<div style="font-size:.72rem;color:var(--text-muted);margin-bottom:8px;">All applicable methods:</div>'+apl.map(m=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bg-elevated);border-radius:8px;margin-bottom:6px;">
-        <div><div style="font-weight:600;font-size:.88rem;">${escapeHtml(m.name||'')}</div><div style="font-size:.72rem;color:var(--text-muted);">${escapeHtml(m.type||'')}</div></div>
-        <div style="font-weight:700;color:${m.free?'var(--success)':'var(--gold-primary)'};">${m.free?'FREE':'₹'+Number(m.cost).toLocaleString('en-IN')}</div>
-      </div>`).join('');}
-    out.innerHTML=html;
-  },350);
 }
 
 let calcTimer;

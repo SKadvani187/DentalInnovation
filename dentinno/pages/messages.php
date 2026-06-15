@@ -106,6 +106,7 @@ include __DIR__ . '/../includes/header.php';
                         <?php else: ?>
                         <?php if (!$m['is_read']): ?><button class="btn btn-ghost btn-sm btn-icon" onclick="markRead(<?= $m['id'] ?>)" title="Mark read"><i class="fa-solid fa-check text-gold"></i></button><?php endif; ?>
                         <?php if (can('messages','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick="delMsg(<?= $m['id'] ?>)" title="Delete"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
+                        <?php endif; ?>
                     </div>
                 </td>
             </tr>
