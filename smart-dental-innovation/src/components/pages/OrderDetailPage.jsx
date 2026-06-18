@@ -5,6 +5,7 @@ import { useUI } from "../../context/UIContext";
 import { useSettings } from "../../context/SettingsContext";
 import { useAppNavigate } from "../../hooks/useAppNavigate";
 import api, { loadRazorpayScript } from "../../lib/api";
+import { courierTrackingUrl } from "../../lib/tracking";
 
 const fmt = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 
@@ -265,6 +266,17 @@ export default function OrderDetailPage() {
               </div>
             );
           })()}
+          {/* Deep-link to the carrier's own tracking page when an AWB has been assigned. */}
+          {courierTrackingUrl(order.courier, order.trackingId) && (
+            <a
+              href={courierTrackingUrl(order.courier, order.trackingId)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-lg bg-[#3684bf] text-white text-sm font-semibold hover:bg-[#2a6a99]"
+            >
+              Track Shipment ↗
+            </a>
+          )}
           {/* Order Items live under Track Order in the right column (matches reference). */}
           <h3 className="font-bold text-brand-ink mt-6 mb-3">Order Items ({order.items?.length || 0})</h3>
           <div className="space-y-4">
@@ -298,7 +310,11 @@ export default function OrderDetailPage() {
         <Detail label="Name" value={addr.name} />
         <Detail label="Order ID" value={order.orderId} />
         {order.courier && <Detail label="Courier" value={order.courier} />}
-        <Detail label="Tracking Number" value={order.trackingId || "—"} />
+        <Detail
+          label="Tracking Number"
+          value={order.trackingId || "—"}
+          href={courierTrackingUrl(order.courier, order.trackingId)}
+        />
         <Detail label="Order Date" value={placedDate} />
         <Detail label="Payment Method" value={order.paymentMethod === "cod" ? "Cash on Delivery" : "Payment Gateway"} />
         <Detail label="Order Status" value={cap(order.status)} />
@@ -335,11 +351,22 @@ export default function OrderDetailPage() {
 
 const cap = (s) => (s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : "");
 
-function Detail({ label, value }) {
+function Detail({ label, value, href }) {
   return (
     <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
       <span className="text-sm text-brand-muted">{label}</span>
-      <span className="text-sm font-bold text-brand-ink text-right">{value}</span>
+      {href ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm font-bold text-[#3684bf] text-right underline underline-offset-2 hover:text-[#2a6a99]"
+        >
+          {value} ↗
+        </a>
+      ) : (
+        <span className="text-sm font-bold text-brand-ink text-right">{value}</span>
+      )}
     </div>
   );
 }
