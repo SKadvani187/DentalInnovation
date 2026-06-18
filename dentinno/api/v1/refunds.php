@@ -63,9 +63,18 @@ $order = $db->fetchOne(
 );
 if (!$order) jsonErr('Order not found', 404);
 
-// Can't refund an order that's already cancelled/refunded.
-if (in_array($order['status'], ['cancelled', 'refunded'], true)) {
-    jsonErr('This order is already ' . $order['status'] . '.', 409);
+// A refund/return needs real money collected AND a non-terminal order. Mirror the storefront
+// gate (OrderDetailPage refundEligible) on the SERVER so a crafted API call can't create a
+// refund for an order that was never paid or is already dead/terminal.
+//   * cancelled / rejected / returned / refunded -> never fulfilled or already closed
+//   * payment must be collected: online 'paid', or COD that reached 'delivered'
+if (in_array($order['status'], ['cancelled', 'rejected', 'returned', 'refunded'], true)) {
+    jsonErr('This order is ' . $order['status'] . ' and cannot be refunded.', 409);
+}
+$paymentCollected = ($order['payment_status'] === 'paid')
+    || ((string)$order['payment_method'] === 'cod' && $order['status'] === 'delivered');
+if (!$paymentCollected) {
+    jsonErr('This order has no completed payment to refund.', 409);
 }
 
 // One active request per order.

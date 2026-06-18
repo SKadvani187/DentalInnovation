@@ -125,6 +125,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         if (!in_array($ps, ['unpaid','pending','paid','partial'], true)) {
             echo json_encode(['success'=>false,'message'=>"Invalid payment status '$ps'."]); exit;
         }
+        $cur = db()->fetchOne("SELECT status, payment_status FROM orders WHERE id=?", [(int)$data['id']]);
+        // A refunded order's payment is owned by the Refunds flow — block any manual change so a
+        // refund can't be silently undone (e.g. flipped back to paid/unpaid).
+        if ($cur && $cur['payment_status'] === 'refunded') {
+            echo json_encode(['success'=>false,'message'=>'This order is refunded — its payment is managed by the Refunds page.']); exit;
+        }
+        // Don't mark a dead order 'paid' — a cancelled/rejected/returned order can't logically
+        // become paid (money on such an order belongs in the Refunds flow).
+        if ($ps === 'paid' && $cur && in_array($cur['status'], ['cancelled','rejected','returned','refunded'], true)) {
+            echo json_encode(['success'=>false,'message'=>"Can't mark a {$cur['status']} order as paid."]); exit;
+        }
         db()->execute("UPDATE orders SET payment_status = ?, payment_method = ? WHERE id = ?",
             [$ps, $data['payment_method'], $data['id']]);
         echo json_encode(['success' => true, 'message' => 'Payment updated']);
@@ -150,8 +161,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $extra = [];
             if ($newStatus === 'shipped')   $extra[] = "shipped_at = NOW()";
             if ($newStatus === 'delivered') $extra[] = "delivered_at = NOW()";
-            // COD cash collected on delivery — auto-mark paid (same rule as single update).
-            if ($newStatus === 'delivered' && strtolower((string)($cur['payment_method'] ?? '')) === 'cod' && ($cur['payment_status'] ?? '') !== 'paid') {
+            // COD cash collected on delivery — auto-mark paid. Match the SINGLE update exactly:
+            // only flip an 'unpaid' COD order (NOT 'partial' / 'refunded', which would wrongly
+            // erase a partial-refund state).
+            if ($newStatus === 'delivered' && strtolower((string)($cur['payment_method'] ?? '')) === 'cod' && ($cur['payment_status'] ?? '') === 'unpaid') {
                 $extra[] = "payment_status = 'paid'";
             }
             $extraStr   = $extra ? ', ' . implode(', ', $extra) : '';
@@ -432,7 +445,7 @@ include __DIR__ . '/../includes/header.php';
         <span id="bulkCount" style="font-size:.82rem;font-weight:600;"></span>
         <select class="form-control" id="bulkStatus" style="max-width:190px;">
             <option value="">Set status to…</option>
-            <?php foreach(['processing','confirmed','shipped','out_for_delivery','delivered','cancelled','rejected'] as $s): ?>
+            <?php foreach(['processing','confirmed','shipped','out_for_delivery','delivered','returning','cancelled','rejected'] as $s): ?>
             <option value="<?= $s ?>"><?= ucwords(str_replace('_',' ',$s)) ?></option>
             <?php endforeach; ?>
         </select>

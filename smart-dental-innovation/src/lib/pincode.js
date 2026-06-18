@@ -35,8 +35,8 @@ const STATE_BY_PREFIX2 = {
   70: "West Bengal", 71: "West Bengal", 72: "West Bengal", 73: "West Bengal", 74: "West Bengal",
   75: "Odisha", 76: "Odisha", 77: "Odisha",
   78: "Assam", 79: "North East",
-  80: "Bihar", 81: "Bihar", 82: "Bihar", 83: "Bihar", 84: "Bihar", 85: "Bihar",
-  82: "Jharkhand", 83: "Jharkhand", // overlap; Bihar/Jharkhand share 8xx — editable
+  // 80-81 Bihar, 82-83 Jharkhand, 84-85 Bihar (8xx is shared; closest mapping, user can edit).
+  80: "Bihar", 81: "Bihar", 82: "Jharkhand", 83: "Jharkhand", 84: "Bihar", 85: "Bihar",
   90: "Army Post (APO)", 91: "Army Post (APO)",
 };
 
@@ -58,20 +58,52 @@ export function stateFromPincode(pin) {
   return STATE_BY_PREFIX1[Number(code[0])] || "";
 }
 
+// Derive the CITY from a pincode with no network call (mirrors stateFromPincode). Keyed by the
+// 3-digit prefix (a postal "sorting district" usually = one city). Covers the regions we serve
+// (Gujarat) + major metros; the India Post API still refines this when reachable.
+const CITY_BY_PREFIX3 = {
+  360: "Rajkot", 361: "Jamnagar", 362: "Junagadh", 363: "Surendranagar", 364: "Bhavnagar", 365: "Amreli",
+  370: "Bhuj", 380: "Ahmedabad", 382: "Gandhinagar", 384: "Mehsana", 385: "Palanpur", 387: "Nadiad",
+  388: "Anand", 389: "Godhra", 390: "Vadodara", 391: "Vadodara", 392: "Bharuch", 393: "Bharuch",
+  394: "Surat", 395: "Surat", 396: "Valsad",
+  110: "New Delhi", 400: "Mumbai", 411: "Pune", 560: "Bengaluru", 600: "Chennai",
+  700: "Kolkata", 500: "Hyderabad", 302: "Jaipur",
+};
+
 /**
+ * Derive the city from a pincode with no network call. Returns "" if unknown.
+ * @param {string} pin
+ * @returns {string}
+ */
+export function cityFromPincode(pin) {
+  const code = String(pin || "").replace(/\D/g, "");
+  if (code.length < 3) return "";
+  return CITY_BY_PREFIX3[Number(code.slice(0, 3))] || "";
+}
+
+/**
+ * Look up city / state / district + the official locality list for a pincode.
+ * `areas` are the India Post post-office names for the pincode — used to populate the
+ * Area dropdown so the user PICKS a real locality instead of free-typing one (this is what
+ * prevents fake/non-existent localities; free-text geocode validation is unreliable in India).
  * @param {string} pin 6-digit Indian pincode
- * @returns {Promise<{city:string,state:string,district:string}|null>}
+ * @returns {Promise<{city:string,state:string,district:string,areas:string[]}|null>}
  */
 export async function lookupPincode(pin) {
   const code = String(pin || "").replace(/\D/g, "");
   if (code.length !== 6) return null;
   if (cache.has(code)) return cache.get(code);
 
-  // Always have a state from the local map; the API only enriches city/district.
-  const fallback = { city: "", state: stateFromPincode(code), district: "" };
+  // Always have City + State from the local maps (no network); the India Post API only
+  // refines them + adds the locality list when reachable.
+  const fallback = { city: cityFromPincode(code), state: stateFromPincode(code), district: cityFromPincode(code), areas: [] };
 
   try {
-    const res = await fetch(`${ENDPOINT}/${code}`, { headers: { Accept: "application/json" } });
+    // 6s timeout so a hung request can't freeze the address form.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 6000);
+    const res = await fetch(`${ENDPOINT}/${code}`, { headers: { Accept: "application/json" }, signal: ctrl.signal });
+    clearTimeout(timer);
     if (!res.ok) { cache.set(code, fallback); return fallback; }
     const json = await res.json();
     // Shape: [ { Status: "Success", PostOffice: [ { District, State, Block, Name, ... } ] } ]
@@ -85,15 +117,17 @@ export async function lookupPincode(pin) {
       offices.find((o) => o.District) ||
       offices.find((o) => o.Block || o.Division) ||
       offices[0];
-    const city = po.District || po.Block || po.Division || po.Name || "";
-    // Prefer the API's state; fall back to the local map so State is never empty.
+    // Prefer the API's city/state; fall back to the local maps so neither is ever empty.
+    const city = po.District || po.Block || po.Division || po.Name || fallback.city;
     const state = (offices.find((o) => o.State) || po).State || fallback.state;
-    const out = { city, state, district: po.District || "" };
+    // Every post-office Name is a selectable locality for this pincode (de-duped + sorted).
+    const areas = [...new Set(offices.map((o) => (o.Name || "").trim()).filter(Boolean))].sort();
+    const out = { city, state, district: po.District || fallback.district, areas };
     cache.set(code, out);
     return out;
   } catch {
     cache.set(code, fallback);
-    return fallback; // offline / blocked — at least the state is filled from the local map
+    return fallback; // offline / blocked / timeout — local city+state, no locality list
   }
 }
 
@@ -147,36 +181,28 @@ function looksLikeGibberish(s) {
 }
 
 /**
- * Validate that the typed address resolves to a real locality/street — mirrors the
- * reference site's "Address lacks locality, street, or neighborhood details" check.
- * Forward-geocodes "area, city, pincode" via Nominatim and requires the match to carry
- * a road / suburb / neighbourhood / residential component (not just a city centroid).
+ * Validate the locality/area the user entered. Real fake-locality prevention comes from the
+ * Area DROPDOWN (the user picks an official India Post post-office name — see lookupPincode's
+ * `areas`), so picked values are real by construction and pass instantly.
  *
- * Fails OPEN on network/geocoder errors (returns {ok:true}) so a blocked API never
- * traps a legitimate address — but still rejects locally-detectable gibberish.
+ * We deliberately DO NOT forward-geocode free text anymore: in India that gave inconsistent
+ * results — fake localities matched a nearby centroid and passed, while real small/rural
+ * localities missing from OSM were wrongly rejected. So for the "Other (typed)" path we only
+ * apply a cheap, offline gibberish guard (no network, no false rejects of real places).
  *
- * @returns {Promise<{ok:boolean, reason?:string}>}
+ * @param {{area:string, knownAreas?:string[]}} args
+ * @returns {{ok:boolean, reason?:string}}
  */
-export async function validateAddressLocality({ area, city, pincode }) {
+export function validateAddressLocality({ area, knownAreas = [] }) {
   const locality = String(area || "").trim();
-  if (!locality) return { ok: false, reason: "Address lacks locality, street, or neighborhood details, making it undeliverable." };
+  if (!locality) {
+    return { ok: false, reason: "Please enter or select your area / locality." };
+  }
+  // If it's one of the official localities for this pincode, it's real — accept.
+  if (Array.isArray(knownAreas) && knownAreas.includes(locality)) return { ok: true };
+  // Free-typed ("Other") locality: only block obvious gibberish, never a real place name.
   if (looksLikeGibberish(locality)) {
-    return { ok: false, reason: "Address lacks locality, street, or neighborhood details, making it undeliverable." };
+    return { ok: false, reason: "That doesn't look like a valid area / locality. Please check and re-enter." };
   }
-
-  try {
-    const q = encodeURIComponent([locality, city, pincode, "India"].filter(Boolean).join(", "));
-    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&countrycodes=in&q=${q}`;
-    const res = await fetch(url, { headers: { Accept: "application/json" } });
-    if (!res.ok) return { ok: true }; // geocoder unavailable — don't block
-    const arr = await res.json();
-    if (!Array.isArray(arr) || arr.length === 0) {
-      return { ok: false, reason: "Address lacks locality, street, or neighborhood details, making it undeliverable." };
-    }
-    const a = arr[0].address || {};
-    const hasLocality = !!(a.road || a.suburb || a.neighbourhood || a.residential || a.hamlet || a.quarter || a.city_district);
-    return hasLocality ? { ok: true } : { ok: false, reason: "Address lacks locality, street, or neighborhood details, making it undeliverable." };
-  } catch {
-    return { ok: true }; // network error — fail open
-  }
+  return { ok: true };
 }

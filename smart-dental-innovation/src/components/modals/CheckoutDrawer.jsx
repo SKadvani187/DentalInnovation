@@ -32,7 +32,7 @@ function toOrderAddress(a) {
   };
 }
 
-const emptyForm = { type: "Home", pincode: "", city: "", state: "", building: "", area: "", name: "", mobile: "" };
+const emptyForm = { type: "Home", pincode: "", city: "", state: "", areas: [], building: "", area: "", name: "", mobile: "" };
 
 export default function CheckoutDrawer() {
   const { modal, closeModal, showToast, openModal } = useUI();
@@ -251,9 +251,9 @@ export default function CheckoutDrawer() {
                 )}
                 {view === "addrPincode" && (
                   <PincodeGateView
-                    onServiceable={(pin, city, state) => {
+                    onServiceable={(pin, city, state, areas) => {
                       setEditTarget(null);
-                      setForm({ ...emptyForm, pincode: pin, city, state, name: user?.name || "", mobile: user?.mobile || "" });
+                      setForm({ ...emptyForm, pincode: pin, city, state, areas: areas || [], name: user?.name || "", mobile: user?.mobile || "" });
                       setView("addrForm");
                     }}
                   />
@@ -273,9 +273,10 @@ export default function CheckoutDrawer() {
                       } catch {
                         // Serviceability service down — don't block the save, just proceed.
                       }
-                      // Validate the locality/street resolves to a real place (rejects gibberish
-                      // like the reference's "Address lacks locality… undeliverable" guard).
-                      const loc = await validateAddressLocality({ area: form.area, city: form.city, pincode: form.pincode });
+                      // Locality check: a value picked from the pincode's official area list is
+                      // real by construction; a free-typed ("Other") value only gets a cheap
+                      // gibberish guard. (No more unreliable free-text geocoding.)
+                      const loc = validateAddressLocality({ area: form.area, knownAreas: form.areas });
                       if (!loc.ok) return { ok: false, error: loc.reason };
                       const payload = {
                         type: form.type,
@@ -733,8 +734,10 @@ function PincodeGateView({ onServiceable }) {
         setError("We don't deliver to this pincode yet. Try another.");
         return;
       }
-      const g = geo || (await lookupPincode(code));
-      onServiceable(code, g?.city || "", g?.state || "");
+      // Always resolve the locality list (for the Area dropdown), even when geolocation
+      // pre-filled city/state.
+      const g = geo?.areas ? geo : (await lookupPincode(code));
+      onServiceable(code, g?.city || "", g?.state || "", g?.areas || []);
     } catch {
       setError("Couldn't check this pincode. Please try again.");
     } finally {
@@ -851,7 +854,7 @@ function AddressFormView({ form, setForm, isEdit, onSave }) {
           <Field label="City *" value={form.city} onChange={set("city")} />
           <Field label="State *" value={form.state} onChange={set("state")} />
           <Field className="col-span-2" label="Flat, House no., Building, Company *" value={form.building} onChange={set("building")} />
-          <Field className="col-span-2" label="Area, Colony, Street, Sector, Village *" value={form.area} onChange={set("area")} />
+          <AreaField className="col-span-2" value={form.area} areas={form.areas} onChange={(v) => setForm((f) => ({ ...f, area: v }))} />
         </div>
       </div>
 
@@ -891,6 +894,44 @@ function ScanningAddress() {
 // Floating-label input (label sits on the border, like the reference Material-style form).
 // `placeholder=" "` drives the :placeholder-shown state so the label drops into the field
 // when empty + unfocused and floats up to the border once filled or focused.
+// Area / locality selector. When the pincode's official localities were returned (`areas`),
+// the user PICKS one from a dropdown (real by construction — this is what blocks fake/typo
+// localities). An "Other (type manually)…" option reveals a free-text input for localities
+// India Post doesn't list. With no list (offline / unknown pincode) it's a plain text field.
+function AreaField({ value, areas = [], onChange, className = "" }) {
+  const hasList = Array.isArray(areas) && areas.length > 0;
+  const isOther = !hasList || (value && !areas.includes(value));
+  const [manual, setManual] = useState(isOther);
+
+  if (!hasList) {
+    return <Field className={className} label="Area, Colony, Street, Sector, Village *" value={value} onChange={(e) => onChange(e.target.value)} />;
+  }
+  return (
+    <div className={`${className} space-y-2`}>
+      <div className="relative">
+        <select
+          value={manual ? "__other__" : (value || "")}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === "__other__") { setManual(true); onChange(""); }
+            else { setManual(false); onChange(v); }
+          }}
+          className="peer w-full border border-gray-300 rounded-lg px-3 pt-3 pb-2 text-sm text-brand-ink bg-white focus:outline-none focus:border-[#3684bf] focus:ring-1 focus:ring-[#3684bf] appearance-none"
+        >
+          <option value="" disabled>Select your area</option>
+          {areas.map((a) => <option key={a} value={a}>{a}</option>)}
+          <option value="__other__">Other (type manually)…</option>
+        </select>
+        <label className="pointer-events-none absolute left-2.5 -top-2 px-1 bg-white text-xs text-[#3684bf]">Area, Colony, Street, Sector, Village *</label>
+        <span className="pointer-events-none absolute right-3 top-3 text-brand-muted">▾</span>
+      </div>
+      {manual && (
+        <Field label="Type your area / locality *" value={value} onChange={(e) => onChange(e.target.value)} />
+      )}
+    </div>
+  );
+}
+
 function Field({ label, value, onChange, readOnly, inputMode, maxLength, className = "" }) {
   return (
     <div className={`relative ${className}`}>

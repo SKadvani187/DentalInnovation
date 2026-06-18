@@ -236,10 +236,15 @@ const STATUS_META = {
   refunded:         { label: "Refunded",          cls: "bg-gray-100 text-gray-700 border-gray-300",       dot: "bg-gray-500" },
 };
 function statusMeta(order) {
-  if (order.paymentMethod !== "cod" && order.paymentStatus !== "paid") {
+  const s = (order.status || "").toLowerCase();
+  // A cancelled / rejected / refunded / delivered order shows its STATUS, never "Payment
+  // Pending" — a cancelled order is done, not awaiting payment (the pill must match the
+  // order's Track-Order state, not just whether it was ever paid).
+  const TERMINAL = ["cancelled", "rejected", "refunded", "returned", "delivered"];
+  if (!TERMINAL.includes(s) && order.paymentMethod !== "cod" && order.paymentStatus !== "paid") {
     return { label: "Payment Pending", cls: "bg-orange-50 text-orange-700 border-orange-200", dot: "bg-orange-500" };
   }
-  return STATUS_META[order.status] || { label: order.status || "—", cls: "bg-gray-100 text-gray-700 border-gray-300", dot: "bg-gray-400" };
+  return STATUS_META[s] || { label: order.status || "—", cls: "bg-gray-100 text-gray-700 border-gray-300", dot: "bg-gray-400" };
 }
 
 function StatusPill({ order }) {

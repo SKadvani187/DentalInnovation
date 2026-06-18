@@ -146,11 +146,20 @@ export default function OrderDetailPage() {
     ? new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
     : "";
 
-  // Refund eligible: a real (paid or COD-delivered) order that isn't already cancelled/
-  // refunded and has no active refund request. We let any non-pending-payment order request.
+  // Refund / Return eligible ONLY when there is real money to return and the order is in a
+  // refundable state. So:
+  //   * the payment was actually collected (online 'paid', or COD that was delivered), AND
+  //   * the order isn't in a dead/terminal state (cancelled / rejected / returned / refunded)
+  //     — a rejected or cancelled order was never fulfilled, so there's nothing to return, AND
+  //   * there's no active refund request already (a rejected request may be re-raised).
+  const orderStatus = (order.status || "").toLowerCase();
+  const paymentCollected =
+    order.paymentStatus === "paid" ||
+    (order.paymentMethod === "cod" && orderStatus === "delivered");
+  const REFUND_BLOCKED = ["cancelled", "rejected", "returned", "refunded"];
   const refundEligible =
-    !isPendingPayment &&
-    !["cancelled", "refunded"].includes(order.status) &&
+    paymentCollected &&
+    !REFUND_BLOCKED.includes(orderStatus) &&
     (!refund || refund.status === "rejected");
 
   const refundBadge = {
@@ -180,12 +189,17 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {/* Cancelled banner — a payment-never-completed order auto-cancelled after the retry
-          window. Explains why and that the items are still in the cart to order again. */}
-      {order && order.status?.toLowerCase() === "cancelled" && order.paymentStatus !== "paid" && (
+      {/* Cancelled / rejected banner. Two cases:
+          - NOT paid: payment was never completed (auto-cancelled after the retry window) -> items still in cart.
+          - PAID: admin cancelled/rejected a paid order -> the money is being refunded. */}
+      {order && ["cancelled", "rejected"].includes(orderStatus) && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-5 mb-6 flex items-start gap-2">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" className="shrink-0 mt-0.5"><circle cx="12" cy="12" r="10" /><path d="M15 9l-6 6M9 9l6 6" /></svg>
-          <p className="text-sm text-red-800 font-medium">This order was cancelled because the payment was not completed in time. Your items are still saved in your cart — you can place the order again.</p>
+          <p className="text-sm text-red-800 font-medium">
+            {order.paymentStatus === "paid"
+              ? `This order was ${orderStatus}. Since your payment was completed, a refund will be processed to your original payment method.`
+              : `This order was ${orderStatus} because the payment was not completed in time. Your items are still saved in your cart — you can place the order again.`}
+          </p>
         </div>
       )}
 
@@ -283,7 +297,8 @@ export default function OrderDetailPage() {
         <h3 className="font-bold text-brand-ink mb-4">Order Details</h3>
         <Detail label="Name" value={addr.name} />
         <Detail label="Order ID" value={order.orderId} />
-        <Detail label="Shippment Number" value={order.trackingId || ""} />
+        {order.courier && <Detail label="Courier" value={order.courier} />}
+        <Detail label="Tracking Number" value={order.trackingId || "—"} />
         <Detail label="Order Date" value={placedDate} />
         <Detail label="Payment Method" value={order.paymentMethod === "cod" ? "Cash on Delivery" : "Payment Gateway"} />
         <Detail label="Order Status" value={cap(order.status)} />
