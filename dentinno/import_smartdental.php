@@ -31,6 +31,28 @@ $db = db();
 // ---- helpers -------------------------------------------------------------
 $num = fn($s) => (float)preg_replace('/[^0-9.]/', '', (string)$s);
 
+// HTML -> clean plain text. The storefront renders these fields as plain text
+// (whitespace-pre-line), so any markup must be stripped. Block tags become line breaks and
+// <li> becomes a bullet so paragraphs/lists stay readable; entities are decoded.
+$htmlToText = function ($s) {
+    $s = (string)$s;
+    if ($s === '') return '';
+    $s = preg_replace('#<\s*br\s*/?>#i', "\n", $s);
+    $s = preg_replace('#<\s*li[^>]*>#i', "\n• ", $s);
+    $s = preg_replace('#<\s*/\s*(p|div|h[1-6]|tr|ul|ol|li)\s*>#i', "\n", $s);
+    $s = preg_replace('#<[^>]+>#', '', $s);                 // drop any remaining well-formed tags
+    // Drop a stray MALFORMED/unclosed tag (e.g. a truncated "<li style=...") that never closes:
+    // a "<" + letter/slash + run with no "<" or ">" up to end-of-string. "<" before a space or
+    // digit (a real "less-than") is left untouched.
+    $s = preg_replace('#<\s*/?[a-zA-Z][^<>]*$#s', '', $s);
+    $s = html_entity_decode($s, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $s = str_replace("\xc2\xa0", ' ', $s);                  // NBSP -> space
+    $s = preg_replace('/[ \t]+/', ' ', $s);
+    $s = preg_replace('/ *\n */', "\n", $s);
+    $s = preg_replace('/\n{3,}/', "\n\n", $s);
+    return trim($s);
+};
+
 // Split a newline list (images), trim, keep non-empty http(s) URLs.
 $urlList = function ($s) {
     $out = [];
@@ -121,7 +143,7 @@ if ($purge) {
 
 // ---- import --------------------------------------------------------------
 $slice = $limit > 0 ? array_slice($rows, 0, $limit) : $rows;
-$created = $updated = $skipped = $faqCount = 0;
+$created = $updated = $skipped = $faqCount = $comboCount = 0;
 $usedSku = [];   // within-run de-dup for the 3 duplicate SKUs
 
 foreach ($slice as $i => $r) {
@@ -146,31 +168,73 @@ foreach ($slice as $i => $r) {
         $catId = $resolveCat($r['categories'] ?? '');
         $slug  = $uniqueSlug($name, $sku);
 
-        $shortFull = trim((string)($r['short_description'] ?? ''));
+        // Detect the primary (first non-price-bucket) category so combo-category items can be
+        // routed to the Combos table instead of the product catalog.
+        $primaryCatName = '';
+        foreach (explode('|', (string)($r['categories'] ?? '')) as $raw) {
+            $t = trim($raw);
+            if ($t === '' || mb_strpos($t, '₹') !== false) continue;
+            $primaryCatName = $catAlias[mb_strtolower($t)] ?? $t;
+            break;
+        }
+        $isCombo = mb_strtolower($primaryCatName) === 'combo';
+
+        $shortFull = $htmlToText($r['short_description'] ?? '');
         $shortCol  = $shortFull !== '' ? mb_substr($shortFull, 0, 500) : null;
         $images    = $urlList($r['images'] ?? '');
 
         // "Key Specifications" (col14) is inconsistent in the source: sometimes a clean
         // "Label: value" list, sometimes rich HTML. Use the structured spec table only when
-        // it's clearly a plain multi-line spec list; otherwise keep the raw content as extra
-        // highlights so nothing is lost.
+        // it's clearly a plain multi-line spec list; otherwise keep the raw content (HTML
+        // stripped) as extra highlights so nothing is lost.
         $rawSpec  = trim((string)($r['key_specifications'] ?? ''));
         $specPairs = $parseSpecs($rawSpec);
         $hasHtml   = (bool)preg_match('/<[a-z]/i', $rawSpec);
         $specs = (!$hasHtml && count($specPairs) >= 2) ? $specPairs : [];
-        $keyFeatures = trim((string)($r['highlights'] ?? ''));
+        $keyFeatures = $htmlToText($r['highlights'] ?? '');
         if (!$specs && $rawSpec !== '') {
-            $keyFeatures = $keyFeatures !== '' ? ($keyFeatures . "\n" . $rawSpec) : $rawSpec;
+            $specText = $htmlToText($rawSpec);
+            $keyFeatures = $keyFeatures !== '' ? ($keyFeatures . "\n" . $specText) : $specText;
         }
         $weightG   = 0;
         if (preg_match('/Weight:\s*([0-9.]+)/i', (string)($r['dimensions'] ?? ''), $wm)) $weightG = (float)$wm[1];
         $weightKg  = $weightG > 0 ? round($weightG / 1000, 3) : null;
 
-        $addl = trim((string)($r['other_info'] ?? ''));
-        $bulk = trim((string)($r['bulk_offers'] ?? ''));
+        $addl = $htmlToText($r['other_info'] ?? '');
+        $bulk = $htmlToText($r['bulk_offers'] ?? '');
         if ($bulk !== '') $addl = ($addl !== '' ? $addl . "\n\n" : '') . "Bulk Offers:\n" . $bulk;
 
         $isNew = (stripos((string)($r['categories'] ?? ''), 'new product') !== false) ? 1 : 0;
+
+        // Combo-category items are bundle products — store them as Combos (storefront Combos page),
+        // not in the products catalog. Just the card (name/image/price/mrp); no item breakdown.
+        if ($isCombo) {
+            $comboCols = [
+                'slug'             => $slug,
+                'name'             => $name,
+                'description'      => $shortFull !== '' ? $shortFull : null,
+                'mrp'              => $price,
+                'price'            => $discPrice ?? $price,
+                'discount_percent' => $discPct,
+                'image'            => $images[0] ?? null,
+                'images'           => $images ? json_encode($images) : null,
+                'items'            => '[]',
+                'in_stock'         => 1,
+                'stock'            => 100,
+                'is_active'        => 1,
+                'is_deleted'       => 0,
+            ];
+            $exC = $db->fetchOne("SELECT id FROM combos WHERE slug=?", [$slug]);
+            if ($exC) {
+                $setC = implode('=?,', array_keys($comboCols)) . '=?';
+                $db->execute("UPDATE combos SET $setC WHERE id=?", array_merge(array_values($comboCols), [$exC['id']]));
+            } else {
+                $phC = implode(',', array_fill(0, count($comboCols), '?'));
+                $db->insert("INSERT INTO combos (" . implode(',', array_keys($comboCols)) . ") VALUES ($phC)", array_values($comboCols));
+            }
+            $comboCount++;
+            continue;
+        }
 
         $cols = [
             'name'                  => $name,
@@ -184,13 +248,13 @@ foreach ($slice as $i => $r) {
             'min_stock_alert'       => 5,
             'description'           => $shortFull !== '' ? $shortFull : null,
             'short_description'     => $shortCol,
-            'full_description'      => trim((string)($r['description'] ?? '')) ?: null,
+            'full_description'      => $htmlToText($r['description'] ?? '') ?: null,
             'key_features'          => $keyFeatures ?: null,
             'key_specifications'    => $specs ? json_encode($specs) : null,
-            'directions_for_use'    => trim((string)($r['directions'] ?? '')) ?: null,
-            'packing_info'          => trim((string)($r['packaging'] ?? '')) ?: null,
+            'directions_for_use'    => $htmlToText($r['directions'] ?? '') ?: null,
+            'packing_info'          => $htmlToText($r['packaging'] ?? '') ?: null,
             'additional_information'=> $addl ?: null,
-            'warranty_info'         => trim((string)($r['warranty'] ?? '')) ?: null,
+            'warranty_info'         => $htmlToText($r['warranty'] ?? '') ?: null,
             'images'                => $images ? json_encode($images) : null,
             'weight_kg'             => $weightKg,
             'is_active'             => 1,
@@ -214,7 +278,9 @@ foreach ($slice as $i => $r) {
         $faqs = $parseFaqs($r['faqs'] ?? '');
         $db->execute("DELETE FROM product_faqs WHERE product_id=?", [$pid]);
         foreach ($faqs as $k => $f) {
-            $db->insert("INSERT INTO product_faqs (product_id, question, answer, sort_order) VALUES (?,?,?,?)", [$pid, $f['question'], $f['answer'], $k]);
+            $q = $htmlToText($f['question']); $a = $htmlToText($f['answer']);
+            if ($q === '' || $a === '') continue;
+            $db->insert("INSERT INTO product_faqs (product_id, question, answer, sort_order) VALUES (?,?,?,?)", [$pid, $q, $a, $k]);
             $faqCount++;
         }
 
@@ -226,6 +292,6 @@ foreach ($slice as $i => $r) {
 }
 
 echo "\n=== Import complete ===\n";
-echo "Created: $created | Updated: $updated | Skipped: $skipped | FAQs: $faqCount\n";
+echo "Created: $created | Updated: $updated | Combos: $comboCount | Skipped: $skipped | FAQs: $faqCount\n";
 echo "Categories now: " . (int)$db->fetchOne("SELECT COUNT(*) c FROM categories")['c'] . "\n";
 echo "Active products: " . (int)$db->fetchOne("SELECT COUNT(*) c FROM products WHERE is_deleted=0")['c'] . "\n";

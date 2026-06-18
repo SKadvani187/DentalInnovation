@@ -23,9 +23,9 @@ export default function ProductDetailPage() {
   const { addToCart, items, updateQty, removeFromCart } = useCart();
   const { has, toggle } = useWishlist();
 
-  const { data: apiProducts } = useProducts();
-  const { data: combos } = useCombos();
-  const { data: events } = useEvents();
+  const { data: apiProducts, loading: productsLoading } = useProducts();
+  const { data: combos, loading: combosLoading } = useCombos();
+  const { data: events, loading: eventsLoading } = useEvents();
   const { data: categories } = useCategories();
   const { company = {}, tierOffers = [], productDefaults = {} } = useSettings();
 
@@ -161,12 +161,29 @@ export default function ProductDetailPage() {
   };
 
   // Until the real product is found in the loaded data, show a loader instead of a
-  // placeholder/other product. (All hooks are called above this line.)
+  // placeholder/other product. (All hooks are called above this line.) Once the source
+  // collections have finished loading and the slug still isn't found (e.g. a stale link to
+  // a deleted product), show a "not found" message instead of spinning forever.
   if (!resolvedProduct) {
+    const stillLoading = productsLoading || combosLoading || eventsLoading;
+    if (stillLoading) {
+      return (
+        <div className="max-w-[1400px] mx-auto px-4 py-24 flex flex-col items-center justify-center text-brand-muted">
+          <div className="w-10 h-10 border-2 border-gray-200 border-t-[#3684bf] rounded-full animate-spin" />
+          <p className="mt-4 text-sm">Loading product…</p>
+        </div>
+      );
+    }
     return (
-      <div className="max-w-[1400px] mx-auto px-4 py-24 flex flex-col items-center justify-center text-brand-muted">
-        <div className="w-10 h-10 border-2 border-gray-200 border-t-[#3684bf] rounded-full animate-spin" />
-        <p className="mt-4 text-sm">Loading product…</p>
+      <div className="max-w-[1400px] mx-auto px-4 py-24 flex flex-col items-center justify-center text-center text-brand-muted">
+        <p className="text-lg font-semibold text-brand-ink">Product not found</p>
+        <p className="mt-2 text-sm">This product may have been removed or is no longer available.</p>
+        <button
+          onClick={() => navigate("home")}
+          className="mt-5 px-5 py-2.5 rounded-lg bg-[#3684bf] text-white text-sm font-semibold hover:bg-[#2a6a99]"
+        >
+          Continue shopping
+        </button>
       </div>
     );
   }

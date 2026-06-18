@@ -41,7 +41,9 @@ foreach ($soldRows as $r) $soldToday[$r['slug']] = (int)$r['cnt'];
 
 // Product lookup so the offer's main product always reflects the REAL linked product
 // (name/image/price) — clicking the card opens exactly what the card shows.
-$prodRows = db()->fetchAll("SELECT id, slug, name, price, discount_price, JSON_EXTRACT(images,'$[0]') AS img FROM products");
+// Only LIVE products are eligible as an offer's main product — a soft-deleted/inactive
+// product must not back an offer card (clicking it would open a non-existent product).
+$prodRows = db()->fetchAll("SELECT id, slug, name, price, discount_price, JSON_EXTRACT(images,'$[0]') AS img FROM products WHERE is_deleted=0 AND is_active=1");
 $mainById = [];   // offers.product_id (int) -> live main-product data (relational source of truth)
 foreach ($prodRows as $pr) {
     $mainById[(int)$pr['id']] = [
@@ -53,7 +55,12 @@ foreach ($prodRows as $pr) {
     ];
 }
 
-$offers = array_map(function ($r) use ($soldToday, $giftsByOffer, $mainById) {
+$offers = [];
+foreach ($rows as $r) {
+    // Skip offers whose linked product is missing/deleted/inactive — otherwise the Offer Zone
+    // renders a dead card and the product page spins forever on "Loading product…".
+    $pidInt = (int)($r['product_id'] ?? 0);
+    if ($pidInt && !isset($mainById[$pidInt])) continue;
     // mapOffer resolves the main product (id, name, image, mrp, price) from the relational
     // offers.product_id via $mainById — not the legacy JSON snapshot — so nothing drifts.
     $o = mapOffer($r, $giftsByOffer[(int)$r['id']] ?? [], $mainById);
@@ -64,7 +71,7 @@ $offers = array_map(function ($r) use ($soldToday, $giftsByOffer, $mainById) {
     } else {
         $o['boughtToday'] = $pid && isset($soldToday[$pid]) ? $soldToday[$pid] : 0;
     }
-    return $o;
-}, $rows);
+    $offers[] = $o;
+}
 
 jsonOut(['success' => true, 'offers' => $offers]);
