@@ -99,6 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         } else {
             db()->execute("UPDATE orders SET status = ? $extraStr WHERE id = ?", [$newStatus, $oid]);
         }
+        logOrderStatus($oid, $newStatus);
         // COD cash is collected at the doorstep — standard ecommerce behaviour (Woo/Shopify)
         // is to mark the payment received the moment the order is delivered. Only 'unpaid'
         // flips; partial/disputed payments stay manual.
@@ -179,6 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 } else {
                     db()->execute("UPDATE orders SET status = ? $extraStr WHERE id = ?", [$newStatus, $oid]);
                 }
+                logOrderStatus($oid, $newStatus, 'bulk update');
                 notifyOrderStatusWA($oid, $newStatus);
                 $updated++;
             } catch (Throwable $e) {
@@ -191,6 +193,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         echo json_encode(['success' => true, 'message' => $msg, 'updated' => $updated, 'skipped' => $skipped]);
     }
     exit;
+}
+
+// Append an order-status-history row (audit trail: who changed an order to what, when).
+// Best-effort — a missing table or DB error never breaks the status change.
+function logOrderStatus(int $orderId, string $status, ?string $note = null): void {
+    try {
+        db()->execute(
+            "INSERT INTO order_status_history (order_id, status, note, changed_by) VALUES (?,?,?,?)",
+            [$orderId, $status, $note, $_SESSION['admin_id'] ?? null]
+        );
+    } catch (Throwable $e) { error_log('logOrderStatus: ' . $e->getMessage()); }
 }
 
 // Send a WhatsApp order-status/shipping message for an order (best-effort, never throws).
@@ -253,6 +266,16 @@ if ($view_id) {
     $order_detail = db()->fetchOne("SELECT o.*, c.name as customer_name, c.phone, c.email as customer_email, c.clinic_name, cp.code AS coupon_code FROM orders o JOIN customers c ON o.customer_id=c.id LEFT JOIN coupons cp ON cp.id=o.coupon_id WHERE o.id=?", [$view_id]);
     if ($order_detail) {
         $order_detail['items'] = db()->fetchAll("SELECT * FROM order_items WHERE order_id=?", [$view_id]);
+        // Status-change audit trail (joins admin name when an admin made the change).
+        try {
+            $order_detail['history'] = db()->fetchAll(
+                "SELECT h.status, h.note, h.created_at, a.name AS admin_name
+                   FROM order_status_history h
+                   LEFT JOIN admin_users a ON a.id = h.changed_by
+                  WHERE h.order_id = ? ORDER BY h.id ASC",
+                [$view_id]
+            );
+        } catch (Throwable $e) { $order_detail['history'] = []; }
     }
 }
 
@@ -360,6 +383,23 @@ include __DIR__ . '/../includes/header.php';
                 </tbody>
             </table>
         </div>
+
+        <!-- Status history timeline (audit trail) -->
+        <?php if(!empty($order_detail['history'])): ?>
+        <h3 style="font-size:0.8rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin:20px 0 10px;">Status History</h3>
+        <div style="border-left:2px solid var(--border-color);padding-left:16px;margin-left:6px;">
+            <?php foreach($order_detail['history'] as $h): ?>
+            <div style="position:relative;padding-bottom:14px;">
+                <span style="position:absolute;left:-23px;top:3px;width:9px;height:9px;border-radius:50%;background:<?= statusColor($h['status']) ?>;"></span>
+                <div class="font-bold" style="font-size:0.82rem;color:<?= statusColor($h['status']) ?>;"><?= ucwords(str_replace('_',' ', $h['status'])) ?></div>
+                <div class="text-muted" style="font-size:0.72rem;">
+                    <?= formatDate($h['created_at']) ?> · <?= $h['admin_name'] ? htmlspecialchars($h['admin_name']) : 'Customer / System' ?>
+                    <?php if(!empty($h['note'])): ?> · <?= htmlspecialchars($h['note']) ?><?php endif; ?>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
 
         <!-- Update Controls -->
         <div class="grid-2" style="margin-top:20px;gap:20px;">

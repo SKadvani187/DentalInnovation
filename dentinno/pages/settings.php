@@ -155,7 +155,7 @@ include __DIR__ . '/../includes/header.php';
 <div class="page-header fade-in">
     <div class="page-header-left">
         <?php
-        $cfgTitles = ['account'=>['Settings','Manage your account and system preferences'],'home'=>['Home Page Config','Customize the storefront home page'],'contact'=>['Contact Page Config','Contact info, departments, FAQs'],'about'=>['About Page Config','Story, values, team, milestones'],'catalog'=>['Catalog Config','Products, payments, pricing rules'],'general'=>['General Config','Socials and site-wide settings'],'otp'=>['OTP / SMS Provider','Choose and configure the OTP gateway (super admin)'],'whatsapp'=>['WhatsApp Notifications','Meta Cloud API config + templates (super admin)'],'ordermail'=>['Order Email Notifications','Admin order/payment emails + delivery log (super admin)']];
+        $cfgTitles = ['account'=>['Settings','Manage your account and system preferences'],'home'=>['Home Page Config','Customize the storefront home page'],'contact'=>['Contact Page Config','Contact info, departments, FAQs'],'about'=>['About Page Config','Story, values, team, milestones'],'catalog'=>['Catalog Config','Products, payments, pricing rules'],'tax'=>['Tax / GST','GST invoice settings — GSTIN, tax rate, HSN'],'general'=>['General Config','Socials and site-wide settings'],'otp'=>['OTP / SMS Provider','Choose and configure the OTP gateway (super admin)'],'whatsapp'=>['WhatsApp Notifications','Meta Cloud API config + templates (super admin)'],'ordermail'=>['Order Email Notifications','Admin order/payment emails + delivery log (super admin)']];
         $ct = $cfgTitles[$cfgPage ?? 'account'] ?? $cfgTitles['account'];
         ?>
         <h1><?= $ct[0] ?></h1>
@@ -305,7 +305,7 @@ include __DIR__ . '/../includes/header.php';
 <!-- ===== Storefront Configuration (page-wise tabs) ===== -->
 <div class="card fade-in" style="margin-top:24px;padding:6px;">
   <div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px;">
-    <?php $tabs = ['home'=>'🏠 Home Page','contact'=>'📞 Contact Page','about'=>'ℹ️ About Page','catalog'=>'🛒 Catalog / Products','general'=>'⚙️ General']; if ($isSuper) $tabs['otp']='🔐 OTP / SMS'; if ($isSuper) $tabs['whatsapp']='💬 WhatsApp'; if ($isSuper) $tabs['ordermail']='📧 Order Emails'; ?>
+    <?php $tabs = ['home'=>'🏠 Home Page','contact'=>'📞 Contact Page','about'=>'ℹ️ About Page','catalog'=>'🛒 Catalog / Products','tax'=>'🧾 Tax / GST','general'=>'⚙️ General']; if ($isSuper) $tabs['otp']='🔐 OTP / SMS'; if ($isSuper) $tabs['whatsapp']='💬 WhatsApp'; if ($isSuper) $tabs['ordermail']='📧 Order Emails'; ?>
     <?php foreach($tabs as $k=>$lbl): ?>
       <a href="<?= APP_URL ?>/pages/settings.php?page=<?= $k ?>" class="btn <?= $cfgPage===$k?'btn-gold':'btn-ghost' ?> btn-sm"><?= $lbl ?></a>
     <?php endforeach; ?>
@@ -774,6 +774,7 @@ include __DIR__ . '/../includes/header.php';
 async function saveCompany() {
     const company = {
         name: document.getElementById('co_name').value,
+        gstin: <?= json_encode($company['gstin'] ?? '') ?>, // GSTIN is edited under Catalog → Tax; preserve it here.
         shortName: <?= json_encode($company['shortName'] ?? 'Dentinno') ?>,
         parent: <?= json_encode($company['parent'] ?? '') ?>,
         tagline: document.getElementById('co_tagline').value,
@@ -1374,20 +1375,6 @@ async function saveSetting(key, value, label, silent) {
       <div class="form-group"><label class="form-label">Variant: COD note</label><input type="text" class="form-control" id="pd_varCod" value="<?= htmlspecialchars($site['productDefaults']['variantCodNote'] ?? '💳 COD available') ?>"></div>
     </div>
 
-    <div style="border-top:1px solid var(--border-color);margin-top:8px;padding-top:12px;">
-      <div class="font-bold" style="margin-bottom:8px;color:var(--gold-primary);"><i class="fa-solid fa-receipt"></i> Tax</div>
-      <div class="text-muted" style="font-size:.72rem;margin-bottom:10px;">Shipping rates &amp; free-shipping rules are managed in <strong>Shipping Management</strong> (methods, zones, weight/price rules).</div>
-      <div class="grid-2" style="gap:16px;">
-        <div class="form-group"><label class="form-label">Tax</label>
-          <select class="form-control" id="tax_enabled">
-            <option value="0" <?= empty($site['taxConfig']['enabled']) ? 'selected' : '' ?>>Disabled (prices tax-inclusive)</option>
-            <option value="1" <?= !empty($site['taxConfig']['enabled']) ? 'selected' : '' ?>>Enabled (add tax at checkout)</option>
-          </select>
-        </div>
-        <div class="form-group"><label class="form-label">Tax Rate (%)</label><input type="number" min="0" step="0.01" class="form-control" id="tax_rate" value="<?= htmlspecialchars($site['taxConfig']['rate'] ?? 0) ?>"><small class="text-muted" style="font-size:.7rem;">Applied only when Tax = Enabled</small></div>
-      </div>
-    </div>
-
     <button class="btn btn-gold" onclick="savePricingRules()"><i class="fa-solid fa-floppy-disk"></i> Save Pricing Rules</button>
   </div>
 </div>
@@ -1524,6 +1511,29 @@ listCard('feat', 'Featured Showcase Cards', 'Home featured product banners', 'Ad
 </div>
 
 </div><!-- /catalog group -->
+
+<!-- ═══════════════ TAX / GST ═══════════════ -->
+<div data-cfg="tax">
+  <div class="card fade-in" style="margin-top:18px;">
+    <div class="card-body">
+      <div class="font-bold" style="margin-bottom:6px;color:var(--gold-primary);"><i class="fa-solid fa-receipt"></i> Tax / GST Invoice</div>
+      <div class="text-muted" style="font-size:.78rem;margin-bottom:16px;">Configure GST for tax invoices. Shipping rates are managed in <strong>Shipping Management</strong>.</div>
+      <div class="grid-2" style="gap:16px;">
+        <div class="form-group"><label class="form-label">Tax</label>
+          <select class="form-control" id="tax_enabled">
+            <option value="0" <?= empty($site['taxConfig']['enabled']) ? 'selected' : '' ?>>Disabled (prices tax-inclusive)</option>
+            <option value="1" <?= !empty($site['taxConfig']['enabled']) ? 'selected' : '' ?>>Enabled (add tax at checkout)</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Tax Rate (%)</label><input type="number" min="0" step="0.01" class="form-control" id="tax_rate" value="<?= htmlspecialchars($site['taxConfig']['rate'] ?? 0) ?>"><small class="text-muted" style="font-size:.7rem;">Applied only when Tax = Enabled</small></div>
+        <div class="form-group" style="grid-column:1/-1;"><label class="form-label">GSTIN <small class="text-muted">(15-digit seller GST number — printed on the tax invoice PDF)</small></label><input type="text" class="form-control" id="tax_gstin" maxlength="15" value="<?= htmlspecialchars($company['gstin'] ?? '') ?>" placeholder="e.g. 24ABCDE1234F1Z5"></div>
+      </div>
+      <small class="text-muted" style="font-size:.74rem;display:block;margin-top:10px;"><i class="fa-solid fa-circle-info"></i> For a GST tax invoice: enter your GSTIN, enable Tax with a rate, and set an HSN code per product (Products → edit). Intra-state orders get a CGST + SGST split; inter-state get IGST.</small>
+      <button class="btn btn-gold" style="margin-top:16px;" onclick="saveTaxGst()"><i class="fa-solid fa-floppy-disk"></i> Save Tax / GST</button>
+    </div>
+  </div>
+</div>
+
 <div data-cfg="home">
 <!-- Premium Categories (form) -->
 <div class="card fade-in" data-home="premium" style="margin-top:18px;">
@@ -1593,13 +1603,29 @@ async function savePricingRules(){
     pd.variantCodNote = document.getElementById('pd_varCod').value;
     // Save every key silently, then show ONE toast for the whole card. (bulkRule keeps its
     // existing DB value as a dormant fallback; priceBounds is auto-derived from products.)
+    // Tax / GST now lives on its own "Tax / GST" tab (see saveTaxGst).
     const results = await Promise.all([
         saveSetting('productDefaults', pd, null, true),
-        saveSetting('taxConfig', { enabled: document.getElementById('tax_enabled').value === '1', rate: parseFloat(document.getElementById('tax_rate').value)||0, inclusive: document.getElementById('tax_enabled').value !== '1' }, null, true),
         saveSetting('gvpThreshold', parseInt(document.getElementById('gvp_threshold').value)||10, null, true),
     ]);
     const ok = results.every(r => r && r.success);
     showToast(ok ? 'Pricing rules saved' : 'Some settings failed to save', ok ? 'success' : 'danger');
+}
+
+// ---- Tax / GST (own tab) ----
+async function saveTaxGst(){
+    // GSTIN lives on the company config — merge it into the existing object so the rest of
+    // company (name, address, etc.) is preserved.
+    const companyWithGstin = Object.assign({}, <?= json_encode($company ?: new stdClass()) ?>, {
+        gstin: (document.getElementById('tax_gstin')?.value || '').trim().toUpperCase(),
+    });
+    const enabled = document.getElementById('tax_enabled').value === '1';
+    const results = await Promise.all([
+        saveSetting('taxConfig', { enabled, rate: parseFloat(document.getElementById('tax_rate').value)||0, inclusive: !enabled }, null, true),
+        saveSetting('company', companyWithGstin, null, true),
+    ]);
+    const ok = results.every(r => r && r.success);
+    showToast(ok ? 'Tax / GST settings saved' : 'Could not save', ok ? 'success' : 'danger');
 }
 
 // ---- Tier Offers ----

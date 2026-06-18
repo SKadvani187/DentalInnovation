@@ -230,6 +230,8 @@ if ($action === 'verify') {
                 [$o['id'], (float)$o['total'], $payMethod, $rzpPaymentId, $notes]
             );
         }
+        // Audit trail: payment confirmed -> order moved pending->confirmed (verify path).
+        try { $db->execute("INSERT INTO order_status_history (order_id, status, note) VALUES (?, 'confirmed', 'payment received')", [$o['id']]); } catch (Throwable $e) {}
         $pdo->commit();
     } catch (Throwable $t) {
         $pdo->rollBack();

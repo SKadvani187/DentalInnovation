@@ -53,6 +53,8 @@ foreach ($rows as $o) {
         // capture). 'unpaid' = payment never completed, which is the truth for an abandoned order.
         $db->execute("UPDATE orders SET status = 'cancelled', payment_status = 'unpaid' WHERE id = ? AND status = 'pending'", [$oid]);
         reverseOrderEffects($oid);   // joins this open transaction
+        // Audit trail (changed_by NULL = system/cron, not an admin).
+        try { $db->execute("INSERT INTO order_status_history (order_id, status, note) VALUES (?, 'cancelled', 'auto-cancelled (payment not completed)')", [$oid]); } catch (Throwable $e) {}
         $pdo->commit();
         echo "  cancelled + restocked {$o['order_number']}\n";
         $done++;

@@ -145,8 +145,23 @@ function buildOrderInvoicePdf(array $order, array $items, ?array $customer = nul
     $coAddr  = (string)($company['address'] ?? '');
     $coEmail = (string)($company['email'] ?? '');
     $coPhone = (string)($company['phone'] ?? '');
+    $coGstin = trim((string)($company['gstin'] ?? ''));
+    $coState = trim((string)($company['state'] ?? ''));
+
+    // Tax config: GST is shown only when the seller has a GSTIN AND tax is enabled.
+    $taxCfg = [];
+    try {
+        $tr = db()->fetchOne("SELECT svalue FROM site_settings WHERE skey='taxConfig'");
+        $taxCfg = $tr ? (json_decode($tr['svalue'] ?? 'null', true) ?: []) : [];
+    } catch (Throwable $e) { $taxCfg = []; }
+    $gstRate = (float)($taxCfg['rate'] ?? 0);
+    $taxAmt  = (float)($order['tax'] ?? 0);
+    $isGst   = $coGstin !== '' && $taxAmt > 0;
 
     $ship = json_decode($order['shipping_address'] ?? 'null', true) ?: [];
+    // Intra-state (buyer state == seller state) -> CGST+SGST split; else IGST.
+    $buyerState = strtolower(trim((string)($ship['state'] ?? '')));
+    $intraState = $coState !== '' && $buyerState !== '' && strtolower($coState) === $buyerState;
     $money = fn($n) => 'Rs. ' . number_format((float)$n, 2);
 
     $p = new SimplePdf();
@@ -155,7 +170,7 @@ function buildOrderInvoicePdf(array $order, array $items, ?array $customer = nul
 
     // ── Header: company (left) + INVOICE + order meta (right) ──
     $p->text($L, $coName, 16, 'B', [184, 134, 11]);
-    $p->textRight($R, 'INVOICE', 18, 'B', [40, 40, 40]);
+    $p->textRight($R, $isGst ? 'TAX INVOICE' : 'INVOICE', 18, 'B', [40, 40, 40]);
     $p->move(20);
     // Truncate the address so it can't run into the right-aligned Order# on the same line.
     if ($coAddr !== '') {
@@ -170,7 +185,9 @@ function buildOrderInvoicePdf(array $order, array $items, ?array $customer = nul
     $contact = trim($coPhone . ($coPhone && $coEmail ? '  |  ' : '') . $coEmail);
     if ($contact !== '') { $p->text($L, $contact, 8, 'H', [110, 110, 110]); }
     $p->textRight($R, 'Date: ' . substr((string)($order['created_at'] ?? ''), 0, 16), 9, 'H', [110, 110, 110]);
-    $p->move(14);
+    $p->move(13);
+    if ($isGst) { $p->text($L, 'GSTIN: ' . $coGstin, 8, 'B', [80, 80, 80]); }
+    $p->move(1);
     $payLine = strtoupper((string)($order['payment_method'] ?? '')) . ' - ' . ucfirst((string)($order['payment_status'] ?? ''));
     $p->textRight($R, 'Payment: ' . $payLine, 9, 'H', [110, 110, 110]);
     $p->move(12);
@@ -246,7 +263,14 @@ function buildOrderInvoicePdf(array $order, array $items, ?array $customer = nul
         $p->text($cQtyC - 4, (string)$qty, 9);
         $p->textRight($cUnitR, $unit, 9, 'H', $isGift ? [39, 174, 96] : null);
         $p->textRight($cTotalR, $line, 9, 'H', $isGift ? [39, 174, 96] : null);
-        $p->move(15);
+        $p->move(13);
+        // HSN code under the product name on a tax invoice.
+        if ($isGst && !empty($it['hsn_code'])) {
+            $p->text($cProd, 'HSN: ' . (string)$it['hsn_code'], 7, 'H', [150, 150, 150]);
+            $p->move(9);
+        } else {
+            $p->move(2);
+        }
         $p->hr(0.3, [235, 235, 235]);
         $p->move(3);
     }
@@ -263,7 +287,18 @@ function buildOrderInvoicePdf(array $order, array $items, ?array $customer = nul
     $row('Subtotal', $money($order['subtotal'] ?? 0));
     if ((float)($order['discount'] ?? 0) > 0) $row('Discount', '- ' . $money($order['discount'] ?? 0), false, [39, 174, 96]);
     $row('Shipping', $money($order['shipping_charge'] ?? 0));
-    if ((float)($order['tax'] ?? 0) > 0) $row('Tax', $money($order['tax'] ?? 0));
+    if ($isGst) {
+        // GST split: intra-state -> CGST + SGST (half each); inter-state -> IGST (full).
+        if ($intraState) {
+            $half = round($taxAmt / 2, 2);
+            $row('CGST @ ' . rtrim(rtrim(number_format($gstRate / 2, 2), '0'), '.') . '%', $money($half));
+            $row('SGST @ ' . rtrim(rtrim(number_format($gstRate / 2, 2), '0'), '.') . '%', $money($taxAmt - $half));
+        } else {
+            $row('IGST @ ' . rtrim(rtrim(number_format($gstRate, 2), '0'), '.') . '%', $money($taxAmt));
+        }
+    } elseif ($taxAmt > 0) {
+        $row('Tax', $money($taxAmt));
+    }
     $p->move(2); $p->hr(0.8, [40, 40, 40]); $p->move(8);
     $row('TOTAL', $money($order['total'] ?? 0), true, [184, 134, 11]);
 

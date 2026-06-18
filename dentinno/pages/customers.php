@@ -199,12 +199,15 @@ if ($cstatus === 'deleted') {
     if ($cstatus === 'active')        $where[] = "c.is_active = 1";
     elseif ($cstatus === 'inactive')  $where[] = "c.is_active = 0";
 }
-// Hide provisional accounts (storefront logins that never completed their name) so the CRM
-// list only shows real customers. They appear automatically once the buyer sets a name.
-// Guard the column so an un-migrated DB doesn't error.
+// Provisional accounts = storefront logins that never completed their name ("Customer 1234").
+// Hidden from the normal list, but the "Incomplete" filter shows ONLY them so the admin can
+// review/clean them up. Guard the column so an un-migrated DB doesn't error.
 try {
     $hasProv = db()->fetchOne("SHOW COLUMNS FROM customers LIKE 'is_provisional'");
-    if ($hasProv) $where[] = "c.is_provisional = 0";
+    if ($hasProv) {
+        if ($cstatus === 'incomplete') $where[] = "c.is_provisional = 1";
+        else                            $where[] = "c.is_provisional = 0";
+    }
 } catch (Throwable $e) { /* column absent — show all */ }
 if ($ordersF === 'with')      $where[] = "c.total_orders > 0";
 elseif ($ordersF === 'without') $where[] = "c.total_orders = 0";
@@ -440,9 +443,10 @@ $waPhone     = preg_replace('/\D/', '', (string)($cust_detail['phone'] ?? ''));
     </select>
     <select class="form-control" id="statusFilter" style="max-width:130px;">
         <option value="">All Status</option>
-        <option value="active"   <?= $cstatus==='active'?'selected':'' ?>>Active</option>
-        <option value="inactive" <?= $cstatus==='inactive'?'selected':'' ?>>Inactive</option>
-        <option value="deleted"  <?= $cstatus==='deleted'?'selected':'' ?>>🗑 Deleted</option>
+        <option value="active"     <?= $cstatus==='active'?'selected':'' ?>>Active</option>
+        <option value="inactive"   <?= $cstatus==='inactive'?'selected':'' ?>>Inactive</option>
+        <option value="incomplete" <?= $cstatus==='incomplete'?'selected':'' ?>>⚠ Incomplete (no name)</option>
+        <option value="deleted"    <?= $cstatus==='deleted'?'selected':'' ?>>🗑 Deleted</option>
     </select>
     <select class="form-control" id="ordersFilter" style="max-width:150px;">
         <option value="">All Customers</option>

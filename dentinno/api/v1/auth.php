@@ -78,7 +78,15 @@ if ($action === 'profile') {
     $params = [];
     $map = ['name'=>'name','email'=>'email','city'=>'city','state'=>'state','address'=>'address','pincode'=>'pincode','clinicName'=>'clinic_name'];
     foreach ($map as $in => $col) {
-        if (array_key_exists($in, $body)) { $fields[] = "$col=?"; $params[] = $body[$in]; }
+        if (array_key_exists($in, $body)) {
+            $val = $body[$in];
+            // email has a UNIQUE index: MySQL allows many NULLs but rejects duplicate ''.
+            // Storefront sends "" for a blank email, which collides across customers (1062).
+            // Coerce blank email -> NULL so unset emails never collide.
+            if ($col === 'email' && trim((string)$val) === '') { $val = null; }
+            $fields[] = "$col=?";
+            $params[] = $val;
+        }
     }
     if (array_key_exists('addresses', $body)) { $fields[] = "addresses=?"; $params[] = json_encode($body['addresses']); }
     // Supplying a real name promotes a provisional (placeholder) account to a full customer.

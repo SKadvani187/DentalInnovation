@@ -265,9 +265,18 @@ try {
     );
 
     $insItem = $pdo->prepare(
-        "INSERT INTO order_items (order_id, product_id, product_slug, product_name, variant, quantity, price, total, line_type, offer_id)
-         VALUES (?,?,?,?,?,?,?,?,?,?)"
+        "INSERT INTO order_items (order_id, product_id, product_slug, product_name, variant, quantity, price, total, line_type, offer_id, hsn_code)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)"
     );
+    // Snapshot each product's HSN code onto its order line (so a later product edit can't
+    // change a past tax invoice). Looked up once per product id.
+    $hsnStmt = $pdo->prepare("SELECT hsn_code FROM products WHERE id=?");
+    $hsnFor = function ($pid) use ($hsnStmt) {
+        if (!$pid) return null;
+        $hsnStmt->execute([$pid]);
+        $r = $hsnStmt->fetch(PDO::FETCH_ASSOC);
+        return $r ? ($r['hsn_code'] ?: null) : null;
+    };
     // Atomic stock decrement: the WHERE stock>=? + affected-row check prevents overselling
     // the last unit under concurrent orders.
     $decStock = $pdo->prepare("UPDATE products SET stock = stock - ?, total_sales = total_sales + ? WHERE id=? AND stock >= ?");
@@ -277,6 +286,7 @@ try {
         $insItem->execute([
             $orderId, $l['product_id'], $l['slug'] ?: null, $l['name'], $l['variant'],
             $l['qty'], $l['price'], $l['price'] * $l['qty'], $l['line_type'], $l['offer_id'],
+            $hsnFor($l['product_id']),
         ]);
         if ($l['product_id']) {
             $decStock->execute([$l['qty'], $l['qty'], $l['product_id'], $l['qty']]);
@@ -324,6 +334,9 @@ try {
         "UPDATE customers SET total_orders = total_orders + 1, total_spent = total_spent + ? WHERE id=?",
         [$total, $cust['id']]
     );
+
+    // Audit trail: order placed (changed_by NULL = customer/storefront, not an admin).
+    try { $db->execute("INSERT INTO order_status_history (order_id, status, note) VALUES (?, 'pending', 'order placed')", [$orderId]); } catch (Throwable $e) {}
 
     $pdo->commit();
 } catch (Throwable $t) {

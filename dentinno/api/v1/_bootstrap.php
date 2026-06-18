@@ -121,5 +121,9 @@ function customerPublic(array $c): array {
         'pincode'   => $c['pincode'],
         'clinicName'=> $c['clinic_name'] ?? null,
         'addresses' => jcol($c['addresses'] ?? null, []),
+        // Provisional = account auto-created at login but the buyer hasn't given their real
+        // name yet (placeholder "Customer 1234"). The storefront uses this to still show the
+        // name-prompt instead of logging in with the placeholder.
+        'isProvisional' => (int)($c['is_provisional'] ?? 0) === 1,
     ];
 }

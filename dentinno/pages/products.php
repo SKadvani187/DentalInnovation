@@ -112,10 +112,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             }
             echo json_encode(['success' => true, 'message' => 'Product added', 'id' => $pid]);
         }
-        // Cost (purchase) price — stored separately to keep the big save query untouched.
+        // Cost (purchase) price + HSN code — stored separately to keep the big save query untouched.
         if (!empty($pid)) {
             $costPrice = (isset($d['cost_price']) && is_numeric($d['cost_price']) && $d['cost_price'] !== '') ? max(0,(float)$d['cost_price']) : null;
-            db()->execute("UPDATE products SET cost_price=? WHERE id=?", [$costPrice, (int)$pid]);
+            $hsn = (isset($d['hsn_code']) && trim((string)$d['hsn_code']) !== '') ? clip(trim((string)$d['hsn_code']), 12) : null;
+            db()->execute("UPDATE products SET cost_price=?, hsn_code=? WHERE id=?", [$costPrice, $hsn, (int)$pid]);
             logActivity(!empty($d['id']) ? 'updated' : 'created', 'product', (int)$pid, $name.' · ₹'.$price);
         }
         if (isset($d['faqs']) && $pid) {
@@ -553,6 +554,7 @@ include __DIR__ . '/../includes/header.php';
           <div class="form-row-3">
             <div class="form-group"><label class="form-label">Price (₹) *</label><input type="number" class="form-control" id="prod_price" placeholder="0"></div>
             <div class="form-group"><label class="form-label">Cost Price (₹) <small class="text-muted">(for margin)</small></label><input type="number" class="form-control" id="prod_cost" placeholder="Optional"></div>
+            <div class="form-group"><label class="form-label">HSN Code <small class="text-muted">(for GST tax invoice)</small></label><input type="text" class="form-control" id="prod_hsn" maxlength="12" placeholder="e.g. 9018"></div>
             <div class="form-group"><label class="form-label">Discount Price (₹)</label><input type="number" class="form-control" id="prod_discount" placeholder="Optional"></div>
             <div class="form-group"><label class="form-label">Stock Qty *</label><input type="number" class="form-control" id="prod_stock" placeholder="0"></div>
           </div>
@@ -984,6 +986,7 @@ function openProductModal(p=null){
   document.getElementById('prod_full_desc').value=p?.full_description||'';
   document.getElementById('prod_price').value=p?.price||'';
   document.getElementById('prod_cost').value=p?.cost_price||'';
+  document.getElementById('prod_hsn').value=p?.hsn_code||'';
   document.getElementById('prod_discount').value=p?.discount_price||'';
   document.getElementById('prod_stock').value=p?.stock||'';
   document.getElementById('prod_min_stock').value=p?.min_stock_alert??'';
@@ -1109,6 +1112,7 @@ async function saveProduct(){
     direction_of_use:document.getElementById('prod_direction_of_use').value,
     catalogue_url:document.getElementById('prod_catalogue_url').value,
     cost_price:document.getElementById('prod_cost').value,
+    hsn_code:document.getElementById('prod_hsn').value,
     discount_price:document.getElementById('prod_discount').value,
     weight_kg:document.getElementById('prod_weight').value,
     shipping_method_id:document.getElementById('prod_ship_method').value,

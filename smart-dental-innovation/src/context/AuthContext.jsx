@@ -59,7 +59,11 @@ export function AuthProvider({ children }) {
     // log them straight in — even if this browser has no local account (incognito,
     // cleared storage, different device). This is the main "OTP ok but not logged in" fix.
     const apiCust = res?.customer;
-    const apiHasProfile = apiCust && res?.isNew === false && apiCust.name && apiCust.name.trim() !== "";
+    // A provisional account has only a placeholder name ("Customer 1234") — treat it as NOT
+    // having a profile so the name-prompt still shows (otherwise the placeholder sticks and the
+    // customer never appears in the admin list).
+    const apiHasProfile =
+      apiCust && res?.isNew === false && !apiCust.isProvisional && apiCust.name && apiCust.name.trim() !== "";
     if (apiHasProfile) {
       const merged = {
         mobile,
@@ -81,6 +85,14 @@ export function AuthProvider({ children }) {
       return { ok: true, isNew: false };
     }
 
+    // If the backend says this account is still PROVISIONAL (placeholder name, not yet
+    // completed), force the name-prompt even when this browser has a cached local account or
+    // the API is reachable — otherwise the "Customer 1234" placeholder sticks and the customer
+    // never shows up in the admin list. The API verdict wins over the local cache here.
+    if (apiCust?.isProvisional) {
+      return { ok: true, isNew: true, mobile };
+    }
+
     // Local account known (offline / API down) — log in from it.
     if (existing) {
       setUser({ ...existing });
@@ -91,9 +103,25 @@ export function AuthProvider({ children }) {
     return { ok: true, isNew: true, mobile };
   }, [accounts, setUser, setAccounts, syncToApi]);
 
-  const completeProfile = useCallback(({ mobile, name, email, address }) => {
+  const completeProfile = useCallback(async ({ mobile, name, email, address }) => {
     if (!name?.trim()) return { ok: false, error: "Enter your name." };
     const acc = { mobile, name: name.trim(), email: email || "", address: address || "" };
+    // Persist the real name FIRST via action=profile (Bearer token from the login that ran
+    // during OTP verify). We AWAIT it and surface failures — a silent failure left the
+    // placeholder "Customer XXXX" in the admin list and the customer hidden. NOT api.login()
+    // (the OTP was already consumed, so a 2nd login would fail OTP verification).
+    //
+    // Re-assert the auth token from state right before the call: the post-login token-sync
+    // effect runs after render, so the module-level token could otherwise be stale/null here
+    // (which made action=profile 401 and the save fail with "Couldn't save your name").
+    if (token) setAuthToken(token);
+    try {
+      await api.updateProfile({ name: acc.name, email: acc.email });
+    } catch (err) {
+      console.warn("[auth] completeProfile persist failed:", err.message);
+      return { ok: false, error: "Couldn't save your name. Please check your connection and try again." };
+    }
+    // Saved on the server — now update local state.
     const exists = accounts.find((a) => a.mobile === mobile);
     if (exists) {
       setAccounts(accounts.map((a) => (a.mobile === mobile ? { ...a, ...acc } : a)));
@@ -101,15 +129,8 @@ export function AuthProvider({ children }) {
       setAccounts([...accounts, acc]);
     }
     setUser(acc);
-    // Persist the real name via action=profile (Bearer token from the login that ran during
-    // OTP verify). NOT api.login() — the OTP was already consumed by that first login, so a
-    // second login here would fail OTP verification and the name would never reach the DB,
-    // leaving the placeholder "Customer XXXX" in the admin list.
-    api.updateProfile({ name: acc.name, email: acc.email }).catch((err) =>
-      console.warn("[auth] completeProfile persist failed:", err.message)
-    );
     return { ok: true };
-  }, [accounts, setAccounts, setUser]);
+  }, [accounts, setAccounts, setUser, token]);
 
   // Best-effort backend persistence of the address book. Addresses live in
   // customers.addresses (JSON) via auth.php?action=profile, so they survive re-login /

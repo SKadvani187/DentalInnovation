@@ -93,6 +93,8 @@ try {
         "UPDATE payments SET method=?, transaction_id=?, status='completed', payment_date=NOW(), notes=? WHERE id=?",
         [$payMethod, ($rzpPayId ?: $rzpOrderId), $notes, $row['pid']]
     );
+    // Audit trail: payment confirmed via webhook -> pending->confirmed.
+    try { $db->execute("INSERT INTO order_status_history (order_id, status, note) VALUES (?, 'confirmed', 'payment received (webhook)')", [$row['oid']]); } catch (Throwable $e) {}
     $pdo->commit();
 } catch (Throwable $t) {
     $pdo->rollBack();

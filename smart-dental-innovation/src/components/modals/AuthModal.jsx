@@ -183,14 +183,16 @@ export default function AuthModal() {
     closeModal();
   };
 
-  const onProfileSubmit = (e) => {
+  const onProfileSubmit = async (e) => {
     e.preventDefault();
     setError("");
     if (!name.trim()) {
       setError("Please enter your name.");
       return;
     }
-    const res = completeProfile({ mobile, name });
+    setLoading(true);
+    const res = await completeProfile({ mobile, name });
+    setLoading(false);
     if (!res.ok) {
       setError(res.error);
       return;
