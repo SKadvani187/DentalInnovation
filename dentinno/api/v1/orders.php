@@ -26,6 +26,11 @@ function mapOrder(array $o, array $items): array {
         'total'         => (float)$o['total'],
         'address'       => jcol($o['shipping_address'] ?? null, null),
         'createdAt'     => $o['created_at'],
+        // Shipment tracking — set by admin once dispatched, so the customer can follow the order.
+        'trackingId'    => $o['tracking_number'] ?? null,
+        'courier'       => $o['courier_name'] ?? null,
+        'shippedAt'     => $o['shipped_at'] ?? null,
+        'deliveredAt'   => $o['delivered_at'] ?? null,
         'items'         => array_map(fn($it) => [
             'id'      => $it['product_slug'] ?: (string)$it['product_id'],
             'name'    => $it['product_name'],
