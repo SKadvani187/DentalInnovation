@@ -197,8 +197,16 @@ if ($action === 'verify') {
         // Conditional transition — only the caller that flips unpaid->paid proceeds. A
         // concurrent webhook (or retry) gets rowCount()===0 and bails, so WhatsApp/record
         // side-effects fire exactly once.
+        // Mark paid AND advance the order from 'pending' to 'confirmed' — a paid online order
+        // is confirmed and ready for fulfilment (a still-'pending' paid order is misleading and
+        // would be picked up by the abandoned-order cleanup). Only touch 'pending' so a later
+        // admin transition (shipped, etc.) is never rolled back by a duplicate webhook.
         $changed = $db->execute(
-            "UPDATE orders SET payment_status='paid' WHERE id=? AND payment_status<>'paid'",
+            "UPDATE orders
+                SET payment_status='paid',
+                    status = CASE WHEN status='pending' THEN 'confirmed' ELSE status END,
+                    payment_failed_at = NULL
+              WHERE id=? AND payment_status<>'paid'",
             [$o['id']]
         );
         if ($changed < 1) {
@@ -257,6 +265,14 @@ if ($action === 'verify') {
 if ($action === 'failed') {
     $o = loadOwnedOrder($db, $cust, (string)($body['orderId'] ?? ''));
     if (($o['payment_status'] ?? '') !== 'paid') {
+        // Stamp the payment failure so the admin can immediately tell an abandoned/failed-payment
+        // order from a fresh one mid-checkout — without waiting 30 min for the cleanup cron. The
+        // order stays 'pending' (still retry-able from the customer's Order Details page); the
+        // stamp is cleared if a later retry succeeds (see the paid transitions above).
+        $db->execute(
+            "UPDATE orders SET payment_failed_at = NOW() WHERE id = ? AND payment_status <> 'paid'",
+            [$o['id']]
+        );
         try {
             require_once __DIR__ . '/../../includes/order_mailer.php';
             $items = $db->fetchAll("SELECT * FROM order_items WHERE order_id=?", [$o['id']]);

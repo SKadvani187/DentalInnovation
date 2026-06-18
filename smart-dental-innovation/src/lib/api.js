@@ -111,6 +111,9 @@ export const api = {
   // razorpay online payment (keyId/amount come back from the server — never trusted from client)
   createRazorpayOrder: (orderId) => post("payment_razorpay.php?action=create", { orderId }),
   verifyRazorpayPayment: (payload) => post("payment_razorpay.php?action=verify", payload),
+  // Report a dismissed/failed Razorpay popup so the admin sees the failure immediately
+  // (order stays pending + retry-able; the server stamps payment_failed_at).
+  reportPaymentFailed: (orderId) => post("payment_razorpay.php?action=failed", { orderId }),
   // coupon
   validateCoupon: (code, subtotal) => get("coupon.php", { code, subtotal }),
   // wishlist (auth)

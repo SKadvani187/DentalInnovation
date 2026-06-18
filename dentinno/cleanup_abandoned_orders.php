@@ -21,7 +21,10 @@ if (PHP_SAPI !== 'cli') {
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/order_effects.php';
 
-$graceMinutes = isset($argv[1]) ? max(5, (int)$argv[1]) : 120;
+// Default grace 30 min — the standard online-payment retry window (Amazon/Flipkart-style).
+// A paid-via-webhook order is already 'confirmed' by then, so only genuinely-abandoned
+// pending orders remain to cancel. Override with the first CLI arg.
+$graceMinutes = isset($argv[1]) ? max(5, (int)$argv[1]) : 30;
 $db = db();
 
 // Online, never-paid, still-pending orders past the grace window. payment_method<>'cod'
@@ -45,7 +48,10 @@ foreach ($rows as $o) {
     $pdo = $db->getConnection();
     $pdo->beginTransaction();
     try {
-        $db->execute("UPDATE orders SET status = 'cancelled' WHERE id = ? AND status = 'pending'", [$oid]);
+        // Cancel AND clear the 'pending' payment marker -> 'unpaid'. Otherwise the admin sees
+        // a cancelled order still showing payment "Pending" (looks like a live order awaiting
+        // capture). 'unpaid' = payment never completed, which is the truth for an abandoned order.
+        $db->execute("UPDATE orders SET status = 'cancelled', payment_status = 'unpaid' WHERE id = ? AND status = 'pending'", [$oid]);
         reverseOrderEffects($oid);   // joins this open transaction
         $pdo->commit();
         echo "  cancelled + restocked {$o['order_number']}\n";

@@ -183,6 +183,9 @@ export default function CheckoutDrawer() {
             // leave checkout and land on its Order Details page (pending banner + Retry
             // Payment). Keep the cart intact: if this pending order is never paid (expires),
             // the customer still has their items and isn't forced to re-add everything.
+            // Tell the server so the admin sees the failed-payment immediately (not after the
+            // 30-min cleanup). Fire-and-forget — never block the UX on it.
+            api.reportPaymentFailed(order.orderId).catch(() => {});
             setPlacing(false);
             closeModal();
             showToast?.("Payment not completed — your order is saved as pending.", "info");
@@ -192,7 +195,9 @@ export default function CheckoutDrawer() {
       });
       rz.on("payment.failed", () => {
         // Payment failed — order stays pending, keep the cart so the customer can retry
-        // (via the Order Details page) without losing their items.
+        // (via the Order Details page) without losing their items. Report to the server so
+        // the admin can tell this apart from a fresh order immediately.
+        api.reportPaymentFailed(order.orderId).catch(() => {});
         setPlacing(false);
         closeModal();
         showToast?.("Payment failed — your order is saved as pending, you can retry.", "error");

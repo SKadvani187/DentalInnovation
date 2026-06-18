@@ -79,7 +79,16 @@ $notes     = trim('razorpay; rzp_order=' . $rzpOrderId . ($rawMethod ? '; method
 $pdo = $db->getConnection();
 $pdo->beginTransaction();
 try {
-    $db->execute("UPDATE orders SET payment_status='paid' WHERE id=?", [$row['oid']]);
+    // Mark paid AND advance 'pending' -> 'confirmed' (same as the verify path) so a webhook-
+    // confirmed order isn't left looking abandoned. Only touches 'pending'.
+    $db->execute(
+        "UPDATE orders
+            SET payment_status='paid',
+                status = CASE WHEN status='pending' THEN 'confirmed' ELSE status END,
+                payment_failed_at = NULL
+          WHERE id=?",
+        [$row['oid']]
+    );
     $db->execute(
         "UPDATE payments SET method=?, transaction_id=?, status='completed', payment_date=NOW(), notes=? WHERE id=?",
         [$payMethod, ($rzpPayId ?: $rzpOrderId), $notes, $row['pid']]
@@ -92,14 +101,27 @@ try {
     exit;
 }
 
-// Best-effort WhatsApp payment confirmation. Reached only on the real unpaid->paid
-// transition (the 'already paid' guard above returns early), so it can't double-send.
+// Best-effort notifications. Reached only on the real unpaid->paid transition (the
+// 'already paid' guard above returns early), so none of these can double-send.
+$c   = $db->fetchOne("SELECT * FROM customers WHERE id=(SELECT customer_id FROM orders WHERE id=?)", [$row['oid']]);
+$ord = $db->fetchOne("SELECT * FROM orders WHERE id=?", [$row['oid']]);
+
+// WhatsApp payment confirmation.
 try {
     require_once __DIR__ . '/../../includes/whatsapp_sender.php';
-    $c   = $db->fetchOne("SELECT * FROM customers WHERE id=(SELECT customer_id FROM orders WHERE id=?)", [$row['oid']]);
-    $ord = $db->fetchOne("SELECT * FROM orders WHERE id=?", [$row['oid']]);
     if ($c && !empty($c['phone']) && $ord) waPaymentSuccess($c, $ord);
 } catch (Throwable $e) { error_log('WA payWebhook: ' . $e->getMessage()); }
+
+// Admin notification + customer confirmation email with PDF invoice — same as the verify
+// path, so a browser-closed payment that lands only via webhook still emails the customer.
+try {
+    require_once __DIR__ . '/../../includes/order_mailer.php';
+    if ($ord) {
+        $omItems = $db->fetchAll("SELECT * FROM order_items WHERE order_id=?", [$row['oid']]);
+        sendOrderAdminMail($ord, $omItems, $c ?: null, 'placed');
+        sendOrderCustomerMail($ord, $omItems, $c ?: null);
+    }
+} catch (Throwable $e) { error_log('orderMail payWebhook: ' . $e->getMessage()); }
 
 http_response_code(200);
 echo json_encode(['success' => true]);

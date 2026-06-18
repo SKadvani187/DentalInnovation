@@ -82,7 +82,14 @@ export default function OrderDetailPage() {
   };
   useEffect(load, [id, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const isPendingPayment = order && order.paymentMethod !== "cod" && order.paymentStatus !== "paid";
+  // A cancelled / rejected / refunded order can never be paid or retried — don't show the
+  // "payment pending — Retry Payment" banner for it (that contradicted the Cancelled status).
+  const DEAD_STATUSES = ["cancelled", "rejected", "refunded", "returned"];
+  const isPendingPayment =
+    order &&
+    order.paymentMethod !== "cod" &&
+    order.paymentStatus !== "paid" &&
+    !DEAD_STATUSES.includes((order.status || "").toLowerCase());
 
   // Re-open the Razorpay widget for this existing order.
   const retryPayment = async () => {
@@ -173,6 +180,15 @@ export default function OrderDetailPage() {
         </div>
       )}
 
+      {/* Cancelled banner — a payment-never-completed order auto-cancelled after the retry
+          window. Explains why and that the items are still in the cart to order again. */}
+      {order && order.status?.toLowerCase() === "cancelled" && order.paymentStatus !== "paid" && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-5 mb-6 flex items-start gap-2">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" className="shrink-0 mt-0.5"><circle cx="12" cy="12" r="10" /><path d="M15 9l-6 6M9 9l6 6" /></svg>
+          <p className="text-sm text-red-800 font-medium">This order was cancelled because the payment was not completed in time. Your items are still saved in your cart — you can place the order again.</p>
+        </div>
+      )}
+
       {/* Refund: show current request status (incl. rejected, so the customer sees why). */}
       {refund && (
         <div className={`border rounded-xl p-4 mb-6 flex items-center justify-between ${refund.status === "rejected" ? "border-red-200 bg-red-50" : "border-gray-200"}`}>
@@ -206,16 +222,35 @@ export default function OrderDetailPage() {
           <p className="text-sm text-brand-muted">{addrLine}</p>
         </div>
 
-        {/* Track order */}
+        {/* Track order — status-aware so a cancelled/delivered order doesn't read "placed". */}
         <div className="border border-gray-200 rounded-xl p-5">
           <h3 className="font-bold text-brand-ink mb-3">Track Order</h3>
-          <div className="flex gap-3">
-            <span className="w-3 h-3 rounded-full bg-green-500 mt-1 shrink-0" />
-            <div>
-              <p className="text-sm font-semibold text-brand-ink">Order Placed <span className="font-normal text-brand-muted ml-1">{placedAt}</span></p>
-              <p className="text-sm text-brand-muted">Your order has been placed</p>
-            </div>
-          </div>
+          {(() => {
+            const s = (order.status || "pending").toLowerCase();
+            const STEP = {
+              pending:          { dot: "bg-amber-500",  title: "Order Placed",      sub: "Awaiting payment confirmation" },
+              confirmed:        { dot: "bg-green-500",   title: "Order Confirmed",   sub: "Payment received — your order is confirmed" },
+              processing:       { dot: "bg-blue-500",    title: "Processing",        sub: "Your order is being prepared" },
+              shipped:          { dot: "bg-purple-500",  title: "Shipped",           sub: "Your order is on the way" },
+              out_for_delivery: { dot: "bg-teal-500",    title: "Out for Delivery",  sub: "Arriving soon" },
+              delivered:        { dot: "bg-green-600",   title: "Delivered",         sub: "Your order has been delivered" },
+              returning:        { dot: "bg-orange-500",  title: "Return in Progress",sub: "Your return is being processed" },
+              returned:         { dot: "bg-gray-500",    title: "Returned",          sub: "Your order has been returned" },
+              cancelled:        { dot: "bg-red-500",     title: "Order Cancelled",   sub: "This order was cancelled" },
+              rejected:         { dot: "bg-red-500",     title: "Order Rejected",    sub: "This order was rejected" },
+              refunded:         { dot: "bg-gray-500",    title: "Refunded",          sub: "Your payment has been refunded" },
+            };
+            const step = STEP[s] || STEP.pending;
+            return (
+              <div className="flex gap-3">
+                <span className={`w-3 h-3 rounded-full mt-1 shrink-0 ${step.dot}`} />
+                <div>
+                  <p className="text-sm font-semibold text-brand-ink">{step.title} <span className="font-normal text-brand-muted ml-1">{placedAt}</span></p>
+                  <p className="text-sm text-brand-muted">{step.sub}</p>
+                </div>
+              </div>
+            );
+          })()}
           {/* Order Items live under Track Order in the right column (matches reference). */}
           <h3 className="font-bold text-brand-ink mt-6 mb-3">Order Items ({order.items?.length || 0})</h3>
           <div className="space-y-4">

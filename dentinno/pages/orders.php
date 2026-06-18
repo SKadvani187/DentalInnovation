@@ -478,8 +478,15 @@ include __DIR__ . '/../includes/header.php';
                         </select>
                     </td>
                     <td>
-                        <?php $pc = paymentColor($o['payment_status']); ?>
-                        <span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:600;color:<?= $pc ?>;background:<?= $pc ?>1a;border:1px solid <?= $pc ?>33;"><?= ucfirst($o['payment_status']) ?></span>
+                        <?php
+                        // A pending order whose customer dismissed/failed the gateway popup is
+                        // shown as "Payment Failed" (red) so it's instantly distinct from a fresh
+                        // order still mid-checkout. It's still retry-able until the cleanup cron.
+                        $payFailed = !empty($o['payment_failed_at']) && $o['payment_status'] === 'pending' && $o['status'] === 'pending';
+                        $pc = $payFailed ? '#E74C3C' : paymentColor($o['payment_status']);
+                        $payLabel = $payFailed ? 'Payment Failed' : ucfirst($o['payment_status']);
+                        ?>
+                        <span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:600;color:<?= $pc ?>;background:<?= $pc ?>1a;border:1px solid <?= $pc ?>33;"><?= $payLabel ?></span>
                         <?php if($o['payment_method']): ?>
                         <div class="text-muted" style="font-size:0.72rem;margin-top:3px;"><i class="fa-solid <?= paymentMethodIcon($o['payment_method']) ?>" style="margin-right:3px;"></i><?= htmlspecialchars(paymentMethodLabel($o['payment_method'])) ?></div>
                         <?php endif; ?>
