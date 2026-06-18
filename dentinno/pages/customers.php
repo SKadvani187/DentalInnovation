@@ -199,6 +199,13 @@ if ($cstatus === 'deleted') {
     if ($cstatus === 'active')        $where[] = "c.is_active = 1";
     elseif ($cstatus === 'inactive')  $where[] = "c.is_active = 0";
 }
+// Hide provisional accounts (storefront logins that never completed their name) so the CRM
+// list only shows real customers. They appear automatically once the buyer sets a name.
+// Guard the column so an un-migrated DB doesn't error.
+try {
+    $hasProv = db()->fetchOne("SHOW COLUMNS FROM customers LIKE 'is_provisional'");
+    if ($hasProv) $where[] = "c.is_provisional = 0";
+} catch (Throwable $e) { /* column absent — show all */ }
 if ($ordersF === 'with')      $where[] = "c.total_orders > 0";
 elseif ($ordersF === 'without') $where[] = "c.total_orders = 0";
 // CRM segment filter (derived from spend / orders / recency).

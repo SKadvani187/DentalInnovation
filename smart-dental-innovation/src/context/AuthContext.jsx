@@ -101,9 +101,15 @@ export function AuthProvider({ children }) {
       setAccounts([...accounts, acc]);
     }
     setUser(acc);
-    syncToApi(mobile, { name: acc.name, email: acc.email });
+    // Persist the real name via action=profile (Bearer token from the login that ran during
+    // OTP verify). NOT api.login() — the OTP was already consumed by that first login, so a
+    // second login here would fail OTP verification and the name would never reach the DB,
+    // leaving the placeholder "Customer XXXX" in the admin list.
+    api.updateProfile({ name: acc.name, email: acc.email }).catch((err) =>
+      console.warn("[auth] completeProfile persist failed:", err.message)
+    );
     return { ok: true };
-  }, [accounts, setAccounts, setUser, syncToApi]);
+  }, [accounts, setAccounts, setUser]);
 
   // Best-effort backend persistence of the address book. Addresses live in
   // customers.addresses (JSON) via auth.php?action=profile, so they survive re-login /

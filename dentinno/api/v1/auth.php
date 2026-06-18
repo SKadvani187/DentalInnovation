@@ -50,19 +50,22 @@ if ($action === 'login') {
 
     if ($existing) {
         $db->execute("UPDATE customers SET api_token=? WHERE id=?", [$token, $existing['id']]);
-        // optional profile refresh
-        if (!empty($body['name']))  $db->execute("UPDATE customers SET name=? WHERE id=?", [trim($body['name']), $existing['id']]);
+        // A real name/email supplied at login (or completeProfile) clears the provisional flag.
+        if (!empty($body['name']))  $db->execute("UPDATE customers SET name=?, is_provisional=0 WHERE id=?", [trim($body['name']), $existing['id']]);
         if (!empty($body['email'])) $db->execute("UPDATE customers SET email=? WHERE id=?", [trim($body['email']), $existing['id']]);
         $c = $db->fetchOne("SELECT * FROM customers WHERE id=?", [$existing['id']]);
         jsonOut(['success' => true, 'isNew' => false, 'token' => $token, 'customer' => customerPublic($c)]);
     }
 
-    // create new
-    $name  = trim((string)($body['name'] ?? '')) ?: ('Customer ' . substr($mobile, -4));
+    // create new. With no name yet (the storefront prompts for it right after), the row is
+    // PROVISIONAL — a "Customer 1234" placeholder hidden from the admin CRM list until the
+    // buyer completes their name (auth.php action=profile clears is_provisional).
+    $hasName = trim((string)($body['name'] ?? '')) !== '';
+    $name  = $hasName ? trim((string)$body['name']) : ('Customer ' . substr($mobile, -4));
     $email = trim((string)($body['email'] ?? '')) ?: null;  // no fake email; leave blank
     $id = $db->insert(
-        "INSERT INTO customers (name, email, phone, customer_type, api_token) VALUES (?,?,?, 'individual', ?)",
-        [$name, $email, $mobile, $token]
+        "INSERT INTO customers (name, email, phone, customer_type, api_token, is_provisional) VALUES (?,?,?, 'individual', ?, ?)",
+        [$name, $email, $mobile, $token, $hasName ? 0 : 1]
     );
     $c = $db->fetchOne("SELECT * FROM customers WHERE id=?", [$id]);
     jsonOut(['success' => true, 'isNew' => true, 'token' => $token, 'customer' => customerPublic($c)]);
@@ -78,6 +81,8 @@ if ($action === 'profile') {
         if (array_key_exists($in, $body)) { $fields[] = "$col=?"; $params[] = $body[$in]; }
     }
     if (array_key_exists('addresses', $body)) { $fields[] = "addresses=?"; $params[] = json_encode($body['addresses']); }
+    // Supplying a real name promotes a provisional (placeholder) account to a full customer.
+    if (!empty(trim((string)($body['name'] ?? '')))) { $fields[] = "is_provisional=0"; }
     if ($fields) {
         $params[] = $c['id'];
         $db->execute("UPDATE customers SET " . implode(',', $fields) . " WHERE id=?", $params);
