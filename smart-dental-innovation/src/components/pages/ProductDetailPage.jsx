@@ -12,6 +12,7 @@ import api from "../../lib/api";
 import { useSettings } from "../../context/SettingsContext";
 import { discountPct } from "../../lib/pricing";
 import Seo from "../Seo";
+import RichText from "../RichText";
 
 const fmt = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 
@@ -380,7 +381,7 @@ export default function ProductDetailPage() {
             </div>
 
             {product.description && (
-              <p className="text-sm text-brand-muted leading-relaxed">{product.description}</p>
+              <RichText html={product.description} className="text-sm text-brand-muted leading-relaxed" />
             )}
 
             {product.catalogueUrl && (
@@ -932,7 +933,7 @@ function ProductAccordions({ product, fallback = [] }) {
                   </tbody>
                 </table>
               ) : (
-                <p className="whitespace-pre-line">{s.body}</p>
+                <RichText html={s.body} />
               )}
             </div>
           )}

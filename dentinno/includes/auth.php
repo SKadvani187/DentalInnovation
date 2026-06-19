@@ -175,6 +175,56 @@ if (empty($GLOBALS['AUTH_PUBLIC'])) {
     }
 }
 
+// ---- Maintenance-mode gate ----
+// site_settings.maintenanceMode = {enabled, title, message}. When enabled, every logged-in
+// admin EXCEPT super admin (roles.is_super = 1) sees the maintenance page. login.php /
+// logout.php / /api/* are exempt so the super admin can sign in and APIs (storefront fetch
+// of the flag itself) keep working.
+if (!function_exists('maintenanceGate')) {
+    function maintenanceGate(): void {
+        if (!empty($GLOBALS['AUTH_PUBLIC'])) return;
+        $caller = str_replace('\\', '/', $_SERVER['SCRIPT_FILENAME'] ?? '');
+        $base   = strtolower(basename($caller));
+        if ($base === 'login.php' || $base === 'logout.php') return;
+        if (stripos($caller, '/api/') !== false) return;
+        if (!isLoggedIn()) return;             // unauthenticated → requireLogin will redirect
+        if (userIsSuper()) return;             // super admin always bypasses
+
+        try {
+            $row = db()->fetchOne("SELECT svalue FROM site_settings WHERE skey='maintenanceMode'");
+            $cfg = $row ? json_decode($row['svalue'] ?? 'null', true) : null;
+        } catch (Throwable $e) { return; }     // table missing on a fresh DB → fail open
+        if (!is_array($cfg) || empty($cfg['enabled'])) return;
+
+        $title = htmlspecialchars($cfg['title']   ?? "We'll be back soon", ENT_QUOTES, 'UTF-8');
+        $msg   = htmlspecialchars($cfg['message'] ?? 'Our site is undergoing scheduled maintenance. Please check back in a little while.', ENT_QUOTES, 'UTF-8');
+        $logoutUrl = htmlspecialchars((defined('APP_URL') ? APP_URL : '') . '/logout.php', ENT_QUOTES, 'UTF-8');
+        http_response_code(503);
+        header('Retry-After: 600');
+        echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>' . $title . '</title>'
+           . '<meta name="viewport" content="width=device-width,initial-scale=1">'
+           . '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">'
+           . '<style>body{font-family:system-ui,Segoe UI,Arial,sans-serif;background:#0d0d10;color:#eee;'
+           . 'display:grid;place-items:center;min-height:100vh;margin:0;padding:24px}'
+           . '.mc{max-width:560px;text-align:center;background:#16161c;border:1px solid #2a2a32;'
+           . 'border-radius:18px;padding:48px 36px;box-shadow:0 30px 80px rgba(0,0,0,.35)}'
+           . '.mc i.head{font-size:3rem;color:#D4A017;margin-bottom:18px;display:block}'
+           . '.mc h1{font-family:Georgia,serif;font-size:1.8rem;margin:0 0 12px;color:#D4A017}'
+           . '.mc p{color:#c9c9d2;line-height:1.6;font-size:.98rem;margin:0 0 22px;white-space:pre-line}'
+           . '.mc a{color:#D4A017;font-size:.85rem;text-decoration:none;border:1px solid #2a2a32;'
+           . 'padding:10px 18px;border-radius:10px;display:inline-block}'
+           . '.mc a:hover{background:#1d1d24}'
+           . '</style></head><body><div class="mc">'
+           . '<i class="head fa-solid fa-screwdriver-wrench"></i>'
+           . '<h1>' . $title . '</h1>'
+           . '<p>' . $msg . '</p>'
+           . '<a href="' . $logoutUrl . '"><i class="fa-solid fa-right-from-bracket"></i> Sign out</a>'
+           . '</div></body></html>';
+        exit;
+    }
+    maintenanceGate();
+}
+
 // Get current admin
 function currentAdmin() {
     if (!isLoggedIn()) return null;

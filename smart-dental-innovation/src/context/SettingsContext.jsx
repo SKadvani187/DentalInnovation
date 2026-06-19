@@ -34,7 +34,6 @@ const STATIC = {
   sectionToCategory: siteStatic.sectionToCategory,
   sampleReviews: siteStatic.sampleReviews,
   productBenefits: siteStatic.productBenefits,
-  productContent: siteStatic.productContent,
   heroSlides: siteStatic.heroSlides,
   banners: siteStatic.banners,
   trustBadges: siteStatic.trustBadges,
@@ -46,6 +45,7 @@ const STATIC = {
   contactSections: siteStatic.contactSections,
   featured: featuredStatic,
   premiumCategories: premiumStatic,
+  maintenanceMode: { enabled: false, title: "", message: "" },
 };
 
 const SettingsContext = createContext(STATIC);

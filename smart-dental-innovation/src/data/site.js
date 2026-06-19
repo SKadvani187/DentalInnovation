@@ -121,7 +121,3 @@ export const sampleReviews = [];
 // Product detail benefits strip — DB-only via settings API (key 'productBenefits').
 export const productBenefits = [];
 
-// Default product detail content (Highlights / Accordions / FAQs) — DB-only via
-// settings API (key 'productContent'). Consumers guard each sub-field (|| []).
-export const productContent = {};
-

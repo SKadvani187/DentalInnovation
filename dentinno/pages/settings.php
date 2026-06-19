@@ -48,9 +48,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $ALLOWED_KEYS = [
             'aboutConfig','aboutSections','banners','branding','bulkRule','combosPage','company',
             'contactConfig','contactSections','coupons','fbtItems','featured','footerConfig','freeGifts',
-            'gvpPage','gvpThreshold','heroSlides','homeSections','lowStockThreshold','navMenu','offerZoneHero',
+            'gvpPage','gvpThreshold','heroSlides','homeSections','lowStockThreshold','maintenanceMode','navMenu','offerZoneHero',
             'otpConfig','paymentOptions','payments','policies','premiumCategories','priceBounds','pricePresets',
-            'productBenefits','productContent','productDefaults','rfSection','sampleReviews','sectionToCategory',
+            'productBenefits','productDefaults','rfSection','sampleReviews','sectionToCategory',
             'shippingConfig','shopByPricePage','socials','sortOptions','stats','taxConfig','tierOffers',
             'trustBadges','whatsappConfig',
         ];
@@ -155,7 +155,7 @@ include __DIR__ . '/../includes/header.php';
 <div class="page-header fade-in">
     <div class="page-header-left">
         <?php
-        $cfgTitles = ['account'=>['Settings','Manage your account and system preferences'],'home'=>['Home Page Config','Customize the storefront home page'],'contact'=>['Contact Page Config','Contact info, departments, FAQs'],'about'=>['About Page Config','Story, values, team, milestones'],'catalog'=>['Catalog Config','Products, payments, pricing rules'],'tax'=>['Tax / GST','GST invoice settings — GSTIN, tax rate, HSN'],'general'=>['General Config','Socials and site-wide settings'],'otp'=>['OTP / SMS Provider','Choose and configure the OTP gateway (super admin)'],'whatsapp'=>['WhatsApp Notifications','Meta Cloud API config + templates (super admin)'],'ordermail'=>['Order Email Notifications','Admin order/payment emails + delivery log (super admin)']];
+        $cfgTitles = ['account'=>['Settings','Manage your account and system preferences'],'home'=>['Home Page Config','Customize the storefront home page'],'contact'=>['Contact Page Config','Contact info, departments, FAQs'],'about'=>['About Page Config','Story, values, team, milestones'],'catalog'=>['Catalog Config','Products, payments, pricing rules'],'tax'=>['Tax / GST','GST invoice settings — GSTIN, tax rate, HSN'],'general'=>['General Config','Socials and site-wide settings'],'maintenance'=>['Maintenance Mode','Take the site offline for everyone except super admin'],'otp'=>['OTP / SMS Provider','Choose and configure the OTP gateway (super admin)'],'whatsapp'=>['WhatsApp Notifications','Meta Cloud API config + templates (super admin)'],'ordermail'=>['Order Email Notifications','Admin order/payment emails + delivery log (super admin)']];
         $ct = $cfgTitles[$cfgPage ?? 'account'] ?? $cfgTitles['account'];
         ?>
         <h1><?= $ct[0] ?></h1>
@@ -305,7 +305,7 @@ include __DIR__ . '/../includes/header.php';
 <!-- ===== Storefront Configuration (page-wise tabs) ===== -->
 <div class="card fade-in" style="margin-top:24px;padding:6px;">
   <div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px;">
-    <?php $tabs = ['home'=>'🏠 Home Page','contact'=>'📞 Contact Page','about'=>'ℹ️ About Page','catalog'=>'🛒 Catalog / Products','tax'=>'🧾 Tax / GST','general'=>'⚙️ General']; if ($isSuper) $tabs['otp']='🔐 OTP / SMS'; if ($isSuper) $tabs['whatsapp']='💬 WhatsApp'; if ($isSuper) $tabs['ordermail']='📧 Order Emails'; ?>
+    <?php $tabs = ['home'=>'🏠 Home Page','contact'=>'📞 Contact Page','about'=>'ℹ️ About Page','catalog'=>'🛒 Catalog / Products','tax'=>'🧾 Tax / GST','general'=>'⚙️ General']; if ($isSuper) $tabs['maintenance']='🚧 Maintenance'; if ($isSuper) $tabs['otp']='🔐 OTP / SMS'; if ($isSuper) $tabs['whatsapp']='💬 WhatsApp'; if ($isSuper) $tabs['ordermail']='📧 Order Emails'; ?>
     <?php foreach($tabs as $k=>$lbl): ?>
       <a href="<?= APP_URL ?>/pages/settings.php?page=<?= $k ?>" class="btn <?= $cfgPage===$k?'btn-gold':'btn-ghost' ?> btn-sm"><?= $lbl ?></a>
     <?php endforeach; ?>
@@ -794,6 +794,17 @@ async function saveCompany() {
     const r = await res.json();
     if(r.success){ showToast('Company info saved','success'); }
     else showToast(r.message||'Save failed','danger');
+}
+
+// ---- Maintenance Mode ----
+function saveMaintenanceMode(){
+  const enabled = document.getElementById('mm_enabled').value === '1';
+  const title   = (document.getElementById('mm_title').value || '').trim();
+  const message = (document.getElementById('mm_message').value || '').trim();
+  if (enabled && !confirm('Enable maintenance mode? The storefront and admin panel will show a maintenance page to everyone except super admin.')) return;
+  saveSetting('maintenanceMode', { enabled, title, message }, 'Maintenance Mode').then(r => {
+    if (r && r.success) setTimeout(() => location.reload(), 600);
+  });
 }
 
 // Shared: save any setting key with a JSON value
@@ -1340,7 +1351,6 @@ async function saveSetting(key, value, label, silent) {
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="presets" onclick="showSubSec('catalog','presets')">₹ Presets</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="sort" onclick="showSubSec('catalog','sort')">↕️ Sort</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="featured" onclick="showSubSec('catalog','featured')">🌟 Featured</button>
-    <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="content" onclick="showSubSec('catalog','content')">❓ Product Content</button>
   </div>
 </div>
 <!-- Payments -->
@@ -1492,27 +1502,50 @@ listCard('sort', 'Sort Options', 'Category / combos sort dropdown', 'Add Option'
 listCard('feat', 'Featured Showcase Cards', 'Home featured product banners', 'Add Card', 'saveFeatured', 'addFeatRow', 'featured');
 ?>
 
-<!-- Product Content (FAQ / Highlights / Accordions) -->
-<div class="card fade-in" data-subcard="catalog" data-seckey="content" style="margin-top:14px;">
-  <div class="card-header"><span class="card-title"><i class="fa-solid fa-circle-question text-gold" style="margin-right:8px;"></i>Product Content (Default FAQ / Highlights)</span><small class="text-muted">Default content shown on product pages</small></div>
-  <div class="card-body">
-    <label class="form-label" style="font-weight:700;">Highlights</label>
-    <div id="pc_highlights"></div>
-    <button class="btn btn-ghost btn-sm" onclick="addHighlight()"><i class="fa-solid fa-plus"></i> Add Highlight</button>
-    <label class="form-label" style="font-weight:700;margin-top:14px;">Accordions</label>
-    <div id="pc_accordions"></div>
-    <button class="btn btn-ghost btn-sm" onclick="addAccordion()"><i class="fa-solid fa-plus"></i> Add Accordion</button>
-    <label class="form-label" style="font-weight:700;margin-top:14px;">FAQs</label>
-    <div id="pc_faqs"></div>
-    <button class="btn btn-ghost btn-sm" onclick="addFaq()"><i class="fa-solid fa-plus"></i> Add FAQ</button>
-    <div style="margin-top:12px;"><button class="btn btn-gold" onclick="saveProductContent()"><i class="fa-solid fa-floppy-disk"></i> Save Product Content</button></div>
-    <input type="file" id="featFileInput" accept="image/*" style="display:none">
-  </div>
-</div>
+<!-- Hidden file input used by the Featured Showcase Cards image upload (uploadFeat). -->
+<input type="file" id="featFileInput" accept="image/*" style="display:none">
 
 </div><!-- /catalog group -->
 
 <!-- ═══════════════ TAX / GST ═══════════════ -->
+<?php if ($isSuper):
+    $mm = is_array($site['maintenanceMode'] ?? null) ? $site['maintenanceMode'] : [];
+    $mmEnabled = !empty($mm['enabled']);
+    $mmTitle   = $mm['title']   ?? "We'll be back soon";
+    $mmMessage = $mm['message'] ?? 'Our site is undergoing scheduled maintenance. Please check back in a little while.';
+?>
+<div data-cfg="maintenance">
+  <div class="card fade-in" style="margin-top:18px;">
+    <div class="card-body">
+      <div class="font-bold" style="margin-bottom:6px;color:var(--gold-primary);"><i class="fa-solid fa-triangle-exclamation"></i> Maintenance Mode</div>
+      <div class="text-muted" style="font-size:.78rem;margin-bottom:16px;">When enabled, the storefront and admin panel show a maintenance page to everyone. <strong>Super admin always bypasses</strong> and can keep using the admin panel.</div>
+      <?php if ($mmEnabled): ?>
+      <div style="background:rgba(231,76,60,0.1);border:1px solid rgba(231,76,60,0.3);color:var(--danger);padding:12px 16px;border-radius:10px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+        <i class="fa-solid fa-circle-exclamation"></i> Maintenance mode is currently <strong>ACTIVE</strong>.
+      </div>
+      <?php endif; ?>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">Status</label>
+        <select class="form-control" id="mm_enabled">
+          <option value="0" <?= !$mmEnabled ? 'selected' : '' ?>>Disabled (site live)</option>
+          <option value="1" <?=  $mmEnabled ? 'selected' : '' ?>>Enabled (maintenance page shown)</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">Page Title</label>
+        <input type="text" class="form-control" id="mm_title" maxlength="120" value="<?= htmlspecialchars($mmTitle) ?>">
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">Message</label>
+        <textarea class="form-control" id="mm_message" rows="4" maxlength="1000"><?= htmlspecialchars($mmMessage) ?></textarea>
+        <small class="text-muted" style="font-size:.72rem;">Shown to customers and non-super-admin users.</small>
+      </div>
+      <button class="btn btn-gold" onclick="saveMaintenanceMode()"><i class="fa-solid fa-floppy-disk"></i> Save Maintenance Mode</button>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
 <div data-cfg="tax">
   <div class="card fade-in" style="margin-top:18px;">
     <div class="card-body">
@@ -1753,34 +1786,6 @@ function saveSbpPage(){
     customDesc:  document.getElementById('sbp_customDesc').value,
   }, 'Shop by Price Page');
 }
-
-// ---- Product Content (highlights / accordions / faqs) ----
-let PC = <?= json_encode($site['productContent'] ?? ['highlights'=>[],'accordions'=>[],'faqs'=>[]], JSON_UNESCAPED_SLASHES) ?>;
-PC.highlights = PC.highlights||[]; PC.accordions = PC.accordions||[]; PC.faqs = PC.faqs||[];
-function renderPC(){
-  document.getElementById('pc_highlights').innerHTML = PC.highlights.map((h,i)=>`
-    <div style="display:flex;gap:6px;margin-bottom:6px;">
-      <input class="form-control" placeholder="Title" value="${(h.title||'').replace(/"/g,'&quot;')}" oninput="PC.highlights[${i}].title=this.value" style="flex:1;">
-      <input class="form-control" placeholder="Text" value="${(h.text||'').replace(/"/g,'&quot;')}" oninput="PC.highlights[${i}].text=this.value" style="flex:2;">
-      <button class="btn btn-ghost btn-sm" onclick="PC.highlights.splice(${i},1);renderPC()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
-    </div>`).join('');
-  document.getElementById('pc_accordions').innerHTML = PC.accordions.map((a,i)=>`
-    <div style="display:flex;gap:6px;margin-bottom:6px;">
-      <input class="form-control" placeholder="Title" value="${(a.title||'').replace(/"/g,'&quot;')}" oninput="PC.accordions[${i}].title=this.value" style="flex:1;">
-      <input class="form-control" placeholder="Body" value="${(a.body||'').replace(/"/g,'&quot;')}" oninput="PC.accordions[${i}].body=this.value" style="flex:2;">
-      <button class="btn btn-ghost btn-sm" onclick="PC.accordions.splice(${i},1);renderPC()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
-    </div>`).join('');
-  document.getElementById('pc_faqs').innerHTML = PC.faqs.map((q,i)=>`
-    <div style="display:flex;gap:6px;margin-bottom:6px;">
-      <input class="form-control" placeholder="Question" value="${(q.q||'').replace(/"/g,'&quot;')}" oninput="PC.faqs[${i}].q=this.value" style="flex:1;">
-      <input class="form-control" placeholder="Answer" value="${(q.a||'').replace(/"/g,'&quot;')}" oninput="PC.faqs[${i}].a=this.value" style="flex:2;">
-      <button class="btn btn-ghost btn-sm" onclick="PC.faqs.splice(${i},1);renderPC()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
-    </div>`).join('');
-}
-function addHighlight(){ PC.highlights.push({title:'',text:''}); renderPC(); }
-function addAccordion(){ PC.accordions.push({id:'acc-'+Date.now(),title:'',body:''}); renderPC(); }
-function addFaq(){ PC.faqs.push({id:'f-'+Date.now(),q:'',a:''}); renderPC(); }
-function saveProductContent(){ saveSetting('productContent', PC, 'Product content'); }
 
 // Product options for "links to product" dropdowns (slug -> name + description + image)
 const PRODUCT_OPTS = <?= json_encode(array_merge(
@@ -2322,7 +2327,7 @@ function saveTrust(){ saveSetting('trustBadges', TRUST, 'Trust badges'); }
 
 // init
 renderStats(); renderSocials(); renderPay(); renderBenefits(); renderHero(); renderTrust(); renderRfFeatures(); renderPremium();
-renderTiers(); renderFeat(); renderSort(); renderPp(); renderPo(); renderPC(); renderHome(); renderCC(); renderAbout(); showPolicy('return'); renderOzVp(); renderNav(); renderFooter(); renderCpTrust(); renderAboutLayout(); renderContactLayout();
+renderTiers(); renderFeat(); renderSort(); renderPp(); renderPo(); renderHome(); renderCC(); renderAbout(); showPolicy('return'); renderOzVp(); renderNav(); renderFooter(); renderCpTrust(); renderAboutLayout(); renderContactLayout();
 // Show only the active config page's section groups
 (function(){
   const active = '<?= $cfgPage ?>';
