@@ -50,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             'contactConfig','contactSections','coupons','fbtItems','featured','footerConfig','freeGifts',
             'gvpPage','gvpThreshold','heroSlides','homeSections','lowStockThreshold','maintenanceMode','navMenu','offerZoneHero',
             'otpConfig','paymentOptions','payments','policies','premiumCategories','priceBounds','pricePresets',
-            'productBenefits','productContent','productDefaults','rfSection','sampleReviews','sectionToCategory',
+            'productBenefits','productDefaults','rfSection','sampleReviews','sectionToCategory',
             'shippingConfig','shopByPricePage','socials','sortOptions','stats','taxConfig','tierOffers',
             'trustBadges','whatsappConfig',
         ];
@@ -1351,7 +1351,6 @@ async function saveSetting(key, value, label, silent) {
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="presets" onclick="showSubSec('catalog','presets')">₹ Presets</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="sort" onclick="showSubSec('catalog','sort')">↕️ Sort</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="featured" onclick="showSubSec('catalog','featured')">🌟 Featured</button>
-    <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="content" onclick="showSubSec('catalog','content')">❓ Product Content</button>
   </div>
 </div>
 <!-- Payments -->
@@ -1503,23 +1502,8 @@ listCard('sort', 'Sort Options', 'Category / combos sort dropdown', 'Add Option'
 listCard('feat', 'Featured Showcase Cards', 'Home featured product banners', 'Add Card', 'saveFeatured', 'addFeatRow', 'featured');
 ?>
 
-<!-- Product Content (FAQ / Highlights / Accordions) -->
-<div class="card fade-in" data-subcard="catalog" data-seckey="content" style="margin-top:14px;">
-  <div class="card-header"><span class="card-title"><i class="fa-solid fa-circle-question text-gold" style="margin-right:8px;"></i>Product Content (Default FAQ / Highlights)</span><small class="text-muted">Default content shown on product pages</small></div>
-  <div class="card-body">
-    <label class="form-label" style="font-weight:700;">Highlights</label>
-    <div id="pc_highlights"></div>
-    <button class="btn btn-ghost btn-sm" onclick="addHighlight()"><i class="fa-solid fa-plus"></i> Add Highlight</button>
-    <label class="form-label" style="font-weight:700;margin-top:14px;">Accordions</label>
-    <div id="pc_accordions"></div>
-    <button class="btn btn-ghost btn-sm" onclick="addAccordion()"><i class="fa-solid fa-plus"></i> Add Accordion</button>
-    <label class="form-label" style="font-weight:700;margin-top:14px;">FAQs</label>
-    <div id="pc_faqs"></div>
-    <button class="btn btn-ghost btn-sm" onclick="addFaq()"><i class="fa-solid fa-plus"></i> Add FAQ</button>
-    <div style="margin-top:12px;"><button class="btn btn-gold" onclick="saveProductContent()"><i class="fa-solid fa-floppy-disk"></i> Save Product Content</button></div>
-    <input type="file" id="featFileInput" accept="image/*" style="display:none">
-  </div>
-</div>
+<!-- Hidden file input used by the Featured Showcase Cards image upload (uploadFeat). -->
+<input type="file" id="featFileInput" accept="image/*" style="display:none">
 
 </div><!-- /catalog group -->
 
@@ -1802,34 +1786,6 @@ function saveSbpPage(){
     customDesc:  document.getElementById('sbp_customDesc').value,
   }, 'Shop by Price Page');
 }
-
-// ---- Product Content (highlights / accordions / faqs) ----
-let PC = <?= json_encode($site['productContent'] ?? ['highlights'=>[],'accordions'=>[],'faqs'=>[]], JSON_UNESCAPED_SLASHES) ?>;
-PC.highlights = PC.highlights||[]; PC.accordions = PC.accordions||[]; PC.faqs = PC.faqs||[];
-function renderPC(){
-  document.getElementById('pc_highlights').innerHTML = PC.highlights.map((h,i)=>`
-    <div style="display:flex;gap:6px;margin-bottom:6px;">
-      <input class="form-control" placeholder="Title" value="${(h.title||'').replace(/"/g,'&quot;')}" oninput="PC.highlights[${i}].title=this.value" style="flex:1;">
-      <input class="form-control" placeholder="Text" value="${(h.text||'').replace(/"/g,'&quot;')}" oninput="PC.highlights[${i}].text=this.value" style="flex:2;">
-      <button class="btn btn-ghost btn-sm" onclick="PC.highlights.splice(${i},1);renderPC()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
-    </div>`).join('');
-  document.getElementById('pc_accordions').innerHTML = PC.accordions.map((a,i)=>`
-    <div style="display:flex;gap:6px;margin-bottom:6px;">
-      <input class="form-control" placeholder="Title" value="${(a.title||'').replace(/"/g,'&quot;')}" oninput="PC.accordions[${i}].title=this.value" style="flex:1;">
-      <input class="form-control" placeholder="Body" value="${(a.body||'').replace(/"/g,'&quot;')}" oninput="PC.accordions[${i}].body=this.value" style="flex:2;">
-      <button class="btn btn-ghost btn-sm" onclick="PC.accordions.splice(${i},1);renderPC()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
-    </div>`).join('');
-  document.getElementById('pc_faqs').innerHTML = PC.faqs.map((q,i)=>`
-    <div style="display:flex;gap:6px;margin-bottom:6px;">
-      <input class="form-control" placeholder="Question" value="${(q.q||'').replace(/"/g,'&quot;')}" oninput="PC.faqs[${i}].q=this.value" style="flex:1;">
-      <input class="form-control" placeholder="Answer" value="${(q.a||'').replace(/"/g,'&quot;')}" oninput="PC.faqs[${i}].a=this.value" style="flex:2;">
-      <button class="btn btn-ghost btn-sm" onclick="PC.faqs.splice(${i},1);renderPC()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
-    </div>`).join('');
-}
-function addHighlight(){ PC.highlights.push({title:'',text:''}); renderPC(); }
-function addAccordion(){ PC.accordions.push({id:'acc-'+Date.now(),title:'',body:''}); renderPC(); }
-function addFaq(){ PC.faqs.push({id:'f-'+Date.now(),q:'',a:''}); renderPC(); }
-function saveProductContent(){ saveSetting('productContent', PC, 'Product content'); }
 
 // Product options for "links to product" dropdowns (slug -> name + description + image)
 const PRODUCT_OPTS = <?= json_encode(array_merge(
@@ -2371,7 +2327,7 @@ function saveTrust(){ saveSetting('trustBadges', TRUST, 'Trust badges'); }
 
 // init
 renderStats(); renderSocials(); renderPay(); renderBenefits(); renderHero(); renderTrust(); renderRfFeatures(); renderPremium();
-renderTiers(); renderFeat(); renderSort(); renderPp(); renderPo(); renderPC(); renderHome(); renderCC(); renderAbout(); showPolicy('return'); renderOzVp(); renderNav(); renderFooter(); renderCpTrust(); renderAboutLayout(); renderContactLayout();
+renderTiers(); renderFeat(); renderSort(); renderPp(); renderPo(); renderHome(); renderCC(); renderAbout(); showPolicy('return'); renderOzVp(); renderNav(); renderFooter(); renderCpTrust(); renderAboutLayout(); renderContactLayout();
 // Show only the active config page's section groups
 (function(){
   const active = '<?= $cfgPage ?>';

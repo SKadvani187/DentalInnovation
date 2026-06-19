@@ -5,6 +5,7 @@ import Button from "../ui/Button";
 import { useUI } from "../../context/UIContext";
 import { useCart } from "../../context/CartContext";
 import { useWishlist } from "../../context/WishlistContext";
+import RichText from "../RichText";
 
 const fmt = (n) => `₹${n.toLocaleString("en-IN")}`;
 
@@ -68,7 +69,7 @@ export default function ProductDetailModal() {
             )}
           </div>
 
-          <p className="mt-4 text-sm text-brand-muted leading-relaxed">{p.description}</p>
+          <RichText html={p.description} className="mt-4 text-sm text-brand-muted leading-relaxed" />
 
           {variants.length > 0 && (
             <div className="mt-5">

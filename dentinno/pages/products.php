@@ -4,6 +4,27 @@ require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Products';
 requireView('products');   // RBAC: block direct access if the role can't view this page
 
+/**
+ * Allowlist-sanitize rich-text HTML coming from the admin Content tab before it
+ * is stored. Defense-in-depth: the storefront also sanitizes on render (DOMPurify),
+ * but stripping dangerous markup at the write boundary blocks stored XSS even if a
+ * future consumer renders the field unsanitized. Returns null for empty input.
+ */
+function sanitizeRichHtml($html) {
+    if ($html === null) return null;
+    $html = (string)$html;
+    if (trim($html) === '') return null;
+    // 1. Keep only safe formatting tags (attributes on them still need scrubbing below).
+    $html = strip_tags($html, '<b><strong><i><em><u><p><br><ul><ol><li><h3><h4><a><span><div>');
+    // 2. Drop event-handler attributes (onclick, onerror, onmouseover, …).
+    $html = preg_replace('/\son\w+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $html);
+    // 3. Neutralise javascript:/data:/vbscript: URIs in href/src.
+    $html = preg_replace('/\b(href|src)\s*=\s*(["\'])\s*(?:javascript|data|vbscript):[^"\']*\2/i', '$1=$2#$2', $html);
+    // 4. Drop inline style attributes (can smuggle expression()/url() payloads).
+    $html = preg_replace('/\sstyle\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $html);
+    return $html;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
     if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
@@ -51,6 +72,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         echo json_encode(['success'=>true,'message'=>'Stock adjusted: '.$old.' → '.$new,'stock'=>$new]);
     } elseif ($action === 'save') {
         $d = $data;
+        // Rich-text content fields: allowlist-sanitize the admin HTML before storing.
+        foreach (['short_description','full_description','packing_info','directions_for_use','additional_information','warranty_info','key_features','direction_of_use'] as $rf) {
+            if (isset($d[$rf])) $d[$rf] = sanitizeRichHtml($d[$rf]);
+        }
         // --- Server-side validation (never trust the client form) ---
         $name = trim((string)($d['name'] ?? ''));
         if ($name === '')                                                 { echo json_encode(['success'=>false,'message'=>'Product name is required']); exit; }
@@ -393,6 +418,16 @@ include __DIR__ . '/../includes/header.php';
 .drop-zone{border:2px dashed var(--border-active);border-radius:12px;padding:26px;text-align:center;cursor:pointer;transition:.2s;}
 .drop-zone:hover{border-color:var(--gold-primary);background:rgba(201,168,76,.04);}
 .voice-banner{background:linear-gradient(135deg,rgba(155,89,182,.15),rgba(155,89,182,.05));border:1px solid rgba(155,89,182,.3);border-radius:10px;padding:10px 16px;margin-bottom:12px;color:var(--text-primary);font-size:.85rem;display:none;}
+/* Rich-text (contenteditable) editor for product content fields */
+.rt-toolbar{display:flex;flex-wrap:wrap;gap:2px;background:var(--bg-elevated);border:1px solid var(--border-color);border-bottom:none;border-radius:8px 8px 0 0;padding:4px 6px;}
+.rt-toolbar button{width:30px;height:28px;background:none;border:none;border-radius:5px;color:var(--text-secondary);cursor:pointer;font-size:.8rem;display:grid;place-items:center;transition:.15s;}
+.rt-toolbar button:hover{background:rgba(201,168,76,.12);color:var(--gold-primary);}
+.rt-editor{border-radius:0 0 8px 8px !important;min-height:90px;max-height:320px;overflow-y:auto;line-height:1.5;}
+.rt-editor:focus{outline:none;border-color:var(--gold-primary);}
+.rt-editor ul{list-style:disc;padding-left:22px;margin:6px 0;}
+.rt-editor ol{list-style:decimal;padding-left:22px;margin:6px 0;}
+.rt-editor a{color:var(--gold-primary);text-decoration:underline;}
+.rt-editor:empty:before{content:attr(data-placeholder);color:var(--text-muted);pointer-events:none;}
 </style>
 
 <div class="page-header fade-in">
@@ -743,6 +778,58 @@ function switchTab(name,btn){
   document.getElementById('tab-'+name).classList.add('active');
   btn.classList.add('active');
 }
+
+/* ── Rich-text editors ───────────────────────────────────────────────────
+   Each listed textarea stays in the DOM (hidden) as the source-of-truth .value
+   so the existing load/save code is untouched. A contenteditable overlay edits
+   it; every keystroke syncs editor.innerHTML -> textarea.value. */
+const RT_FIELDS=['prod_short_desc','prod_full_desc','prod_directions','prod_packing','prod_additional','prod_warranty','prod_key_features','prod_direction_of_use'];
+const RT_CMDS=[['bold','fa-bold','Bold'],['italic','fa-italic','Italic'],['underline','fa-underline','Underline'],['insertUnorderedList','fa-list-ul','Bullet list'],['insertOrderedList','fa-list-ol','Numbered list'],['createLink','fa-link','Insert link'],['removeFormat','fa-eraser','Clear formatting']];
+function rtEscape(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function rtLooksHtml(s){return /<[a-z!/][\s\S]*>/i.test(s);}
+// Old rows are plain text w/ newlines -> show as <br>; HTML rows pass through.
+function rtToHtml(v){v=v||'';return rtLooksHtml(v)?v:rtEscape(v).replace(/\n/g,'<br>');}
+function rtSync(ed){const ta=document.getElementById(ed.dataset.for);if(ta)ta.value=ed.innerHTML;}
+function rtExec(cmd,ed){
+  ed.focus();
+  // Emit semantic <b>/<i>/<u> tags instead of <span style="…">. Styled spans get their
+  // style attribute stripped by the server sanitizer, which silently kills the formatting.
+  try{document.execCommand('styleWithCSS',false,false);}catch(e){}
+  if(cmd==='createLink'){const url=prompt('Link URL:','https://');if(!url)return;document.execCommand('createLink',false,url);}
+  else document.execCommand(cmd,false,null);
+  rtSync(ed);
+}
+function initRichEditors(){
+  RT_FIELDS.forEach(id=>{
+    const ta=document.getElementById(id);
+    if(!ta||ta.dataset.rtInit)return;
+    ta.dataset.rtInit='1';
+    ta.style.display='none';
+    const tb=document.createElement('div');tb.className='rt-toolbar';
+    const ed=document.createElement('div');ed.className='rt-editor form-control';ed.contentEditable='true';ed.dataset.for=id;
+    ed.setAttribute('data-placeholder',ta.getAttribute('placeholder')||'');
+    RT_CMDS.forEach(([cmd,icon,title])=>{
+      const b=document.createElement('button');b.type='button';b.title=title;b.innerHTML='<i class="fa-solid '+icon+'"></i>';
+      b.addEventListener('mousedown',e=>e.preventDefault()); // keep text selection
+      b.addEventListener('click',()=>rtExec(cmd,ed));
+      tb.appendChild(b);
+    });
+    ed.addEventListener('input',()=>rtSync(ed));
+    ed.addEventListener('blur',()=>rtSync(ed));
+    ta.parentNode.insertBefore(tb,ta);
+    ta.parentNode.insertBefore(ed,ta);
+    ed.innerHTML=rtToHtml(ta.value);
+  });
+}
+// Refresh editor contents after openProductModal re-sets the hidden textareas.
+function rtSyncFromTextareas(){
+  RT_FIELDS.forEach(id=>{
+    const ed=document.querySelector('.rt-editor[data-for="'+id+'"]');
+    const ta=document.getElementById(id);
+    if(ed&&ta)ed.innerHTML=rtToHtml(ta.value);
+  });
+}
+document.addEventListener('DOMContentLoaded',initRichEditors);
 function buildProductQuery(extra={}){
   const p=new URLSearchParams({
     search:document.getElementById('searchInput')?.value||'',
@@ -1057,6 +1144,7 @@ function openProductModal(p=null){
   // Reset tabs
   document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',i===0));
   document.querySelectorAll('.tab-pane').forEach((p,i)=>p.classList.toggle('active',i===0));
+  rtSyncFromTextareas();
   openModal('productModal');
 }
 
