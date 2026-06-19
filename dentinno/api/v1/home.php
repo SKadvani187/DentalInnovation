@@ -13,8 +13,8 @@ $bySource = function (string $source) use ($db, $sel) {
         $rows = $db->fetchAll("SELECT $sel WHERE p.is_active=1 AND p.is_featured=1 ORDER BY p.total_sales DESC, p.id");
     } elseif ($source === 'new') {
         $rows = $db->fetchAll("SELECT $sel WHERE p.is_active=1 AND p.is_new=1 ORDER BY p.id DESC");
-    } else { // category slug
-        $rows = $db->fetchAll("SELECT $sel WHERE p.is_active=1 AND c.slug=? ORDER BY p.id", [$source]);
+    } else { // category slug — home shows a 4-item preview; "view all" opens the full category page
+        $rows = $db->fetchAll("SELECT $sel WHERE p.is_active=1 AND c.slug=? ORDER BY p.id LIMIT 4", [$source]);
     }
     return array_map('mapProduct', $rows);
 };
