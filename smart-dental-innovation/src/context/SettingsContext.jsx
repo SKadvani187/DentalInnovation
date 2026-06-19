@@ -46,6 +46,7 @@ const STATIC = {
   contactSections: siteStatic.contactSections,
   featured: featuredStatic,
   premiumCategories: premiumStatic,
+  maintenanceMode: { enabled: false, title: "", message: "" },
 };
 
 const SettingsContext = createContext(STATIC);

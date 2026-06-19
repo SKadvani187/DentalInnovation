@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $ALLOWED_KEYS = [
             'aboutConfig','aboutSections','banners','branding','bulkRule','combosPage','company',
             'contactConfig','contactSections','coupons','fbtItems','featured','footerConfig','freeGifts',
-            'gvpPage','gvpThreshold','heroSlides','homeSections','lowStockThreshold','navMenu','offerZoneHero',
+            'gvpPage','gvpThreshold','heroSlides','homeSections','lowStockThreshold','maintenanceMode','navMenu','offerZoneHero',
             'otpConfig','paymentOptions','payments','policies','premiumCategories','priceBounds','pricePresets',
             'productBenefits','productContent','productDefaults','rfSection','sampleReviews','sectionToCategory',
             'shippingConfig','shopByPricePage','socials','sortOptions','stats','taxConfig','tierOffers',
@@ -155,7 +155,7 @@ include __DIR__ . '/../includes/header.php';
 <div class="page-header fade-in">
     <div class="page-header-left">
         <?php
-        $cfgTitles = ['account'=>['Settings','Manage your account and system preferences'],'home'=>['Home Page Config','Customize the storefront home page'],'contact'=>['Contact Page Config','Contact info, departments, FAQs'],'about'=>['About Page Config','Story, values, team, milestones'],'catalog'=>['Catalog Config','Products, payments, pricing rules'],'tax'=>['Tax / GST','GST invoice settings — GSTIN, tax rate, HSN'],'general'=>['General Config','Socials and site-wide settings'],'otp'=>['OTP / SMS Provider','Choose and configure the OTP gateway (super admin)'],'whatsapp'=>['WhatsApp Notifications','Meta Cloud API config + templates (super admin)'],'ordermail'=>['Order Email Notifications','Admin order/payment emails + delivery log (super admin)']];
+        $cfgTitles = ['account'=>['Settings','Manage your account and system preferences'],'home'=>['Home Page Config','Customize the storefront home page'],'contact'=>['Contact Page Config','Contact info, departments, FAQs'],'about'=>['About Page Config','Story, values, team, milestones'],'catalog'=>['Catalog Config','Products, payments, pricing rules'],'tax'=>['Tax / GST','GST invoice settings — GSTIN, tax rate, HSN'],'general'=>['General Config','Socials and site-wide settings'],'maintenance'=>['Maintenance Mode','Take the site offline for everyone except super admin'],'otp'=>['OTP / SMS Provider','Choose and configure the OTP gateway (super admin)'],'whatsapp'=>['WhatsApp Notifications','Meta Cloud API config + templates (super admin)'],'ordermail'=>['Order Email Notifications','Admin order/payment emails + delivery log (super admin)']];
         $ct = $cfgTitles[$cfgPage ?? 'account'] ?? $cfgTitles['account'];
         ?>
         <h1><?= $ct[0] ?></h1>
@@ -305,7 +305,7 @@ include __DIR__ . '/../includes/header.php';
 <!-- ===== Storefront Configuration (page-wise tabs) ===== -->
 <div class="card fade-in" style="margin-top:24px;padding:6px;">
   <div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px;">
-    <?php $tabs = ['home'=>'🏠 Home Page','contact'=>'📞 Contact Page','about'=>'ℹ️ About Page','catalog'=>'🛒 Catalog / Products','tax'=>'🧾 Tax / GST','general'=>'⚙️ General']; if ($isSuper) $tabs['otp']='🔐 OTP / SMS'; if ($isSuper) $tabs['whatsapp']='💬 WhatsApp'; if ($isSuper) $tabs['ordermail']='📧 Order Emails'; ?>
+    <?php $tabs = ['home'=>'🏠 Home Page','contact'=>'📞 Contact Page','about'=>'ℹ️ About Page','catalog'=>'🛒 Catalog / Products','tax'=>'🧾 Tax / GST','general'=>'⚙️ General']; if ($isSuper) $tabs['maintenance']='🚧 Maintenance'; if ($isSuper) $tabs['otp']='🔐 OTP / SMS'; if ($isSuper) $tabs['whatsapp']='💬 WhatsApp'; if ($isSuper) $tabs['ordermail']='📧 Order Emails'; ?>
     <?php foreach($tabs as $k=>$lbl): ?>
       <a href="<?= APP_URL ?>/pages/settings.php?page=<?= $k ?>" class="btn <?= $cfgPage===$k?'btn-gold':'btn-ghost' ?> btn-sm"><?= $lbl ?></a>
     <?php endforeach; ?>
@@ -794,6 +794,17 @@ async function saveCompany() {
     const r = await res.json();
     if(r.success){ showToast('Company info saved','success'); }
     else showToast(r.message||'Save failed','danger');
+}
+
+// ---- Maintenance Mode ----
+function saveMaintenanceMode(){
+  const enabled = document.getElementById('mm_enabled').value === '1';
+  const title   = (document.getElementById('mm_title').value || '').trim();
+  const message = (document.getElementById('mm_message').value || '').trim();
+  if (enabled && !confirm('Enable maintenance mode? The storefront and admin panel will show a maintenance page to everyone except super admin.')) return;
+  saveSetting('maintenanceMode', { enabled, title, message }, 'Maintenance Mode').then(r => {
+    if (r && r.success) setTimeout(() => location.reload(), 600);
+  });
 }
 
 // Shared: save any setting key with a JSON value
@@ -1513,6 +1524,44 @@ listCard('feat', 'Featured Showcase Cards', 'Home featured product banners', 'Ad
 </div><!-- /catalog group -->
 
 <!-- ═══════════════ TAX / GST ═══════════════ -->
+<?php if ($isSuper):
+    $mm = is_array($site['maintenanceMode'] ?? null) ? $site['maintenanceMode'] : [];
+    $mmEnabled = !empty($mm['enabled']);
+    $mmTitle   = $mm['title']   ?? "We'll be back soon";
+    $mmMessage = $mm['message'] ?? 'Our site is undergoing scheduled maintenance. Please check back in a little while.';
+?>
+<div data-cfg="maintenance">
+  <div class="card fade-in" style="margin-top:18px;">
+    <div class="card-body">
+      <div class="font-bold" style="margin-bottom:6px;color:var(--gold-primary);"><i class="fa-solid fa-triangle-exclamation"></i> Maintenance Mode</div>
+      <div class="text-muted" style="font-size:.78rem;margin-bottom:16px;">When enabled, the storefront and admin panel show a maintenance page to everyone. <strong>Super admin always bypasses</strong> and can keep using the admin panel.</div>
+      <?php if ($mmEnabled): ?>
+      <div style="background:rgba(231,76,60,0.1);border:1px solid rgba(231,76,60,0.3);color:var(--danger);padding:12px 16px;border-radius:10px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+        <i class="fa-solid fa-circle-exclamation"></i> Maintenance mode is currently <strong>ACTIVE</strong>.
+      </div>
+      <?php endif; ?>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">Status</label>
+        <select class="form-control" id="mm_enabled">
+          <option value="0" <?= !$mmEnabled ? 'selected' : '' ?>>Disabled (site live)</option>
+          <option value="1" <?=  $mmEnabled ? 'selected' : '' ?>>Enabled (maintenance page shown)</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">Page Title</label>
+        <input type="text" class="form-control" id="mm_title" maxlength="120" value="<?= htmlspecialchars($mmTitle) ?>">
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">Message</label>
+        <textarea class="form-control" id="mm_message" rows="4" maxlength="1000"><?= htmlspecialchars($mmMessage) ?></textarea>
+        <small class="text-muted" style="font-size:.72rem;">Shown to customers and non-super-admin users.</small>
+      </div>
+      <button class="btn btn-gold" onclick="saveMaintenanceMode()"><i class="fa-solid fa-floppy-disk"></i> Save Maintenance Mode</button>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
 <div data-cfg="tax">
   <div class="card fade-in" style="margin-top:18px;">
     <div class="card-body">

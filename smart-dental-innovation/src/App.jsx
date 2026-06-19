@@ -47,6 +47,7 @@ import WhatsAppFab from "./components/layout/WhatsAppFab";
 
 import { useHomeData } from "./hooks/useHomeData";
 import { useSettings } from "./context/SettingsContext";
+import MaintenancePage from "./components/pages/MaintenancePage";
 import NavigationHeader from "./components/layout/Navbar copy";
 import ResponsiveImageBanner from "./components/home/ResponsiveImageBanner";
 import PromoBannerGrid from "./components/home/PromoBannerGrid";
@@ -76,7 +77,7 @@ export default function App() {
 
 function Shell() {
   const { sections, categories, testimonials } = useHomeData();
-  const { premiumCategories = [], homeSections = [] } = useSettings();
+  const { premiumCategories = [], homeSections = [], maintenanceMode } = useSettings();
 
   // Global: pressing Esc must NOT close any popup/drawer/modal anywhere in the storefront.
   // A single capture-phase listener swallows Escape before each modal's own keydown handler runs,
@@ -88,6 +89,10 @@ function Shell() {
     window.addEventListener("keydown", blockEsc, true); // capture phase = runs first
     return () => window.removeEventListener("keydown", blockEsc, true);
   }, []);
+
+  // Storefront kill-switch: when admin turns maintenanceMode.enabled on, every visitor sees
+  // the maintenance page instead of the app shell — no nav, no routes, no modals.
+  if (maintenanceMode?.enabled) return <MaintenancePage />;
 
   // Render a single home block by its config type.
   const renderBlock = (s) => {
