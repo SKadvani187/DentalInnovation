@@ -233,6 +233,26 @@ $extractLabel = function ($text, array $labels) {
     return '';
 };
 
+// Parse the bulk_offers column ("Buy 2+ : ₹15400 each (7% off vs unit price)\n…") into per-product
+// quantity tiers [{minQty, rate, label}]. rate is derived from the explicit tier price vs the unit
+// (selling) price so the storefront shows the exact same ₹ as the source. Non-discount tiers skipped.
+$parseBulkOffers = function ($s, $unit) {
+    $s = html_entity_decode((string)$s, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    if (trim($s) === '' || $unit <= 0) return [];
+    $out = []; $seen = [];
+    foreach (preg_split('/\r?\n/', $s) as $line) {
+        if (preg_match('/Buy\s*(\d+)\s*\+?\s*:\s*\x{20B9}?\s*([\d,]+(?:\.\d+)?)\s*each/iu', $line, $m)) {
+            $minQty = (int)$m[1];
+            $tierPrice = (float)str_replace(',', '', $m[2]);
+            if ($minQty < 2 || $tierPrice <= 0 || $tierPrice >= $unit || isset($seen[$minQty])) continue;
+            $seen[$minQty] = 1;
+            $out[] = ['minQty' => $minQty, 'rate' => round(($unit - $tierPrice) / $unit, 6), 'label' => 'Buy ' . $minQty . ' or above'];
+        }
+    }
+    usort($out, fn($a, $b) => $a['minQty'] - $b['minQty']);
+    return $out;
+};
+
 // Route a section label to a bucket. Mirrors the storefront's section set.
 $routeLabel = function ($label) {
     static $map = null;
@@ -447,6 +467,7 @@ foreach ($slice as $i => $r) {
             'key_features'          => null,   // the Product Highlights box (features) shows these now
             'features'              => $highlights ? json_encode($highlights, JSON_UNESCAPED_UNICODE) : null,
             'key_specifications'    => $specs ? json_encode($specs) : null,
+            'bulk_offers'           => ($bo = $parseBulkOffers($r['bulk_offers'] ?? '', $discPrice ?? $price)) ? json_encode($bo) : null,
             'directions_for_use'    => $directions ?: null,
             'packing_info'          => $packing ?: null,
             'additional_information'=> null,   // redistributed into the proper sections (matches reference)

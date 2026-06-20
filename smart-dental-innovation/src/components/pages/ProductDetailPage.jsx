@@ -112,11 +112,13 @@ export default function ProductDetailPage() {
 
   const displayQty = qty > 0 ? qty : 1;
   const discount = product.discount || discountPct(product.mrp, product.price);
+  // Per-product quantity tiers (the reference site's "Available Offers") override the global table.
+  const productTiers = Array.isArray(product.bulkOffers) && product.bulkOffers.length ? product.bulkOffers : tierOffers;
   const activeTier = useMemo(() => {
-    return [...tierOffers]
+    return [...productTiers]
       .filter((t) => displayQty >= t.minQty)
       .sort((a, b) => b.minQty - a.minQty)[0];
-  }, [displayQty, tierOffers]);
+  }, [displayQty, productTiers]);
   const effectivePrice = activeTier ? product.price * (1 - activeTier.rate) : product.price;
   const subtotal = Math.round(effectivePrice * displayQty);
   const mrpTotal = product.mrp * displayQty;
@@ -518,7 +520,7 @@ export default function ProductDetailPage() {
                 <div className="px-3 py-2 border-r border-gray-200">Offer</div>
                 <div className="px-3 py-2">Add on Savings</div>
               </div>
-              {tierOffers.map((tier) => {
+              {productTiers.map((tier) => {
                 const isActive = activeTier?.minQty === tier.minQty;
                 return (
                   <div

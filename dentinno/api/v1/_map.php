@@ -45,6 +45,7 @@ function mapProduct(array $r): array {
         'directionOfUse' => $r['direction_of_use'] ?? null,
         'catalogueUrl' => $r['catalogue_url'] ?? null,
         'variants'    => jcol($r['variants'] ?? null, []),
+        'bulkOffers'  => jcol($r['bulk_offers'] ?? null, []),   // per-product quantity tiers (override global)
         'highlights'  => $highlights,
         'isFeatured'  => (bool)($r['is_featured'] ?? 0),
     ];

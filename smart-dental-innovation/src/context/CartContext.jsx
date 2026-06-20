@@ -163,6 +163,8 @@ export function CartProvider({ children }) {
           price: product.price,
           mrp: product.mrp,
           category: product.category || "unique",
+          // Per-product quantity tiers (override the global table in cart savings + checkout).
+          bulkOffers: Array.isArray(product.bulkOffers) && product.bulkOffers.length ? product.bulkOffers : null,
           variant,
           qty: type === "product" ? capToStock(qty, product.stock) : qty,
           type,

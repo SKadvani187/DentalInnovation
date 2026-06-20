@@ -95,7 +95,9 @@ export function computeCartPricing(items, opts = {}) {
   // Field name kept as `bulkSavings` so existing consumers don't break.
   const bulkSavings = r2(
     nonGift.reduce((s, i) => {
-      const rate = tierRateFor(i.qty, tiers, bulkRule);
+      // A line's own per-product tiers (if any) override the global table — mirrors the server.
+      const lineTiers = Array.isArray(i.bulkOffers) && i.bulkOffers.length ? i.bulkOffers : tiers;
+      const rate = tierRateFor(i.qty, lineTiers, bulkRule);
       return rate > 0 ? s + i.price * rate * i.qty : s;
     }, 0)
   );

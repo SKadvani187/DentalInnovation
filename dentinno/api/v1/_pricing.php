@@ -227,7 +227,14 @@ function computeOrderTotals(float $subtotal, array $lines, ?string $couponCode, 
     foreach ($lines as $l) {
         if (($l['line_type'] ?? 'product') === 'gift') continue;
         $qty  = (int)$l['qty'];
-        $rate = tierRateForQty($qty, $tiers, $bulk);
+        // A product can carry its own quantity tiers (like the reference site's per-product
+        // "Available Offers"); when present they override the global tier table for this line.
+        $lineTiers = $tiers;
+        if (!empty($l['product_id'])) {
+            $pj = json_decode((string)(db()->fetchOne("SELECT bulk_offers FROM products WHERE id=?", [(int)$l['product_id']])['bulk_offers'] ?? ''), true);
+            if (is_array($pj) && count($pj) > 0) $lineTiers = $pj;
+        }
+        $rate = tierRateForQty($qty, $lineTiers, $bulk);
         if ($rate > 0) $bulkSavings += (float)$l['price'] * $rate * $qty;
     }
     $bulkSavings = round($bulkSavings, 2);
