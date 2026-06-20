@@ -41,6 +41,11 @@ foreach ($pdo->query("SELECT filename FROM schema_migrations")->fetchAll(PDO::FE
 $files = glob($dir . '/database_*.sql');
 sort($files);
 
+// Exclude destructive maintenance scripts (database_purge_*.sql). These DELETE data
+// and are run manually/intentionally, not as schema migrations — never auto-apply them
+// via `php migrate.php`. (They can still be run by hand, or with --force if truly needed.)
+$files = array_values(array_filter($files, fn($p) => !preg_match('/^database_purge_/', basename($p))));
+
 $args = array_slice($argv ?? [], 1);
 $mode = $args[0] ?? 'run';
 
