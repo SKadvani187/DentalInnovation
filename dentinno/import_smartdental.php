@@ -53,6 +53,32 @@ $htmlToText = function ($s) {
     return trim($s);
 };
 
+// Parse a key_features blob into [{title,text}] bullets for the storefront "Product Highlights"
+// box (mapProduct reads the `features` column). "Short Label: value" -> {title,text}; other
+// lines -> {title:'', text}.
+$parseHighlights = function ($text) {
+    $text = (string)$text;
+    if (trim($text) === '') return [];
+    // Strip a leading bullet glyph (the list adds its own) and drop redundant generic headers.
+    $bullet  = '/^[\x{2022}\x{00B7}\x{25AA}\x{25E6}\x{2023}\x{2219}\x{2043}*\-]\s+/u';
+    $generic = ['key features', 'features', 'highlights', 'product highlights', 'specifications', 'key specifications', 'specs'];
+    $out = [];
+    foreach (preg_split('/\r?\n/', $text) as $line) {
+        $line = preg_replace($bullet, '', trim($line));
+        if ($line === '') continue;
+        if (preg_match('/^([A-Za-z][A-Za-z0-9 \/&\x27-]{0,38}):\s*(.+)$/', $line, $m)) {
+            $title = trim($m[1]);
+            $body  = preg_replace($bullet, '', trim($m[2]));
+            $out[] = in_array(strtolower($title), $generic, true)
+                ? ['title' => '', 'text' => $body]
+                : ['title' => $title, 'text' => $body];
+        } else {
+            $out[] = ['title' => '', 'text' => $line];
+        }
+    }
+    return $out;
+};
+
 // Split a newline list (images), trim, keep non-empty http(s) URLs.
 $urlList = function ($s) {
     $out = [];
@@ -90,6 +116,155 @@ $parseSpecs = function ($s) {
             $out[] = ['key' => trim($m[1]), 'value' => trim($m[2])];
         }
         if (count($out) >= 30) break;
+    }
+    return $out;
+};
+
+// Sanitise HTML for storage: keep only the structural tags RichText/DOMPurify renders, drop all
+// attributes (data-*, style, class bloat) except href on <a>, and remove empty wrappers. Keeps
+// lists/bold/headers so the storefront shows the same structure as the source.
+$cleanHtml = function ($s) {
+    $s = (string)$s;
+    if (trim($s) === '') return '';
+    $s = strip_tags($s, '<p><br><b><strong><i><em><u><ul><ol><li><h3><h4><h5><h6><a>');
+    $s = preg_replace_callback('#<([a-zA-Z][a-z0-9]*)\b[^>]*>#i', function ($m) {
+        $tag = strtolower($m[1]);
+        if ($tag === 'a' && preg_match('#href\s*=\s*("[^"]*"|\'[^\']*\')#i', $m[0], $h)) {
+            return '<a href=' . $h[1] . ' target="_blank" rel="noopener noreferrer">';
+        }
+        return '<' . $tag . '>';
+    }, $s);
+    $s = preg_replace('#<(p|li|h[3-6]|strong|b|em|i|u)>\s*</\1>#i', '', $s);  // empty wrappers
+    $s = preg_replace('#(\s*<br>\s*){2,}#i', '<br>', $s);
+    $s = preg_replace('/[ \t]{2,}/', ' ', $s);
+    $s = trim($s);
+    // If nothing but whitespace/markup is left, treat as empty.
+    return trim(strip_tags($s)) === '' ? '' : $s;
+};
+
+// Junk "labels" that are auto-generated metadata, never real highlights/specs (dropped).
+$JUNK_LABELS = ['product name','price','price inr','price in inr','mrp','discount','category',
+    'brand','short description','availability','sku','seller','hsn','gst','usage',
+    'warranty','warranty & support','warranty and support','support & warranty','support'];
+// Labels whose "Label: value" / "Label - value" lines belong in Key Specifications.
+$SPEC_LABELS = ['dimensions','weight','net weight','gross weight','material','materials','type',
+    'product type','file type','size','sizes','length','taper','interface type','motion','diameter',
+    'colour','color','gear ratio','head type','chuck type','speed','torque','power','voltage',
+    'frequency','capacity','model','model no','range','resolution','sensor','battery','warranty period'];
+
+// Classify the two metadata-ish columns (highlights col12 + key_specifications col14) line by line
+// into Key Specifications [{key,value}] vs Product Highlights bullets [{title,text}], dropping junk
+// and capturing any embedded "Description:". Returns ['specs'=>[], 'bullets'=>[], 'desc'=>''].
+$classifyMeta = function (...$blobs) use ($JUNK_LABELS, $SPEC_LABELS) {
+    $bullet  = '/^[\x{2022}\x{00B7}\x{25AA}\x{25E6}\x{2023}\x{2219}\x{2043}*\-]\s+/u';
+    $generic = ['key features', 'features', 'highlights', 'product highlights', 'specifications', 'key specifications', 'specs'];
+    $toText  = fn($s) => trim(html_entity_decode(strip_tags(preg_replace('#<\s*/?(br|p|li|div|h[1-6]|ul|ol|tr)\b[^>]*>#i', "\n", (string)$s)), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    $specs = []; $bullets = []; $desc = ''; $seen = [];
+    foreach ($blobs as $blob) {
+        foreach (preg_split('/\r?\n/', $toText($blob)) as $line) {
+            $line = preg_replace($bullet, '', trim($line));
+            if ($line === '') continue;
+            // "Key - Value" spec line (short value).
+            if (preg_match('/^([A-Za-z][A-Za-z0-9 \/()&-]{1,38}?)\s+[-\x{2013}\x{2014}]\s+(.+)$/u', $line, $dm) && mb_strlen($dm[2]) <= 60) {
+                $k = trim($dm[1]); if (!isset($seen[strtolower($k)])) { $specs[] = ['key' => $k, 'value' => trim($dm[2])]; $seen[strtolower($k)] = 1; }
+                continue;
+            }
+            if (preg_match('/^([A-Za-z][A-Za-z0-9 \/&\x27()-]{0,38}):\s*(.*)$/u', $line, $m)) {
+                $lbl = strtolower(trim($m[1])); $val = preg_replace($bullet, '', trim($m[2]));
+                if (in_array($lbl, $JUNK_LABELS, true)) continue;
+                if (in_array($lbl, ['description', 'descriptions']) && $val !== '') { if ($desc === '') $desc = $val; continue; }
+                if (in_array($lbl, $SPEC_LABELS, true) && $val !== '' && mb_strlen($val) <= 80) {
+                    if (!isset($seen[$lbl])) { $specs[] = ['key' => trim($m[1]), 'value' => $val]; $seen[$lbl] = 1; }
+                    continue;
+                }
+                if (in_array($lbl, $generic, true)) { if ($val !== '') $bullets[] = ['title' => '', 'text' => $val]; continue; }
+                if ($val === '') { $bullets[] = ['title' => '', 'text' => trim($m[1])]; continue; }
+                $bullets[] = ['title' => trim($m[1]), 'text' => $val];
+            } else {
+                $bullets[] = ['title' => '', 'text' => $line];
+            }
+        }
+    }
+    return ['specs' => array_slice($specs, 0, 30), 'bullets' => array_slice($bullets, 0, 25), 'desc' => $desc];
+};
+
+// Highlights text -> [{title,text}] bullets for the "Product Highlights" box. Strips a leading
+// bullet glyph, drops junk-metadata lines, and drops redundant generic headers.
+$htmlToBullets = function ($text) use ($JUNK_LABELS) {
+    $text = trim(html_entity_decode(strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>', '</li>', '</div>'], "\n", (string)$text)), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    if ($text === '') return [];
+    $bullet  = '/^[\x{2022}\x{00B7}\x{25AA}\x{25E6}\x{2023}\x{2219}\x{2043}*\-]\s+/u';
+    $generic = ['key features', 'features', 'highlights', 'product highlights', 'specifications', 'key specifications', 'specs'];
+    $out = [];
+    foreach (preg_split('/\r?\n/', $text) as $line) {
+        $line = preg_replace($bullet, '', trim($line));
+        if ($line === '') continue;
+        if (preg_match('/^([A-Za-z][A-Za-z0-9 \/&\x27-]{0,38}):\s*(.*)$/', $line, $m)) {
+            $title = trim($m[1]); $body = preg_replace($bullet, '', trim($m[2]));
+            if (in_array(strtolower($title), $JUNK_LABELS, true)) continue;        // drop junk line
+            if ($body === '') { $out[] = ['title' => '', 'text' => $title]; continue; }
+            $out[] = in_array(strtolower($title), $generic, true)
+                ? ['title' => '', 'text' => $body]
+                : ['title' => $title, 'text' => $body];
+        } else {
+            $out[] = ['title' => '', 'text' => $line];
+        }
+    }
+    return $out;
+};
+
+// Pull a labelled section's body out of a blob (for mashed columns where e.g. the description
+// lives under a "Descriptions:" prefix). Returns '' if no matching label is found.
+$extractLabel = function ($text, array $labels) {
+    $text = (string)$text;
+    if (trim($text) === '') return '';
+    // Allow the label to sit at start, after a newline, or right after a tag (>).
+    foreach ($labels as $lbl) {
+        if (preg_match('#(?:^|\n|>)\s*' . preg_quote($lbl, '#') . '\s*:\s*#i', $text, $m, PREG_OFFSET_CAPTURE)) {
+            $start = $m[0][1] + strlen($m[0][0]);
+            // Body runs until the next "Label:" marker or end.
+            $rest = substr($text, $start);
+            if (preg_match('#(?:^|\n|>)\s*[A-Z][A-Za-z0-9 .&\x27/()-]{1,44}?\s*:\s#', $rest, $m2, PREG_OFFSET_CAPTURE)) {
+                $rest = substr($rest, 0, $m2[0][1]);
+            }
+            return trim($rest);
+        }
+    }
+    return '';
+};
+
+// Route a section label to a bucket. Mirrors the storefront's section set.
+$routeLabel = function ($label) {
+    static $map = null;
+    if ($map === null) {
+        $map = [];
+        $add = function ($b, $a) use (&$map) { foreach ($a as $k) $map[$k] = $b; };
+        $add('JUNK', ['product name','price','price inr','price in inr','mrp','discount','category','brand','short description','availability','sku','seller','hsn','gst','bulk offers','bulk offer','offers','offer']);
+        $add('DESC', ['description','descriptions','product description','overview','product overview','about','about product']);
+        $add('DIR',  ['how to use','how to use it','direction of use','directions of use','direction to use','directions to use','directions for use','directions','direction','usage','use','intended use','instructions for use','instructions','method of use','steps','procedure','application','indications','indication']);
+        $add('PACK', ['packaging info','packaging information','packaging','package contents','package content','contents','what\'s in the box','in the box','box contents','package','package includes','kit contents','set includes']);
+        $add('WARR', ['warranty','warranty & support','warranty and support','support & warranty','warranty info','warranty information','warranty & service','warranty details']);
+        $add('SPEC', ['technical specifications','technical specification','specifications','specification','key specifications','key specification','product specifications','specs']);
+    }
+    return $map[strtolower(trim($label))] ?? 'FEAT';
+};
+
+// Split a (cleaned) HTML/text blob into [{label, body}] sections by line-leading or post-tag
+// "Label:" markers, keeping each body's HTML intact. Used for the other_info grab-bag column.
+$splitHtmlSections = function ($html) {
+    $html = trim((string)$html);
+    if ($html === '') return [];
+    $pat = '/(?:^|>|\n)\s*([A-Z][A-Za-z0-9 &\/\x27()-]{1,40}?)\s*:\s*/';
+    if (!preg_match_all($pat, $html, $m, PREG_OFFSET_CAPTURE)) return [['label' => '', 'body' => $html]];
+    $out = []; $n = count($m[0]);
+    if (($pre = trim(substr($html, 0, $m[0][0][1]))) !== '') $out[] = ['label' => '', 'body' => $pre];
+    for ($i = 0; $i < $n; $i++) {
+        // Start body right after the matched "Label:" (the match may include a leading > or \n).
+        $lblPos = strpos($html, $m[1][$i][0], $m[0][$i][1]);
+        $bodyStart = $lblPos + strlen($m[1][$i][0]);
+        $bodyStart = strpos($html, ':', $bodyStart) + 1;
+        $bodyEnd = ($i + 1 < $n) ? $m[0][$i + 1][1] : strlen($html);
+        $out[] = ['label' => trim($m[1][$i][0]), 'body' => trim(substr($html, $bodyStart, $bodyEnd - $bodyStart))];
     }
     return $out;
 };
@@ -151,6 +326,10 @@ foreach ($slice as $i => $r) {
         $name = trim((string)($r['name'] ?? ''));
         if ($name === '') { $skipped++; continue; }
 
+        // Categories carry HTML entities from the source (e.g. "&#8377;999" for ₹999); decode so
+        // the price-bucket skip (which looks for ₹) works and no junk category is created.
+        $r['categories'] = html_entity_decode((string)($r['categories'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
         $mrp  = $num($r['mrp'] ?? '');
         $sell = $num($r['selling_price'] ?? '');
         if ($mrp <= 0)  $mrp  = $sell;          // fall back if MRP missing
@@ -183,26 +362,42 @@ foreach ($slice as $i => $r) {
         $shortCol  = $shortFull !== '' ? mb_substr($shortFull, 0, 500) : null;
         $images    = $urlList($r['images'] ?? '');
 
-        // "Key Specifications" (col14) is inconsistent in the source: sometimes a clean
-        // "Label: value" list, sometimes rich HTML. Use the structured spec table only when
-        // it's clearly a plain multi-line spec list; otherwise keep the raw content (HTML
-        // stripped) as extra highlights so nothing is lost.
-        $rawSpec  = trim((string)($r['key_specifications'] ?? ''));
-        $specPairs = $parseSpecs($rawSpec);
-        $hasHtml   = (bool)preg_match('/<[a-z]/i', $rawSpec);
-        $specs = (!$hasHtml && count($specPairs) >= 2) ? $specPairs : [];
-        $keyFeatures = $htmlToText($r['highlights'] ?? '');
-        if (!$specs && $rawSpec !== '') {
-            $specText = $htmlToText($rawSpec);
-            $keyFeatures = $keyFeatures !== '' ? ($keyFeatures . "\n" . $specText) : $specText;
+        // --- Rich content fields: keep the source HTML (rendered via RichText) so the storefront
+        // shows the same structure as the reference (numbered steps, nested bullets, bold). Each
+        // section maps from its own column; the other_info grab-bag (col18) is split by label and
+        // routed into whichever section is still empty, plus extra features/specs. ----------------
+        $fullDesc   = $cleanHtml($r['description'] ?? '');   // col17
+        $directions = $cleanHtml($r['directions'] ?? '');    // col15
+        $packing    = $cleanHtml($r['packaging'] ?? '');     // col16
+        $warranty   = $htmlToText($r['warranty'] ?? '');     // col13 (short)
+        if (in_array(strtolower(trim($warranty)), ['', 'no', 'na', 'n/a', 'none', '-', 'not specified'], true)) $warranty = '';
+
+        $otherBullets = []; $otherSpecText = '';
+        foreach ($splitHtmlSections($cleanHtml($r['other_info'] ?? '')) as $sec) {
+            $body = trim($sec['body']);
+            if ($body === '' || trim(strip_tags($body)) === '') continue;
+            switch ($routeLabel($sec['label'])) {
+                case 'JUNK': break;
+                case 'DESC': if ($fullDesc === '')   $fullDesc   = $body; break;
+                case 'DIR':  if ($directions === '') $directions = $body; break;
+                case 'PACK': if ($packing === '')    $packing    = $body; break;
+                case 'WARR': if ($warranty === '')   $warranty   = trim(strip_tags($body)); break;
+                case 'SPEC': $otherSpecText .= "\n" . $body; break;
+                default:     $otherBullets[] = $body;   // FEAT -> bulletised below
+            }
         }
+
+        // Key Specifications + Product Highlights, classified out of the highlights (col12) and
+        // key_specifications (col14) columns plus any feature/spec sections found in other_info:
+        // specs -> {key,value} table, real features -> bullets, junk dropped, "Description:" -> desc.
+        $meta = $classifyMeta($r['highlights'] ?? '', $r['key_specifications'] ?? '', implode("\n", $otherBullets), $otherSpecText);
+        $specs      = $meta['specs'];
+        $highlights = $meta['bullets'];
+        if ($fullDesc === '' && $meta['desc'] !== '') $fullDesc = nl2br(htmlspecialchars($meta['desc'], ENT_QUOTES));
+
         $weightG   = 0;
         if (preg_match('/Weight:\s*([0-9.]+)/i', (string)($r['dimensions'] ?? ''), $wm)) $weightG = (float)$wm[1];
         $weightKg  = $weightG > 0 ? round($weightG / 1000, 3) : null;
-
-        $addl = $htmlToText($r['other_info'] ?? '');
-        $bulk = $htmlToText($r['bulk_offers'] ?? '');
-        if ($bulk !== '') $addl = ($addl !== '' ? $addl . "\n\n" : '') . "Bulk Offers:\n" . $bulk;
 
         $isNew = (stripos((string)($r['categories'] ?? ''), 'new product') !== false) ? 1 : 0;
 
@@ -248,13 +443,14 @@ foreach ($slice as $i => $r) {
             'min_stock_alert'       => 5,
             'description'           => $shortFull !== '' ? $shortFull : null,
             'short_description'     => $shortCol,
-            'full_description'      => $htmlToText($r['description'] ?? '') ?: null,
-            'key_features'          => $keyFeatures ?: null,
+            'full_description'      => $fullDesc ?: null,
+            'key_features'          => null,   // the Product Highlights box (features) shows these now
+            'features'              => $highlights ? json_encode($highlights, JSON_UNESCAPED_UNICODE) : null,
             'key_specifications'    => $specs ? json_encode($specs) : null,
-            'directions_for_use'    => $htmlToText($r['directions'] ?? '') ?: null,
-            'packing_info'          => $htmlToText($r['packaging'] ?? '') ?: null,
-            'additional_information'=> $addl ?: null,
-            'warranty_info'         => $htmlToText($r['warranty'] ?? '') ?: null,
+            'directions_for_use'    => $directions ?: null,
+            'packing_info'          => $packing ?: null,
+            'additional_information'=> null,   // redistributed into the proper sections (matches reference)
+            'warranty_info'         => $warranty ?: null,
             'images'                => $images ? json_encode($images) : null,
             'weight_kg'             => $weightKg,
             'is_active'             => 1,
@@ -264,8 +460,11 @@ foreach ($slice as $i => $r) {
 
         $existing = $db->fetchOne("SELECT id FROM products WHERE sku=?", [$sku]);
         if ($existing) {
-            $set = implode('=?,', array_keys($cols)) . '=?';
-            $db->execute("UPDATE products SET $set WHERE id=?", array_merge(array_values($cols), [$existing['id']]));
+            // is_new is INSERT-ONLY: re-importing must not clobber manual "New Arrivals" curation
+            // done in admin (the same applies to is_featured, which isn't in $cols at all).
+            $upd = $cols; unset($upd['is_new']);
+            $set = implode('=?,', array_keys($upd)) . '=?';
+            $db->execute("UPDATE products SET $set WHERE id=?", array_merge(array_values($upd), [$existing['id']]));
             $pid = (int)$existing['id'];
             $updated++;
         } else {
