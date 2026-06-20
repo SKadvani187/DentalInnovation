@@ -107,6 +107,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $variants = $clean ? json_encode($clean) : null;
         }
 
+        // Quantity offers: admin enters {minQty, price-each}; store as [{minQty,rate,label}] with
+        // the rate derived from price vs the selling price (so the storefront shows the exact ₹).
+        $bulkOffers = null;
+        if (!empty($d['bulk_offers']) && is_array($d['bulk_offers'])) {
+            $sell = $disc_price ?: $price;   // effective selling (per-unit) price
+            $clean = [];
+            foreach ($d['bulk_offers'] as $b) {
+                $mq = (int)($b['minQty'] ?? 0);
+                $bp = (float)($b['price'] ?? 0);
+                if ($mq < 2 || $bp <= 0 || $sell <= 0 || $bp >= $sell) continue;
+                $clean[$mq] = ['minQty'=>$mq, 'rate'=>round(($sell - $bp) / $sell, 6), 'label'=>'Buy '.$mq.' or above'];
+            }
+            ksort($clean);
+            $bulkOffers = $clean ? json_encode(array_values($clean)) : null;
+        }
+
         // Slug: admin-editable, falls back to the name; guaranteed unique (UNIQUE column).
         $selfId   = (int)($d['id'] ?? 0);
         $slug     = generateSlug(trim((string)($d['slug'] ?? '')) !== '' ? $d['slug'] : $name) ?: 'product';
@@ -121,8 +137,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         if (!empty($d['id'])) {
             // Capture old stock so a stock change via the edit form is recorded in the ledger.
             $oldStock = (int)(db()->fetchOne("SELECT stock FROM products WHERE id=?", [(int)$d['id']])['stock'] ?? $stock);
-            db()->execute("UPDATE products SET name=?,slug=?,meta_title=?,meta_description=?,category_id=?,price=?,discount_price=?,discount_percent=?,stock=?,min_stock_alert=?,short_description=?,full_description=?,features=?,packing_info=?,key_specifications=?,directions_for_use=?,additional_information=?,warranty_info=?,key_features=?,warranty_no=?,direction_of_use=?,catalogue_url=?,images=?,hover_image=?,variants=?,weight_kg=?,shipping_method_id=?,is_active=?,is_featured=?,is_new=? WHERE id=?",
-                [$name,$slug,$metaTitle,$metaDesc,($d['category_id'] ?? '')?:null,$price,$disc_price,$disc_pct,$stock,$minStock,($d['short_description']??null),($d['full_description']??null),$features,($d['packing_info']??null),$key_specs,($d['directions_for_use']??null),($d['additional_information']??null),($d['warranty_info']??null),($d['key_features'] ?? '')?:null,($d['warranty_no'] ?? '')?:null,($d['direction_of_use'] ?? '')?:null,($d['catalogue_url'] ?? '')?:null,$images_json,$hover_image,$variants,($d['weight_kg'] ?? '')?:null,(!empty($d['shipping_method_id'])?(int)$d['shipping_method_id']:null),$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0,$d['id']]);
+            db()->execute("UPDATE products SET name=?,slug=?,meta_title=?,meta_description=?,category_id=?,price=?,discount_price=?,discount_percent=?,stock=?,min_stock_alert=?,short_description=?,full_description=?,features=?,packing_info=?,key_specifications=?,directions_for_use=?,additional_information=?,warranty_info=?,key_features=?,warranty_no=?,direction_of_use=?,catalogue_url=?,images=?,hover_image=?,variants=?,bulk_offers=?,weight_kg=?,shipping_method_id=?,is_active=?,is_featured=?,is_new=? WHERE id=?",
+                [$name,$slug,$metaTitle,$metaDesc,($d['category_id'] ?? '')?:null,$price,$disc_price,$disc_pct,$stock,$minStock,($d['short_description']??null),($d['full_description']??null),$features,($d['packing_info']??null),$key_specs,($d['directions_for_use']??null),($d['additional_information']??null),($d['warranty_info']??null),($d['key_features'] ?? '')?:null,($d['warranty_no'] ?? '')?:null,($d['direction_of_use'] ?? '')?:null,($d['catalogue_url'] ?? '')?:null,$images_json,$hover_image,$variants,$bulkOffers,($d['weight_kg'] ?? '')?:null,(!empty($d['shipping_method_id'])?(int)$d['shipping_method_id']:null),$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0,$d['id']]);
             $pid = $d['id'];
             if ($oldStock !== $stock) {
                 recordStockMovement((int)$pid, $stock - $oldStock, 'edit', 'Stock changed via product edit', null, (int)($_SESSION['admin_id'] ?? 0) ?: null, $stock);
@@ -130,8 +146,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             echo json_encode(['success' => true, 'message' => 'Product updated', 'id' => $pid]);
         } else {
             $sku  = 'SKU-' . strtoupper(substr(md5($name . microtime()), 0, 6));
-            $pid = db()->insert("INSERT INTO products (name,slug,meta_title,meta_description,sku,category_id,price,discount_price,discount_percent,stock,min_stock_alert,short_description,full_description,features,packing_info,key_specifications,directions_for_use,additional_information,warranty_info,key_features,warranty_no,direction_of_use,catalogue_url,images,hover_image,variants,weight_kg,shipping_method_id,is_active,is_featured,is_new) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                [$name,$slug,$metaTitle,$metaDesc,$sku,($d['category_id'] ?? '')?:null,$price,$disc_price,$disc_pct,$stock,$minStock,($d['short_description']??null),($d['full_description']??null),$features,($d['packing_info']??null),$key_specs,($d['directions_for_use']??null),($d['additional_information']??null),($d['warranty_info']??null),($d['key_features'] ?? '')?:null,($d['warranty_no'] ?? '')?:null,($d['direction_of_use'] ?? '')?:null,($d['catalogue_url'] ?? '')?:null,$images_json,$hover_image,$variants,($d['weight_kg'] ?? '')?:null,(!empty($d['shipping_method_id'])?(int)$d['shipping_method_id']:null),$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0]);
+            $pid = db()->insert("INSERT INTO products (name,slug,meta_title,meta_description,sku,category_id,price,discount_price,discount_percent,stock,min_stock_alert,short_description,full_description,features,packing_info,key_specifications,directions_for_use,additional_information,warranty_info,key_features,warranty_no,direction_of_use,catalogue_url,images,hover_image,variants,bulk_offers,weight_kg,shipping_method_id,is_active,is_featured,is_new) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                [$name,$slug,$metaTitle,$metaDesc,$sku,($d['category_id'] ?? '')?:null,$price,$disc_price,$disc_pct,$stock,$minStock,($d['short_description']??null),($d['full_description']??null),$features,($d['packing_info']??null),$key_specs,($d['directions_for_use']??null),($d['additional_information']??null),($d['warranty_info']??null),($d['key_features'] ?? '')?:null,($d['warranty_no'] ?? '')?:null,($d['direction_of_use'] ?? '')?:null,($d['catalogue_url'] ?? '')?:null,$images_json,$hover_image,$variants,$bulkOffers,($d['weight_kg'] ?? '')?:null,(!empty($d['shipping_method_id'])?(int)$d['shipping_method_id']:null),$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0]);
             if ((int)$stock !== 0) {
                 recordStockMovement((int)$pid, (int)$stock, 'initial', 'Initial stock on create', null, (int)($_SESSION['admin_id'] ?? 0) ?: null, (int)$stock);
             }
@@ -620,6 +636,18 @@ include __DIR__ . '/../includes/header.php';
           </div>
           <div id="variants_container"></div>
           <button type="button" class="btn btn-ghost btn-sm" onclick="addVariantRow()" style="margin-top:8px;"><i class="fa-solid fa-plus"></i> Add Variant</button>
+
+          <hr style="margin:20px 0;border:none;border-top:1px solid var(--border);">
+          <label class="form-label">Quantity Offers <small class="text-muted">(bulk pricing — "Buy N or above at ₹X each")</small></label>
+          <p class="text-muted" style="font-size:.78rem;margin-bottom:10px;">
+            Shown as the storefront "Available Offers" table. Enter a minimum quantity and the per-unit price at that quantity;
+            the savings % is auto-calculated from the selling price. Leave empty to use the site-wide default offers.
+          </p>
+          <div style="display:flex;gap:8px;font-size:.72rem;color:var(--text-muted);padding:0 6px 4px;font-weight:600;">
+            <span style="flex:1;">MIN QTY</span><span style="flex:2;">PRICE EACH (₹)</span><span style="width:34px;"></span>
+          </div>
+          <div id="bulkoffers_container"></div>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="addBulkOfferRow()" style="margin-top:8px;"><i class="fa-solid fa-plus"></i> Add Quantity Offer</button>
         </div>
 
         <!-- CONTENT -->
@@ -919,6 +947,16 @@ function addVariantRow(label='', mrp='', price=''){
   document.getElementById('variants_container').appendChild(d);
 }
 
+// Quantity-offer rows -> sent as [{minQty, price}]; server stores [{minQty,rate,label}].
+function addBulkOfferRow(minQty='', price=''){
+  const d=document.createElement('div');d.className='bulkoffer-row';
+  d.style.cssText='display:flex;gap:8px;margin-bottom:8px;align-items:center;';
+  d.innerHTML=`<input type="number" min="2" class="form-control" placeholder="2" value="${minQty}" data-bo-minqty style="flex:1;">
+    <input type="number" min="0" class="form-control" placeholder="Price each" value="${price}" data-bo-price style="flex:2;">
+    <button type="button" class="btn btn-ghost btn-sm btn-icon" onclick="this.closest('.bulkoffer-row').remove()"><i class="fa-solid fa-minus" style="color:var(--danger);"></i></button>`;
+  document.getElementById('bulkoffers_container').appendChild(d);
+}
+
 // Highlight rows (Title + Text) -> saved into the `features` column as [{title,text}]
 function addHighlightRow(t='',x=''){
   const id='h'+Date.now()+Math.random().toString(36).slice(2,6);
@@ -1113,6 +1151,13 @@ function openProductModal(p=null){
     const vs=p?.variants?(typeof p.variants==='string'?JSON.parse(p.variants):p.variants):[];
     if(Array.isArray(vs)) vs.forEach(v=>addVariantRow(v.label||'', v.mrp||'', v.price||''));
   }catch(e){}
+  // Quantity offers: stored as {minQty,rate}; show as per-unit price = sell × (1 − rate).
+  document.getElementById('bulkoffers_container').innerHTML='';
+  try{
+    const sell=parseFloat(p?.discount_price ?? p?.price ?? 0)||0;
+    const bo=p?.bulk_offers?(typeof p.bulk_offers==='string'?JSON.parse(p.bulk_offers):p.bulk_offers):[];
+    if(Array.isArray(bo)) bo.forEach(t=>addBulkOfferRow(t.minQty||'', sell>0?Math.round(sell*(1-(t.rate||0))):''));
+  }catch(e){}
   document.getElementById('modalTitle').textContent=p?'Edit Product':'Add New Product';
   // Specs
   document.getElementById('specs_container').innerHTML='';
@@ -1180,6 +1225,13 @@ async function saveProduct(){
     const price=parseFloat(row.querySelector('[data-var-price]').value)||0;
     if(label && price>0) variants.push({label, mrp: mrp||price, price});
   });
+  // Quantity offers -> [{minQty, price}] (server derives the rate from price vs selling price)
+  const bulk_offers=[];
+  document.querySelectorAll('#bulkoffers_container .bulkoffer-row').forEach(row=>{
+    const minQty=parseInt(row.querySelector('[data-bo-minqty]').value)||0;
+    const price=parseFloat(row.querySelector('[data-bo-price]').value)||0;
+    if(minQty>=2 && price>0) bulk_offers.push({minQty, price});
+  });
   let images=[];try{images=JSON.parse(document.getElementById('prod_images_json').value);}catch(e){}
   const hover_image=document.getElementById('prod_hover_image').value;
   const payload={action:'save',id:document.getElementById('prod_id').value,name,price,stock,hover_image,
@@ -1188,6 +1240,7 @@ async function saveProduct(){
     meta_title:document.getElementById('prod_meta_title').value,
     meta_description:document.getElementById('prod_meta_desc').value,
     variants,
+    bulk_offers,
     category_id:document.getElementById('prod_category').value,
     short_description:document.getElementById('prod_short_desc').value,
     full_description:document.getElementById('prod_full_desc').value,
