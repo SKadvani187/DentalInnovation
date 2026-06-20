@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<meta name="ProgId" content="Word.Document">
+<meta name="Generator" content="Microsoft Word">
+<title>Visual Product Search - R&amp;D Recommendation</title>
+<!--[if gte mso 9]>
+<xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml>
+<![endif]-->
+<style>
+  @page { size: A4; margin: 2.2cm 2.2cm; }
+  body { font-family: "Calibri", "Segoe UI", Arial, sans-serif; font-size: 11pt; color: #1a1a1a; line-height: 1.45; }
+  h1 { font-size: 22pt; color: #0b5394; margin: 0 0 2pt 0; }
+  h2 { font-size: 14pt; color: #0b5394; border-bottom: 1.5px solid #0b5394; padding-bottom: 3px; margin-top: 22px; }
+  h3 { font-size: 12pt; color: #134f8a; margin-top: 16px; margin-bottom: 4px; }
+  .subtitle { font-size: 12pt; color: #555; margin: 0 0 4px 0; }
+  .meta { font-size: 9.5pt; color: #777; margin-bottom: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 10pt; }
+  th, td { border: 1px solid #b9c6d6; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #0b5394; color: #fff; }
+  tr:nth-child(even) td { background: #eef3f9; }
+  .rec { background: #e8f5e9; border-left: 4px solid #2e7d32; padding: 10px 14px; margin: 12px 0; }
+  .warn { background: #fff4e5; border-left: 4px solid #ef6c00; padding: 10px 14px; margin: 12px 0; }
+  code { background: #f0f2f5; padding: 1px 5px; border-radius: 3px; font-family: "Consolas", monospace; font-size: 9.5pt; }
+  pre { background: #f6f8fa; border: 1px solid #d6dde6; padding: 10px; font-family: "Consolas", monospace; font-size: 9pt; white-space: pre-wrap; }
+  ul, ol { margin: 6px 0 6px 0; }
+  li { margin: 3px 0; }
+  .tag { display: inline-block; background: #2e7d32; color: #fff; font-size: 8.5pt; padding: 1px 8px; border-radius: 10px; }
+  .small { font-size: 9pt; color: #666; }
+</style>
+</head>
+<body>
+
+<h1>Visual Product Search</h1>
+<p class="subtitle">Image-Based Related-Product Discovery &mdash; Technology Recommendation</p>
+<p class="meta">Prepared by: Research &amp; Development&nbsp;&nbsp;|&nbsp;&nbsp;Project: DentInno / Smart Dental Innovations Storefront</p>
+<p class="meta">Stack: React (storefront) + PHP/MySQL (API) on XAMPP&nbsp;&nbsp;|&nbsp;&nbsp;Catalog size: 200&ndash;400 products&nbsp;&nbsp;|&nbsp;&nbsp;Version 1.0</p>
+
+<h2>1. Objective</h2>
+<p>Enable a website visitor to <strong>upload a product photo</strong> and instantly see the <strong>related / visually similar products</strong> from our own catalog. The solution must be <strong>free of recurring cost</strong>, simple to host on the existing XAMPP (PHP + MySQL) environment, and accurate enough that a photo taken at a different angle, lighting, or background still matches the correct product.</p>
+
+<h2>2. Executive Summary &amp; Recommendation</h2>
+<div class="rec">
+<p><strong>Recommended approach: Self-hosted image embeddings using an open-source CLIP-family model</strong> (specifically <strong>Fashion-CLIP</strong> or <strong>SigLIP</strong>), with similarity matching performed directly in our PHP/MySQL backend. <span class="tag">FREE &amp; UNLIMITED</span></p>
+<p>For a catalog of 200&ndash;400 products this is the clear winner: it costs nothing per query, keeps customer-uploaded images private on our own server, and is highly accurate for &ldquo;find related products.&rdquo; At this scale we do <strong>not</strong> need a paid service or a specialized vector database &mdash; comparing one uploaded image against 400 stored image &ldquo;fingerprints&rdquo; is an instant, sub-millisecond calculation.</p>
+</div>
+<p><strong>Fallback option</strong> (if installing a small Python service on the host is not acceptable): use the <strong>Hugging Face free Inference API</strong> to generate the embeddings over HTTPS from PHP. Same logic, no local AI runtime, but subject to rate limits and sends images to a third party.</p>
+
+<h2>3. How the Technology Works (Plain English)</h2>
+<p>Every viable solution follows the same three-step idea:</p>
+<ol>
+  <li><strong>Fingerprint each product image.</strong> An AI vision model converts each image into a list of numbers (an &ldquo;embedding&rdquo; or vector &mdash; typically 512 numbers) that captures what the product <em>looks like</em>. This is done once per product and stored in the database.</li>
+  <li><strong>Fingerprint the uploaded photo.</strong> When a customer uploads an image, we generate its vector the same way.</li>
+  <li><strong>Find the closest matches.</strong> We compare the uploaded vector against all stored product vectors (cosine similarity) and return the top few most-similar products.</li>
+</ol>
+<div class="warn">
+<p><strong>Important:</strong> A traditional &ldquo;reverse image search&rdquo; or perceptual-hash (pHash) only finds <em>near-identical</em> images and fails when the angle, lighting, or background changes. For genuine &ldquo;related products,&rdquo; we need <strong>semantic embeddings (CLIP-family)</strong> &mdash; which is what this recommendation uses.</p>
+</div>
+
+<h2>4. Options Evaluated (for a 200&ndash;400 product catalog)</h2>
+<table>
+<tr>
+  <th style="width:21%">Option</th>
+  <th style="width:14%">Cost</th>
+  <th style="width:20%">Accuracy for &ldquo;related products&rdquo;</th>
+  <th style="width:25%">Effort on our stack</th>
+  <th style="width:20%">Privacy / Notes</th>
+</tr>
+<tr>
+  <td><strong>A. Self-hosted CLIP</strong> (Fashion-CLIP / SigLIP / OpenCLIP) <span class="tag">RECOMMENDED</span></td>
+  <td>Free, unlimited</td>
+  <td>High &mdash; semantic, angle/lighting tolerant</td>
+  <td>Add a small Python (FastAPI) embedding service beside XAMPP; matching done in PHP/MySQL</td>
+  <td>Images never leave our server</td>
+</tr>
+<tr>
+  <td><strong>B. Hugging Face Inference API</strong> (free tier)</td>
+  <td>Free tier (~hundreds of req/hr); PRO ~$9/mo if needed</td>
+  <td>High &mdash; same models</td>
+  <td>Easiest &mdash; pure PHP cURL, no local AI runtime</td>
+  <td>Images sent to Hugging Face; rate-limited</td>
+</tr>
+<tr>
+  <td><strong>C. Google Cloud Vision Product Search</strong></td>
+  <td>First 1,000 images/month free, then ~$4.50 / 1,000 queries</td>
+  <td>Highest &mdash; purpose-built, turnkey</td>
+  <td>Requires GCP account with billing card; managed catalog</td>
+  <td>Images sent to Google; vendor lock-in</td>
+</tr>
+<tr>
+  <td><strong>D. Perceptual hash (pHash)</strong></td>
+  <td>Free (pure PHP)</td>
+  <td>Low &mdash; near-duplicates only</td>
+  <td>Trivial</td>
+  <td>Local, but not suitable for &ldquo;related products&rdquo;</td>
+</tr>
+</table>
+
+<h2>5. Why Option A Wins at 200&ndash;400 Products</h2>
+<ul>
+  <li><strong>Zero recurring cost.</strong> No per-query fees, no rate limits, no billing card &mdash; unlike Options B and C.</li>
+  <li><strong>Scale is trivial.</strong> 400 products &times; one 512-number vector is a tiny dataset. Brute-force cosine similarity over a few thousand vectors runs in well under a millisecond. A dedicated vector database (FAISS, Qdrant, Pinecone) is <strong>not required</strong> until tens of thousands of products.</li>
+  <li><strong>Privacy &amp; compliance.</strong> Customer-uploaded photos stay entirely on our own infrastructure.</li>
+  <li><strong>Accuracy.</strong> Product-tuned models (Fashion-CLIP / SigLIP) handle real-world photos (different angle, lighting, background) far better than hashing.</li>
+  <li><strong>Fits our existing pattern.</strong> The storefront already calls a PHP image endpoint (<code>/api/image_search.php</code>) and a vision model; we are upgrading it from filename-based matching to true visual matching.</li>
+</ul>
+
+<h2>6. Proposed Architecture</h2>
+<pre>
+React storefront (image upload)
+        │  POST image
+        ▼
+PHP  /api/image_search.php
+        │  forwards image to embedding service
+        ▼
+Embedding service  (Option A: local Python/FastAPI + Fashion-CLIP)
+        │  returns a 512-number vector
+        ▼
+PHP compares vector vs. stored product vectors (cosine similarity)
+        │  top-N product IDs
+        ▼
+PHP returns matching products as JSON  ──►  React renders "Related Products"
+</pre>
+<p><strong>Data storage:</strong> add a new table <code>product_embeddings(product_id, vector_json, updated_at)</code> &mdash; or a <code>products.image_embedding</code> JSON column. Each product's vector is generated once (and re-generated whenever its image changes).</p>
+
+<h2>7. Implementation Plan</h2>
+<table>
+<tr><th style="width:8%">Phase</th><th style="width:34%">Task</th><th style="width:30%">Deliverable</th><th style="width:28%">Est. effort</th></tr>
+<tr><td>1</td><td>Stand up the embedding microservice (FastAPI + Fashion-CLIP, ~30 lines) running locally on the server (CPU is sufficient at this scale)</td><td>Local HTTP endpoint that returns a vector for any image</td><td>0.5&ndash;1 day</td></tr>
+<tr><td>2</td><td>Create the <code>product_embeddings</code> table + a one-time PHP backfill script to fingerprint all 200&ndash;400 product images</td><td>Every product has a stored vector</td><td>0.5 day</td></tr>
+<tr><td>3</td><td>Upgrade <code>image_search.php</code>: embed the uploaded image, run cosine similarity, return top-N products</td><td>Working search API</td><td>0.5&ndash;1 day</td></tr>
+<tr><td>4</td><td>React UI: upload control + &ldquo;Related Products&rdquo; results (reuse existing <code>imageSearch()</code> in <code>src/lib/api.js</code>)</td><td>End-to-end feature</td><td>0.5 day</td></tr>
+<tr><td>5</td><td>Auto-refresh a product's vector whenever its image is added/changed in the admin panel</td><td>Self-maintaining index</td><td>0.5 day</td></tr>
+</table>
+<p class="small">Indicative total: ~3&ndash;4 working days for a production-ready first version.</p>
+
+<h2>8. Technology Stack</h2>
+<ul>
+  <li><strong>Embedding model:</strong> Fashion-CLIP or SigLIP (open-source, free license) &mdash; chosen over vanilla CLIP for better product-image accuracy.</li>
+  <li><strong>Embedding runtime:</strong> Python 3 + <code>sentence-transformers</code> / <code>transformers</code>, served via FastAPI (Option A). CPU-only is fine for this catalog size and traffic.</li>
+  <li><strong>Matching + API:</strong> existing PHP/MySQL (no new database technology needed).</li>
+  <li><strong>Frontend:</strong> existing React storefront.</li>
+</ul>
+
+<h2>9. Cost Analysis</h2>
+<table>
+<tr><th>Option</th><th>One-time</th><th>Monthly recurring</th><th>Notes</th></tr>
+<tr><td>A. Self-hosted CLIP</td><td>Dev time only</td><td><strong>$0</strong></td><td>Runs on existing server; no per-query cost</td></tr>
+<tr><td>B. Hugging Face API</td><td>Dev time only</td><td>$0 (free tier) or ~$9 (PRO)</td><td>Rate-limited on free tier</td></tr>
+<tr><td>C. Google Vision Product Search</td><td>Dev time + GCP setup</td><td>$0 up to 1,000 img/mo, then usage-based</td><td>Requires billing card</td></tr>
+</table>
+
+<h2>10. Risks &amp; Mitigations</h2>
+<table>
+<tr><th style="width:40%">Risk</th><th>Mitigation</th></tr>
+<tr><td>Hosting a Python service alongside XAMPP adds an operational component</td><td>Tiny, single-purpose service; can run as a local Windows service. If undesirable, switch to Option B (pure PHP + Hugging Face API).</td></tr>
+<tr><td>Poor matches for low-quality user photos</td><td>Use a product-tuned model (Fashion-CLIP), return top-N (e.g. 6&ndash;8) results, and show a confidence-ordered list rather than a single answer.</td></tr>
+<tr><td>Product images change over time</td><td>Auto-regenerate the affected product's vector on image upload (Phase 5).</td></tr>
+<tr><td>Future catalog growth (thousands of products)</td><td>Current brute-force matching scales comfortably to ~10,000 products; beyond that, add a vector index (FAISS/Qdrant) with no change to the API contract.</td></tr>
+</table>
+
+<h2>11. Recommendation &amp; Next Step</h2>
+<div class="rec">
+<p><strong>Proceed with Option A (self-hosted Fashion-CLIP / SigLIP embeddings).</strong> It is free, private, accurate, and ideally suited to a 200&ndash;400 product catalog on our existing stack. Keep Option B (Hugging Face free API) as a no-Python fallback.</p>
+</div>
+<p><strong>Proposed next step:</strong> build a proof-of-concept &mdash; the embedding microservice, the product-embedding backfill script, and the upgraded <code>image_search.php</code> matcher &mdash; against a sample of the live catalog, then review match quality before full rollout.</p>
+
+<p class="small">References (verified June 2026): Mixpeek &mdash; Best Image Similarity Search Tools 2026; Width.ai &mdash; Product Similarity Search with Fashion-CLIP; Hugging Face Inference API pricing &amp; free tier; Google Cloud Vision API Product Search pricing.</p>
+
+</body>
+</html>
