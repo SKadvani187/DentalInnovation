@@ -152,31 +152,53 @@ $SPEC_LABELS = ['dimensions','weight','net weight','gross weight','material','ma
     'colour','color','gear ratio','head type','chuck type','speed','torque','power','voltage',
     'frequency','capacity','model','model no','range','resolution','sensor','battery','warranty period'];
 
-// Classify the two metadata-ish columns (highlights col12 + key_specifications col14) line by line
-// into Key Specifications [{key,value}] vs Product Highlights bullets [{title,text}], dropping junk
-// and capturing any embedded "Description:". Returns ['specs'=>[], 'bullets'=>[], 'desc'=>''].
-$classifyMeta = function (...$blobs) use ($JUNK_LABELS, $SPEC_LABELS) {
+// Classify content into Key Specifications [{key,value}] vs Product Highlights bullets [{title,text}].
+// $specBlobs = the dedicated Key Specifications column (col14) + spec sections from other_info:
+//   EVERY "Label: value" / "Label - value" line with a short value is a spec (no whitelist), so a
+//   product's full spec list survives like the reference site. $highlightBlobs = the highlights
+//   column (col12) + other_info feature sections: junk metadata dropped, only whitelisted labels
+//   become specs, the rest are bullets. Captures any embedded "Description:".
+$classifyMeta = function (array $specBlobs, array $highlightBlobs) use ($JUNK_LABELS, $SPEC_LABELS) {
     $bullet  = '/^[\x{2022}\x{00B7}\x{25AA}\x{25E6}\x{2023}\x{2219}\x{2043}*\-]\s+/u';
     $generic = ['key features', 'features', 'highlights', 'product highlights', 'specifications', 'key specifications', 'specs'];
     $toText  = fn($s) => trim(html_entity_decode(strip_tags(preg_replace('#<\s*/?(br|p|li|div|h[1-6]|ul|ol|tr)\b[^>]*>#i', "\n", (string)$s)), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    // "Label: value" (colon may be tight) OR "Label - value" (dash needs surrounding spaces so
+    // hyphenated labels like "Anti-Microbial" aren't split). Captures label + value.
+    $LV = '/^([A-Za-z][A-Za-z0-9 ()\/&\x27.+%-]{0,48}?)(?:\s*:\s*|\s+[-\x{2013}\x{2014}]\s+)(.+)$/u';
     $specs = []; $bullets = []; $desc = ''; $seen = [];
-    foreach ($blobs as $blob) {
+    $addSpec = function ($k, $v) use (&$specs, &$seen) {
+        $kl = strtolower(trim($k));
+        if (trim($k) !== '' && trim($v) !== '' && !isset($seen[$kl])) { $specs[] = ['key' => trim($k), 'value' => trim($v)]; $seen[$kl] = 1; }
+    };
+
+    // Spec column: any short "Label: value" pair is a spec. Generic headers / long prose fall
+    // through to bullets; junk metadata is dropped; an embedded "Description:" is captured.
+    foreach ($specBlobs as $blob) {
         foreach (preg_split('/\r?\n/', $toText($blob)) as $line) {
             $line = preg_replace($bullet, '', trim($line));
             if ($line === '') continue;
-            // "Key - Value" spec line (short value).
-            if (preg_match('/^([A-Za-z][A-Za-z0-9 \/()&-]{1,38}?)\s+[-\x{2013}\x{2014}]\s+(.+)$/u', $line, $dm) && mb_strlen($dm[2]) <= 60) {
-                $k = trim($dm[1]); if (!isset($seen[strtolower($k)])) { $specs[] = ['key' => $k, 'value' => trim($dm[2])]; $seen[strtolower($k)] = 1; }
-                continue;
+            if (preg_match($LV, $line, $m) && mb_strlen($m[2]) <= 90) {
+                $lbl = strtolower(trim($m[1]));
+                if (in_array($lbl, $JUNK_LABELS, true)) continue;
+                if (in_array($lbl, ['description', 'descriptions'], true)) { if ($desc === '') $desc = trim($m[2]); continue; }
+                if (in_array($lbl, $generic, true)) { $bullets[] = ['title' => '', 'text' => trim($m[2])]; continue; }
+                $addSpec($m[1], $m[2]);
+            } else {
+                $bullets[] = ['title' => '', 'text' => $line];
             }
+        }
+    }
+
+    // Highlight column: junk dropped; only whitelisted labels become specs; everything else bullets.
+    foreach ($highlightBlobs as $blob) {
+        foreach (preg_split('/\r?\n/', $toText($blob)) as $line) {
+            $line = preg_replace($bullet, '', trim($line));
+            if ($line === '') continue;
             if (preg_match('/^([A-Za-z][A-Za-z0-9 \/&\x27()-]{0,38}):\s*(.*)$/u', $line, $m)) {
                 $lbl = strtolower(trim($m[1])); $val = preg_replace($bullet, '', trim($m[2]));
                 if (in_array($lbl, $JUNK_LABELS, true)) continue;
-                if (in_array($lbl, ['description', 'descriptions']) && $val !== '') { if ($desc === '') $desc = $val; continue; }
-                if (in_array($lbl, $SPEC_LABELS, true) && $val !== '' && mb_strlen($val) <= 80) {
-                    if (!isset($seen[$lbl])) { $specs[] = ['key' => trim($m[1]), 'value' => $val]; $seen[$lbl] = 1; }
-                    continue;
-                }
+                if (in_array($lbl, ['description', 'descriptions'], true) && $val !== '') { if ($desc === '') $desc = $val; continue; }
+                if (in_array($lbl, $SPEC_LABELS, true) && $val !== '' && mb_strlen($val) <= 80) { $addSpec($m[1], $val); continue; }
                 if (in_array($lbl, $generic, true)) { if ($val !== '') $bullets[] = ['title' => '', 'text' => $val]; continue; }
                 if ($val === '') { $bullets[] = ['title' => '', 'text' => trim($m[1])]; continue; }
                 $bullets[] = ['title' => trim($m[1]), 'text' => $val];
@@ -185,7 +207,7 @@ $classifyMeta = function (...$blobs) use ($JUNK_LABELS, $SPEC_LABELS) {
             }
         }
     }
-    return ['specs' => array_slice($specs, 0, 30), 'bullets' => array_slice($bullets, 0, 25), 'desc' => $desc];
+    return ['specs' => array_slice($specs, 0, 40), 'bullets' => array_slice($bullets, 0, 25), 'desc' => $desc];
 };
 
 // Highlights text -> [{title,text}] bullets for the "Product Highlights" box. Strips a leading
@@ -410,7 +432,10 @@ foreach ($slice as $i => $r) {
         // Key Specifications + Product Highlights, classified out of the highlights (col12) and
         // key_specifications (col14) columns plus any feature/spec sections found in other_info:
         // specs -> {key,value} table, real features -> bullets, junk dropped, "Description:" -> desc.
-        $meta = $classifyMeta($r['highlights'] ?? '', $r['key_specifications'] ?? '', implode("\n", $otherBullets), $otherSpecText);
+        $meta = $classifyMeta(
+            [$r['key_specifications'] ?? '', $otherSpecText],         // Key Specifications column + other_info spec sections
+            [$r['highlights'] ?? '', implode("\n", $otherBullets)]    // highlights column + other_info feature sections
+        );
         $specs      = $meta['specs'];
         $highlights = $meta['bullets'];
         if ($fullDesc === '' && $meta['desc'] !== '') $fullDesc = nl2br(htmlspecialchars($meta['desc'], ENT_QUOTES));
