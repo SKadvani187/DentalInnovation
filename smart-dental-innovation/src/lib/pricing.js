@@ -95,9 +95,8 @@ export function computeCartPricing(items, opts = {}) {
   // Field name kept as `bulkSavings` so existing consumers don't break.
   const bulkSavings = r2(
     nonGift.reduce((s, i) => {
-      // A line's own per-product tiers (if any) override the global table — mirrors the server.
-      const lineTiers = Array.isArray(i.bulkOffers) && i.bulkOffers.length ? i.bulkOffers : tiers;
-      const rate = tierRateFor(i.qty, lineTiers, bulkRule);
+      // Per-product tiers only — no global/legacy fallback (mirrors the server).
+      const rate = Array.isArray(i.bulkOffers) && i.bulkOffers.length ? tierRateFor(i.qty, i.bulkOffers, null) : 0;
       return rate > 0 ? s + i.price * rate * i.qty : s;
     }, 0)
   );

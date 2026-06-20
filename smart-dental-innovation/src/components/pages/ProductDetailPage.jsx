@@ -112,8 +112,9 @@ export default function ProductDetailPage() {
 
   const displayQty = qty > 0 ? qty : 1;
   const discount = product.discount || discountPct(product.mrp, product.price);
-  // Per-product quantity tiers (the reference site's "Available Offers") override the global table.
-  const productTiers = Array.isArray(product.bulkOffers) && product.bulkOffers.length ? product.bulkOffers : tierOffers;
+  // Per-product quantity tiers (the reference site's "Available Offers"). Only products that have
+  // their own offers show a table — there is no global fallback.
+  const productTiers = Array.isArray(product.bulkOffers) ? product.bulkOffers : [];
   const activeTier = useMemo(() => {
     return [...productTiers]
       .filter((t) => displayQty >= t.minQty)
@@ -515,6 +516,7 @@ export default function ProductDetailPage() {
               </div>
             </div>
 
+            {productTiers.length > 0 && (
             <div className="border border-gray-200 rounded-lg overflow-hidden">
               <div className="grid grid-cols-2 bg-blue-50 text-xs font-bold text-brand-ink">
                 <div className="px-3 py-2 border-r border-gray-200">Offer</div>
@@ -537,6 +539,7 @@ export default function ProductDetailPage() {
                 );
               })}
             </div>
+            )}
 
             <div className="grid grid-cols-2 gap-2 mt-4">
               <button

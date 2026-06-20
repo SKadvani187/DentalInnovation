@@ -1347,7 +1347,6 @@ async function saveSetting(key, value, label, silent) {
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="combospage" onclick="showSubSec('catalog','combospage')">📦 Combos Page</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="gvppage" onclick="showSubSec('catalog','gvppage')">🔥 Great Value Page</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="sbppage" onclick="showSubSec('catalog','sbppage')">₹ Shop by Price Page</button>
-    <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="tier" onclick="showSubSec('catalog','tier')">📦 Tiers</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="presets" onclick="showSubSec('catalog','presets')">₹ Presets</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="sort" onclick="showSubSec('catalog','sort')">↕️ Sort</button>
     <button type="button" class="btn btn-ghost btn-sm subtab-catalog" data-sec="featured" onclick="showSubSec('catalog','featured')">🌟 Featured</button>
@@ -1496,7 +1495,8 @@ function listCard($id, $title, $desc, $addLabel, $saveFn, $addFn, $seckey='') {
 </div>
 HTML;
 }
-listCard('tier', 'Tier Offers', 'Quantity discounts applied in cart &amp; orders (e.g. Buy 2 → 5%, Buy 5 → 8%)', 'Add Tier', 'saveTiers', 'addTierRow', 'tier');
+// Tier Offers card removed: quantity discounts are now configured PER PRODUCT
+// (Products → edit → Variants tab → "Quantity Offers"), not as one global table.
 listCard('pp', 'Price Presets', 'Shop-by-price quick filters', 'Add Preset', 'savePresets', 'addPpRow', 'presets');
 listCard('sort', 'Sort Options', 'Category / combos sort dropdown', 'Add Option', 'saveSort', 'addSortRow', 'sort');
 listCard('feat', 'Featured Showcase Cards', 'Home featured product banners', 'Add Card', 'saveFeatured', 'addFeatRow', 'featured');
@@ -1664,6 +1664,8 @@ async function saveTaxGst(){
 // ---- Tier Offers ----
 let TIERS = <?= json_encode($site['tierOffers'] ?? [], JSON_UNESCAPED_SLASHES) ?> || [];
 function renderTiers(){
+  // The global Tier Offers card was removed (offers are per-product now); bail if it's absent.
+  if (!document.getElementById('tier_rows')) return;
   // Column header row — shown above the inputs so it's clear what each field is when
   // adding a tier. Hidden when there are no tiers yet.
   const header = TIERS.length ? `

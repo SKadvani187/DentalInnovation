@@ -345,7 +345,7 @@ export default function CartDrawer() {
                   </div>
 
                   {i.type !== "gift" && (() => {
-                    const tier = tierFor(i.qty, i.bulkOffers || tierOffers, bulkRule);
+                    const tier = i.bulkOffers?.length ? tierFor(i.qty, i.bulkOffers, null) : null;
                     if (!tier || !tier.rate) return null;
                     const saved = fmt(i.price * tier.rate * i.qty);
                     const label = tier.label || `${Math.round(tier.rate * 100)}% quantity discount`;
