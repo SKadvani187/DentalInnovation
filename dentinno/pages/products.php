@@ -143,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             if ($oldStock !== $stock) {
                 recordStockMovement((int)$pid, $stock - $oldStock, 'edit', 'Stock changed via product edit', null, (int)($_SESSION['admin_id'] ?? 0) ?: null, $stock);
             }
-            echo json_encode(['success' => true, 'message' => 'Product updated', 'id' => $pid]);
+            $saveMsg = 'Product updated';
         } else {
             $sku  = 'SKU-' . strtoupper(substr(md5($name . microtime()), 0, 6));
             $pid = db()->insert("INSERT INTO products (name,slug,meta_title,meta_description,sku,category_id,price,discount_price,discount_percent,stock,min_stock_alert,short_description,full_description,features,packing_info,key_specifications,directions_for_use,additional_information,warranty_info,key_features,warranty_no,direction_of_use,catalogue_url,images,hover_image,variants,bulk_offers,weight_kg,shipping_method_id,is_active,is_featured,is_new) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -151,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             if ((int)$stock !== 0) {
                 recordStockMovement((int)$pid, (int)$stock, 'initial', 'Initial stock on create', null, (int)($_SESSION['admin_id'] ?? 0) ?: null, (int)$stock);
             }
-            echo json_encode(['success' => true, 'message' => 'Product added', 'id' => $pid]);
+            $saveMsg = 'Product added';
         }
         // Cost (purchase) price + HSN code — stored separately to keep the big save query untouched.
         if (!empty($pid)) {
@@ -188,6 +188,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 }
             }
         }
+        // Single response, emitted only after ALL post-save work succeeds. Echoing earlier would
+        // let a later failure (caught below) append a second JSON object, corrupting the response.
+        echo json_encode(['success' => true, 'message' => $saveMsg, 'id' => $pid]);
     } elseif ($action === 'get_faqs') {
         $faqs = db()->fetchAll("SELECT * FROM product_faqs WHERE product_id=? ORDER BY sort_order", [$data['product_id']]);
         echo json_encode(['success' => true, 'faqs' => $faqs]);

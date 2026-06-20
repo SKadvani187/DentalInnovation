@@ -11,7 +11,6 @@ import Seo from "../Seo";
 
 // Bounds fallback only for the first render before settings resolve; admin value (DB) wins.
 const FALLBACK_BOUNDS = { min: 10, max: 500000 };
-const COLLAPSE_COUNT = 10;
 
 const fmt = (n) => `₹${n.toLocaleString("en-IN")}`;
 
@@ -28,7 +27,6 @@ export default function CategoryPage() {
   const initialPriceMax = priceMaxParam || PRICE_MAX;
   const [selectedCat, setSelectedCat] = useState(initialCategory);
   const [sort, setSort] = useState("all");
-  const [expanded, setExpanded] = useState(false);
   const [priceMin, setPriceMin] = useState(PRICE_MIN);
   const [priceMax, setPriceMax] = useState(initialPriceMax);
   const [mobileFilters, setMobileFilters] = useState(false);
@@ -55,7 +53,11 @@ export default function CategoryPage() {
   const priceFiltered = priceMin > PRICE_MIN || priceMax < PRICE_MAX;
   const products = useMemo(() => {
     let list = [...(combos || []), ...(allProducts || [])].filter((p) => p && p.id);
-    if (selectedCat) list = list.filter((p) => p.category === selectedCat);
+    // "new"/"featured" are flag pseudo-filters (matching the home New Arrivals / Bestsellers
+    // sections), not real category slugs — filter by the product flag instead of category.
+    if (selectedCat === "new") list = list.filter((p) => p.isNew);
+    else if (selectedCat === "featured") list = list.filter((p) => p.isFeatured);
+    else if (selectedCat) list = list.filter((p) => p.category === selectedCat);
     list = list.filter((p) => (p.price ?? 0) >= priceMin && (p.price ?? 0) <= priceMax);
     switch (sort) {
       case "price-asc": list.sort((a, b) => (a.price || 0) - (b.price || 0)); break;
@@ -67,7 +69,6 @@ export default function CategoryPage() {
     return list;
   }, [selectedCat, sort, priceMin, priceMax, allProducts, combos]);
 
-  const visibleCats = expanded ? CATEGORY_FILTERS : CATEGORY_FILTERS.slice(0, COLLAPSE_COUNT);
   const catLabel = selectedCat ? (CATEGORY_FILTERS.find((c) => c.id === selectedCat)?.label || searchParams.get("title") || "Products") : "All Products";
   const resetAll = () => { setSelectedCat(null); setPriceMin(PRICE_MIN); setPriceMax(PRICE_MAX); setSort("all"); };
 
@@ -79,23 +80,14 @@ export default function CategoryPage() {
           <button onClick={resetAll} className="text-xs font-semibold text-[#3684bf] hover:underline">Clear all</button>
         )}
       </div>
-      <ul className="space-y-1">
+      {/* Scrollable category list — a long catalogue (30+ categories) stays contained
+          inside the filter card instead of pushing the price range off-screen. */}
+      <ul className="space-y-1 max-h-[320px] overflow-y-auto pr-1 thin-scrollbar">
         <li><CatRadio label="All Categories" checked={selectedCat === null} onChange={() => setSelectedCat(null)} /></li>
-        {visibleCats.map((c) => (
+        {CATEGORY_FILTERS.map((c) => (
           <li key={c.id}><CatRadio label={c.label} checked={selectedCat === c.id} onChange={() => setSelectedCat(c.id)} /></li>
         ))}
       </ul>
-      {CATEGORY_FILTERS.length > COLLAPSE_COUNT && (
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          className="mt-3 w-full py-2 border-t border-b border-gray-200 text-[#3684bf] font-semibold text-sm flex items-center justify-center gap-1 hover:bg-gray-50"
-        >
-          {expanded ? "View Less" : "View All"}
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d={expanded ? "M19 12H5M12 19l-7-7 7-7" : "M5 12h14M13 5l7 7-7 7"} />
-          </svg>
-        </button>
-      )}
       <div className="mt-6">
         <h3 className="text-base font-bold text-brand-ink mb-3">Price Range</h3>
         <PriceRange min={PRICE_MIN} max={PRICE_MAX} valueMin={priceMin} valueMax={priceMax} onChange={(lo, hi) => { setPriceMin(lo); setPriceMax(hi); }} />
@@ -118,7 +110,7 @@ export default function CategoryPage() {
       />
       {/* Header */}
       <div className="bg-white border-b border-gray-100">
-        <div className="max-w-[1400px] mx-auto px-4 py-5">
+        <div className="max-w-[1400px] mx-auto px-3 sm:px-6 py-5">
           <nav className="flex items-center gap-2 text-xs text-brand-muted mb-2">
             <button onClick={() => navigate("home")} className="hover:text-[#3684bf]">Home</button>
             <span>/</span>
@@ -132,7 +124,7 @@ export default function CategoryPage() {
         </div>
       </div>
 
-      <div className="max-w-[1400px] mx-auto px-4 py-5">
+      <div className="max-w-[1400px] mx-auto px-3 sm:px-6 py-5">
         {/* Mobile filter button + sort */}
         <div className="flex items-center justify-between gap-3 mb-4 lg:hidden">
           <button onClick={() => setMobileFilters(true)} className="inline-flex items-center gap-2 border border-gray-300 rounded-full px-4 py-2 text-sm font-semibold text-brand-ink">

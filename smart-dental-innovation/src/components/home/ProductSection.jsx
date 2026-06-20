@@ -13,6 +13,10 @@ export default function ProductSection({ title, eyebrow, products, accent = "nav
     navigate("category", category ? { category, title } : { title });
   };
 
+  // An empty section (e.g. no Bestsellers/New Arrivals yet) renders nothing at all —
+  // no header, no "View All" button — so the home page doesn't show a dead link.
+  if (!products || products.length === 0) return null;
+
   return (
     <section className="max-w-[1400px] mx-auto px-3 sm:px-6 py-6 sm:py-10">
       <div className="flex items-end justify-between mb-4 sm:mb-6">
