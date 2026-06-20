@@ -126,7 +126,7 @@ $parseSpecs = function ($s) {
 $cleanHtml = function ($s) {
     $s = (string)$s;
     if (trim($s) === '') return '';
-    $s = strip_tags($s, '<p><br><b><strong><i><em><u><ul><ol><li><h3><h4><h5><h6><a>');
+    $s = strip_tags($s, '<p><br><b><strong><i><em><u><ul><ol><li><h3><h4><h5><h6><a><div><span>');
     $s = preg_replace_callback('#<([a-zA-Z][a-z0-9]*)\b[^>]*>#i', function ($m) {
         $tag = strtolower($m[1]);
         if ($tag === 'a' && preg_match('#href\s*=\s*("[^"]*"|\'[^\']*\')#i', $m[0], $h)) {
