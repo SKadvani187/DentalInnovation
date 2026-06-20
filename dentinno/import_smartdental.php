@@ -181,7 +181,7 @@ $classifyMeta = function (array $specBlobs, array $highlightBlobs) use ($JUNK_LA
                 $lbl = strtolower(trim($m[1]));
                 if (in_array($lbl, $JUNK_LABELS, true)) continue;
                 if (in_array($lbl, ['description', 'descriptions'], true)) { if ($desc === '') $desc = trim($m[2]); continue; }
-                if (in_array($lbl, $generic, true)) { $bullets[] = ['title' => '', 'text' => trim($m[2])]; continue; }
+                if (in_array($lbl, $generic, true)) { if (trim($m[2]) !== '') $bullets[] = ['title' => trim($m[1]), 'text' => trim($m[2])]; continue; }
                 $addSpec($m[1], $m[2]);
             } else {
                 $bullets[] = ['title' => '', 'text' => $line];
@@ -199,9 +199,9 @@ $classifyMeta = function (array $specBlobs, array $highlightBlobs) use ($JUNK_LA
                 if (in_array($lbl, $JUNK_LABELS, true)) continue;
                 if (in_array($lbl, ['description', 'descriptions'], true) && $val !== '') { if ($desc === '') $desc = $val; continue; }
                 if (in_array($lbl, $SPEC_LABELS, true) && $val !== '' && mb_strlen($val) <= 80) { $addSpec($m[1], $val); continue; }
-                if (in_array($lbl, $generic, true)) { if ($val !== '') $bullets[] = ['title' => '', 'text' => $val]; continue; }
+                if (in_array($lbl, $generic, true) && $val === '') continue;   // lone "Key Features:" header — skip
                 if ($val === '') { $bullets[] = ['title' => '', 'text' => trim($m[1])]; continue; }
-                $bullets[] = ['title' => trim($m[1]), 'text' => $val];
+                $bullets[] = ['title' => trim($m[1]), 'text' => $val];   // keep the label as a bold title (e.g. "Key Features:")
             } else {
                 $bullets[] = ['title' => '', 'text' => $line];
             }
