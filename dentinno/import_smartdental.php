@@ -57,6 +57,12 @@ $unescapeBlob = function ($s) {
     return $s;
 };
 
+// strip_tags() treats a "<" that is NOT a real tag (e.g. the "<70 dB" / "< 5 mm" notation) as a
+// malformed tag and DELETES everything from that "<" to the next ">" or end-of-string — silently
+// eating trailing content. Escape any "<" not followed by a letter, "/", or "!" to "&lt;" first so
+// strip_tags leaves it (it's later decoded back to "<" by html_entity_decode). Real tags survive.
+$protectLt = fn($s) => preg_replace('/<(?![a-zA-Z\/!])/u', '&lt;', (string)$s);
+
 // HTML -> clean plain text. The storefront renders these fields as plain text
 // (whitespace-pre-line), so any markup must be stripped. Block tags become line breaks and
 // <li> becomes a bullet so paragraphs/lists stay readable; entities are decoded.
@@ -149,8 +155,8 @@ $parseSpecs = function ($s) {
 // Sanitise HTML for storage: keep only the structural tags RichText/DOMPurify renders, drop all
 // attributes (data-*, style, class bloat) except href on <a>, and remove empty wrappers. Keeps
 // lists/bold/headers so the storefront shows the same structure as the source.
-$cleanHtml = function ($s) use ($unescapeBlob) {
-    $s = $unescapeBlob($s);
+$cleanHtml = function ($s) use ($unescapeBlob, $protectLt) {
+    $s = $protectLt($unescapeBlob($s));
     if (trim($s) === '') return '';
     $s = strip_tags($s, '<p><br><b><strong><i><em><u><ul><ol><li><h3><h4><h5><h6><a><div><span>');
     $s = preg_replace_callback('#<([a-zA-Z][a-z0-9]*)\b[^>]*>#i', function ($m) {
@@ -199,10 +205,10 @@ $isSpecLabel = function ($lbl) use ($SPEC_LABELS, $SPEC_KW, $FEATURE_PREFIX) {
 //   product's full spec list survives like the reference site. $highlightBlobs = the highlights
 //   column (col12) + other_info feature sections: junk metadata dropped, only whitelisted labels
 //   become specs, the rest are bullets. Captures any embedded "Description:".
-$classifyMeta = function (array $specBlobs, array $highlightBlobs) use ($JUNK_LABELS, $SPEC_LABELS, $isSpecLabel, $unescapeBlob) {
+$classifyMeta = function (array $specBlobs, array $highlightBlobs) use ($JUNK_LABELS, $SPEC_LABELS, $isSpecLabel, $unescapeBlob, $protectLt) {
     $bullet  = '/^[\x{2022}\x{00B7}\x{25AA}\x{25E6}\x{2023}\x{2219}\x{2043}\x{2705}\x{2713}\x{2714}\x{2611}\x{2192}\x{27A4}\x{25B6}\x{25CF}\x{25CB}\x{25A0}\x{25A1}\x{2605}\x{2606}\x{2756}\x{FE0F}*\-\x{2013}\x{2014}]+\s+/u';
     $generic = ['key features', 'features', 'highlights', 'product highlights', 'specifications', 'key specifications', 'specs'];
-    $toText  = fn($s) => trim(html_entity_decode(strip_tags(preg_replace('#<\s*/?(br|p|li|div|h[1-6]|ul|ol|tr)\b[^>]*>#i', "\n", (string)$s)), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    $toText  = fn($s) => trim(html_entity_decode(strip_tags(preg_replace('#<\s*/?(br|p|li|div|h[1-6]|ul|ol|tr)\b[^>]*>#i', "\n", $protectLt($s))), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     // "Label: value" (colon may be tight) OR "Label - value" (dash needs surrounding spaces so
     // hyphenated labels like "Anti-Microbial" aren't split). Captures label + value.
     $LV = '/^([A-Za-z][A-Za-z0-9 ()\/&\x27.+%-]{0,48}?)(?:\s*:\s*|\s+[-\x{2013}\x{2014}]\s+)(.+)$/u';
@@ -298,8 +304,8 @@ $htmlToBullets = function ($text) use ($JUNK_LABELS) {
 // Product Highlights <- the `highlights` column: keep EVERY point (no junk-label dropping). Only
 // blank lines and bare generic headers ("Key Features:") are skipped. "Label: value" -> {title,text};
 // a plain line -> {title:'', text}. HTML entities/tags are decoded so the text is clean.
-$allHighlights = function ($text) {
-    $text = trim(html_entity_decode(strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>', '</li>', '</div>'], "\n", (string)$text)), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+$allHighlights = function ($text) use ($protectLt) {
+    $text = trim(html_entity_decode(strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>', '</li>', '</div>'], "\n", $protectLt($text))), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     if ($text === '') return [];
     $bullet  = '/^[\x{2022}\x{00B7}\x{25AA}\x{25E6}\x{2023}\x{2219}\x{2043}\x{2705}\x{2713}\x{2714}\x{2611}\x{2192}\x{27A4}\x{25B6}\x{25CF}\x{25CB}\x{25A0}\x{25A1}\x{2605}\x{2606}\x{2756}\x{FE0F}*\-\x{2013}\x{2014}]+\s+/u';
     $generic = ['key features', 'features', 'highlights', 'product highlights', 'specifications', 'key specifications', 'specs'];
@@ -307,11 +313,13 @@ $allHighlights = function ($text) {
     foreach (preg_split('/\r?\n/', $text) as $line) {
         $line = preg_replace($bullet, '', trim($line));
         if ($line === '') continue;
-        if (preg_match('/^([A-Za-z][A-Za-z0-9 \/&\x27()-]{0,38}):\s*(.*)$/u', $line, $m)) {
-            $title = trim($m[1]); $body = preg_replace($bullet, '', trim($m[2]));
-            if (in_array(strtolower($title), $generic, true)) { if ($body !== '') $out[] = ['title' => '', 'text' => $body]; continue; }
-            if ($body === '') { $out[] = ['title' => '', 'text' => $title]; continue; }
-            $out[] = ['title' => $title, 'text' => $body];
+        // Word-for-word: keep EVERY line. "Label: value" -> {title,text} (renders "Label: value");
+        // any line whose label can't be cleanly split stays a verbatim plain bullet. Nothing dropped.
+        if (preg_match('/^([A-Za-z][A-Za-z0-9 \/&\x27()-]{0,38}):\s*(.+)$/u', $line, $m)) {
+            $ttl = trim($m[1]); $val = preg_replace($bullet, '', trim($m[2]));
+            // Source "Label:: value" typo: keep the extra colon on the title so it renders verbatim.
+            if (strncmp($val, ':', 1) === 0) { $ttl .= ':'; $val = ltrim(substr($val, 1)); }
+            $out[] = ['title' => $ttl, 'text' => $val];
         } else {
             $out[] = ['title' => '', 'text' => $line];
         }
@@ -323,14 +331,17 @@ $allHighlights = function ($text) {
 // A "Label: value" feature becomes {key,value}; a plain feature line becomes {key:line, value:''}
 // (the storefront spec table shows the key column, so plain features render as a clean list).
 // Generic headers ("Key Features:") are skipped; rows are de-duplicated by key.
-$featToSpecs = function (array $blobs) {
+$featToSpecs = function (array $blobs) use ($protectLt) {
     $glyph   = '/^[\x{2022}\x{00B7}\x{25AA}\x{25E6}\x{2023}\x{2219}\x{2043}\x{2705}\x{2713}\x{2714}\x{2611}\x{2192}\x{27A4}\x{25B6}\x{25CF}\x{25CB}\x{25A0}\x{25A1}\x{2605}\x{2606}\x{2756}\x{FE0F}*\-\x{2013}\x{2014}"\x{201C}\x{201D}]+\s*/u';
     $generic = ['key features', 'key feature', 'features', 'highlights', 'product highlights', 'specifications', 'key specifications', 'specs'];
-    $toText  = fn($s) => trim(html_entity_decode(strip_tags(preg_replace('#<\s*/?(br|p|li|div|h[1-6]|ul|ol|tr)\b[^>]*>#i', "\n", (string)$s)), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    $toText  = fn($s) => trim(html_entity_decode(strip_tags(preg_replace('#<\s*/?(br|p|li|div|h[1-6]|ul|ol|tr)\b[^>]*>#i', "\n", $protectLt($s))), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     $out = []; $seen = [];
     foreach ($blobs as $blob) {
         foreach (preg_split('/\r?\n/', $toText($blob)) as $line) {
             $line = preg_replace($glyph, '', trim($line));
+            // Plain text: strip icons/emoji/checkmarks/arrows ANYWHERE (e.g. a "✔" sitting after the
+            // "Key Features:" label), then collapse the gap they leave.
+            $line = trim(preg_replace('/\s{2,}/', ' ', preg_replace('/[\x{2190}-\x{21FF}\x{2300}-\x{27BF}\x{2B00}-\x{2BFF}\x{FE0F}\x{1F000}-\x{1FAFF}]/u', '', $line)));
             if ($line === '') continue;
             if (preg_match('/^([A-Za-z][A-Za-z0-9 \/&\x27()-]{0,40}?):\s*(.*)$/u', $line, $m)) {
                 $k = trim($m[1]); $v = trim($m[2]);
@@ -534,6 +545,7 @@ foreach ($slice as $i => $r) {
         // buckets (DESC/PACK/WARR) and the main DIR header drop the noise heading, but numbered /
         // step sub-headings keep theirs so the steps stay readable.
         $bucketed = ['DESC' => [], 'DIR' => [], 'PACK' => [], 'WARR' => [], 'SPEC' => [], 'FEAT' => []];
+        $featHtmlParts = [];   // raw HTML of FEAT ("Key Features") sections -> the Key Features accordion
         $keepLabel = function ($bucket, $label) {
             if ($label === '') return false;
             if ($bucket === 'SPEC' || $bucket === 'FEAT') return true;
@@ -546,6 +558,14 @@ foreach ($slice as $i => $r) {
             $b = $routeLabel($sec['label']);
             if ($b === 'JUNK') continue;
             $bucketed[$b][] = $keepLabel($b, $sec['label']) ? ($sec['label'] . ': ' . $body) : $body;
+            if ($b === 'FEAT') {
+                // Keep the source HTML so ✓ titles + indented descriptions render like the reference
+                // (same treatment as Description). Drop only a redundant generic "Key Features:" heading.
+                $lbl = strtolower(trim($sec['label']));
+                $featHtmlParts[] = ($lbl === '' || in_array($lbl, ['key features', 'key feature', 'features', 'highlights', 'product highlights'], true))
+                    ? $body
+                    : '<div><strong>' . htmlspecialchars($sec['label']) . ':</strong> ' . $body . '</div>';
+            }
         }
         if ($fullDesc === ''   && $bucketed['DESC']) $fullDesc   = implode("\n", $bucketed['DESC']);
         if ($directions === '' && $bucketed['DIR'])  $directions = implode("\n", $bucketed['DIR']);
@@ -561,16 +581,12 @@ foreach ($slice as $i => $r) {
         $meta  = $classifyMeta([$r['key_specifications'] ?? '', $otherSpecText], []);
         $specs = array_slice($meta['specs'], 0, 40);
         $highlights = $allHighlights($r['highlights'] ?? '');   // Product Highlights <- highlights column, ALL points
-        // other_info "Key Features" -> the "Key Features" accordion. One <p> per feature so .rich-text
-        // gives each line spacing with NO bullet markers (matches the reference list design/font).
-        $kfRows = $featToSpecs($otherBullets);
-        $keyFeatures = $kfRows
-            ? implode('', array_map(fn($kf) => '<p>' . htmlspecialchars($kf['value'] !== '' ? $kf['key'] . ': ' . $kf['value'] : $kf['key'], ENT_QUOTES) . '</p>', $kfRows))
-            : null;
+        // other_info "Key Features" -> the "Key Features" accordion, kept as the source HTML (✓ titles +
+        // indented descriptions), rendered via RichText exactly like the Description section.
+        $keyFeatures = $featHtmlParts ? implode('', $featHtmlParts) : null;
         if ($fullDesc === '' && $meta['desc'] !== '') $fullDesc = nl2br(htmlspecialchars($meta['desc'], ENT_QUOTES));
-        // Description section <- short_description (per mapping). The long `description` column /
-        // other_info DESC remain only as a fallback when short_description is empty.
-        if ($shortFull !== '') $fullDesc = $shortFull;
+        // Description section <- the `description` column ($fullDesc above, built from $r['description']
+        // with other_info DESC as fallback). short_description is NOT used here.
 
         $weightG   = 0;
         if (preg_match('/Weight:\s*([0-9.]+)/i', (string)($r['dimensions'] ?? ''), $wm)) $weightG = (float)$wm[1];

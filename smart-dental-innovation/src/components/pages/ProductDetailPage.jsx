@@ -276,12 +276,12 @@ export default function ProductDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* LEFT image gallery */}
-        <div className="lg:col-span-5 lg:sticky lg:top-[110px] lg:self-start">
+        <div className="lg:col-span-4 lg:sticky lg:top-[110px] lg:self-start">
           <ProductGallery key={product.id} product={product} wished={wished} onWish={() => toggle(product.id)} />
         </div>
 
         {/* CENTER details */}
-        <div className="lg:col-span-4 space-y-4">
+        <div className="lg:col-span-5 space-y-4">
           <div className="border border-gray-200 rounded-xl p-5">
             <div className="flex items-start gap-2 mb-2 flex-wrap">
               <h1 className="text-2xl font-bold text-brand-ink leading-snug flex-1 min-w-0">{product.name}</h1>
@@ -384,7 +384,7 @@ export default function ProductDetailPage() {
             </div>
 
             {product.description && (
-              <RichText html={product.description} className="text-sm text-brand-muted leading-relaxed" />
+              <RichText html={product.description} className="text-[15px] text-brand-ink leading-relaxed" />
             )}
 
             {product.catalogueUrl && (
@@ -862,7 +862,7 @@ function ProductHighlights({ highlights }) {
         <ul className="m-0 list-disc pl-5 space-y-1">
           {list.map((h, i) => (
             <li key={i} className="leading-relaxed">
-              {h.title && <strong className="text-brand-ink">{h.title}: </strong>}{h.text}
+              {h.title && <strong className="text-brand-muted">{h.title}: </strong>}{h.text}
             </li>
           ))}
         </ul>
@@ -925,14 +925,14 @@ function ProductAccordions({ product, fallback = [] }) {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className={`text-brand-muted transition ${open === s.id ? "rotate-180" : ""}`}><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" /></svg>
           </button>
           {open === s.id && (
-            <div className="px-5 pb-4 text-sm text-brand-muted leading-relaxed">
+            <div className="px-5 pb-4 text-[15px] text-brand-ink leading-relaxed">
               {s.specs && s.specs.length > 0 ? (
                 <table className="w-full text-sm">
                   <tbody>
                     {s.specs.map((sp, i) => (
                       <tr key={i} className="border-b border-gray-100 last:border-0">
                         <td className="py-2 pr-4 font-semibold text-brand-ink align-top w-2/5">{sp.key}</td>
-                        <td className="py-2 text-brand-muted">{sp.value}</td>
+                        <td className="py-2 text-brand-ink">{sp.value}</td>
                       </tr>
                     ))}
                   </tbody>
