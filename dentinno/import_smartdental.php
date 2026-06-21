@@ -152,13 +152,28 @@ $SPEC_LABELS = ['dimensions','weight','net weight','gross weight','material','ma
     'colour','color','gear ratio','head type','chuck type','speed','torque','power','voltage',
     'frequency','capacity','model','model no','range','resolution','sensor','battery','warranty period'];
 
+// A "Label: value" line in the highlights/feature stream is really a spec when its label is a known
+// spec key OR contains a measurement/unit keyword — UNLESS the label opens with a feature adjective
+// ("Adjustable…", "Wide…", "Compact…"), which marks it as a genuine highlight bullet. Combined with
+// the caller's value-length guard, this routes specs like "Max torque", "Battery Capacity",
+// "Working Distance", "Country of Origin" into Key Specifications instead of the Highlights box.
+$SPEC_KW = '/\b(torque|speed|rpm|range|length|height|width|depth|diameter|dimensions?|weight|materials?|capacity|voltage|wattage|power|frequency|sizes?|ratio|distance|resolution|taper|angle|temperature|pressure|battery|wavelength|origin|ingredient|toxicity|consistency|expiry|shelf life|warranty period|model|shape|colou?r|coding|type)\b/i';
+$FEATURE_PREFIX = '/^(adjustable|wide|supports?|available|compact|fast|multiple|dual|ultra|high|low|easy|long|ergonomic|durable|lightweight|portable|rechargeable|flexible|precise|smooth|stable|enhanced|improved|superior|excellent|reliable|built|designed|ideal|suitable|comes|includes?)\b/i';
+$isSpecLabel = function ($lbl) use ($SPEC_LABELS, $SPEC_KW, $FEATURE_PREFIX) {
+    $lbl = trim($lbl);
+    if ($lbl === '') return false;
+    if (in_array(mb_strtolower($lbl), $SPEC_LABELS, true)) return true;
+    if (preg_match($FEATURE_PREFIX, $lbl)) return false;   // feature phrase, keep as bullet
+    return (bool)preg_match($SPEC_KW, $lbl);
+};
+
 // Classify content into Key Specifications [{key,value}] vs Product Highlights bullets [{title,text}].
 // $specBlobs = the dedicated Key Specifications column (col14) + spec sections from other_info:
 //   EVERY "Label: value" / "Label - value" line with a short value is a spec (no whitelist), so a
 //   product's full spec list survives like the reference site. $highlightBlobs = the highlights
 //   column (col12) + other_info feature sections: junk metadata dropped, only whitelisted labels
 //   become specs, the rest are bullets. Captures any embedded "Description:".
-$classifyMeta = function (array $specBlobs, array $highlightBlobs) use ($JUNK_LABELS, $SPEC_LABELS) {
+$classifyMeta = function (array $specBlobs, array $highlightBlobs) use ($JUNK_LABELS, $SPEC_LABELS, $isSpecLabel) {
     $bullet  = '/^[\x{2022}\x{00B7}\x{25AA}\x{25E6}\x{2023}\x{2219}\x{2043}*\-]\s+/u';
     $generic = ['key features', 'features', 'highlights', 'product highlights', 'specifications', 'key specifications', 'specs'];
     $toText  = fn($s) => trim(html_entity_decode(strip_tags(preg_replace('#<\s*/?(br|p|li|div|h[1-6]|ul|ol|tr)\b[^>]*>#i', "\n", (string)$s)), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
@@ -198,7 +213,7 @@ $classifyMeta = function (array $specBlobs, array $highlightBlobs) use ($JUNK_LA
                 $lbl = strtolower(trim($m[1])); $val = preg_replace($bullet, '', trim($m[2]));
                 if (in_array($lbl, $JUNK_LABELS, true)) continue;
                 if (in_array($lbl, ['description', 'descriptions'], true) && $val !== '') { if ($desc === '') $desc = $val; continue; }
-                if (in_array($lbl, $SPEC_LABELS, true) && $val !== '' && mb_strlen($val) <= 80) { $addSpec($m[1], $val); continue; }
+                if ($isSpecLabel($lbl) && $val !== '' && mb_strlen($val) <= 80) { $addSpec($m[1], $val); continue; }
                 if (in_array($lbl, $generic, true) && $val === '') continue;   // lone "Key Features:" header — skip
                 if ($val === '') { $bullets[] = ['title' => '', 'text' => trim($m[1])]; continue; }
                 $bullets[] = ['title' => trim($m[1]), 'text' => $val];   // keep the label as a bold title (e.g. "Key Features:")
@@ -282,13 +297,15 @@ $routeLabel = function ($label) {
         $map = [];
         $add = function ($b, $a) use (&$map) { foreach ($a as $k) $map[$k] = $b; };
         $add('JUNK', ['product name','price','price inr','price in inr','mrp','discount','category','brand','short description','availability','sku','seller','hsn','gst','bulk offers','bulk offer','offers','offer']);
-        $add('DESC', ['description','descriptions','product description','overview','product overview','about','about product']);
-        $add('DIR',  ['how to use','how to use it','direction of use','directions of use','direction to use','directions to use','directions for use','directions','direction','usage','use','intended use','instructions for use','instructions','method of use','steps','procedure','application','indications','indication']);
-        $add('PACK', ['packaging info','packaging information','packaging','package contents','package content','contents','what\'s in the box','in the box','box contents','package','package includes','kit contents','set includes']);
+        $add('DESC', ['description','descriptions','descripton','desctiption','desscription','desription','product description','product descriptions','long description','detailed description','key description','overview','product overview','about','about product']);
+        $add('DIR',  ['how to use','how to use it','direction of use','directions of use','direction to use','directions to use','directions for use','direction for use','diraction of use','diraction','directions','direction','usage','usage instructions','operating instructions','use','intended use','instructions for use','instructions','method of use','method','steps','procedure','application','indications','indication']);
+        $add('PACK', ['packaging info','packaging information','packaging','package info','package information','packing info','packing','packagign info','packaginge info','packaginf info','packaginng info','package contents','package content','contents','what\'s in the box','in the box','box contents','package','package includes','package details','kit contents','set includes']);
         $add('WARR', ['warranty','warranty & support','warranty and support','support & warranty','warranty info','warranty information','warranty & service','warranty details']);
-        $add('SPEC', ['technical specifications','technical specification','specifications','specification','key specifications','key specification','product specifications','specs']);
+        $add('SPEC', ['technical specifications','technical specification','specifications','specification','key specifications','key specification','key spacification','product specifications','specs','expiry','expiry date','shelf life','country of origin','manufacturer']);
     }
-    return $map[strtolower(trim($label))] ?? 'FEAT';
+    $l = strtolower(trim($label));
+    if (preg_match('/^step\s*\d+/', $l)) return 'DIR';   // numbered procedure steps -> directions
+    return $map[$l] ?? 'FEAT';
 };
 
 // Split a (cleaned) HTML/text blob into [{label, body}] sections by line-leading or post-tag
@@ -414,20 +431,31 @@ foreach ($slice as $i => $r) {
         $warranty   = $htmlToText($r['warranty'] ?? '');     // col13 (short)
         if (in_array(strtolower(trim($warranty)), ['', 'no', 'na', 'n/a', 'none', '-', 'not specified'], true)) $warranty = '';
 
-        $otherBullets = []; $otherSpecText = '';
+        // Collect other_info sections per bucket so MULTIPLE sections of the same kind survive
+        // (e.g. a "Direction of Use:" header followed by "Step 1..N", or several spec lines) — not
+        // just the first one. SPEC/FEAT keep their label so a "Key: value" keeps its key; prose
+        // buckets (DESC/PACK/WARR) and the main DIR header drop the noise heading, but numbered /
+        // step sub-headings keep theirs so the steps stay readable.
+        $bucketed = ['DESC' => [], 'DIR' => [], 'PACK' => [], 'WARR' => [], 'SPEC' => [], 'FEAT' => []];
+        $keepLabel = function ($bucket, $label) {
+            if ($label === '') return false;
+            if ($bucket === 'SPEC' || $bucket === 'FEAT') return true;
+            if ($bucket === 'DIR') return (bool)preg_match('/^(step\b|step\d|preparation|setup|priming|during|after|before|post|removal|operation|installation|application|method)/i', $label);
+            return false;   // DESC / PACK / WARR -> drop the heading word
+        };
         foreach ($splitHtmlSections($cleanHtml($r['other_info'] ?? '')) as $sec) {
             $body = trim($sec['body']);
             if ($body === '' || trim(strip_tags($body)) === '') continue;
-            switch ($routeLabel($sec['label'])) {
-                case 'JUNK': break;
-                case 'DESC': if ($fullDesc === '')   $fullDesc   = $body; break;
-                case 'DIR':  if ($directions === '') $directions = $body; break;
-                case 'PACK': if ($packing === '')    $packing    = $body; break;
-                case 'WARR': if ($warranty === '')   $warranty   = trim(strip_tags($body)); break;
-                case 'SPEC': $otherSpecText .= "\n" . $body; break;
-                default:     $otherBullets[] = $body;   // FEAT -> bulletised below
-            }
+            $b = $routeLabel($sec['label']);
+            if ($b === 'JUNK') continue;
+            $bucketed[$b][] = $keepLabel($b, $sec['label']) ? ($sec['label'] . ': ' . $body) : $body;
         }
+        if ($fullDesc === ''   && $bucketed['DESC']) $fullDesc   = implode("\n", $bucketed['DESC']);
+        if ($directions === '' && $bucketed['DIR'])  $directions = implode("\n", $bucketed['DIR']);
+        if ($packing === ''    && $bucketed['PACK']) $packing    = implode("\n", $bucketed['PACK']);
+        if ($warranty === ''   && $bucketed['WARR']) $warranty   = trim(strip_tags(implode("\n", $bucketed['WARR'])));
+        $otherSpecText = implode("\n", $bucketed['SPEC']);
+        $otherBullets  = $bucketed['FEAT'];
 
         // Key Specifications + Product Highlights, classified out of the highlights (col12) and
         // key_specifications (col14) columns plus any feature/spec sections found in other_info:
