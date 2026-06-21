@@ -172,14 +172,14 @@ export default function ProductDetailPage() {
     const stillLoading = productsLoading || combosLoading || eventsLoading;
     if (stillLoading) {
       return (
-        <div className="max-w-[1400px] mx-auto px-4 py-24 flex flex-col items-center justify-center text-brand-muted">
+        <div className="max-w-[1400px] mx-auto px-3 sm:px-6 py-24 flex flex-col items-center justify-center text-brand-muted">
           <div className="w-10 h-10 border-2 border-gray-200 border-t-[#3684bf] rounded-full animate-spin" />
           <p className="mt-4 text-sm">Loading product…</p>
         </div>
       );
     }
     return (
-      <div className="max-w-[1400px] mx-auto px-4 py-24 flex flex-col items-center justify-center text-center text-brand-muted">
+      <div className="max-w-[1400px] mx-auto px-3 sm:px-6 py-24 flex flex-col items-center justify-center text-center text-brand-muted">
         <p className="text-lg font-semibold text-brand-ink">Product not found</p>
         <p className="mt-2 text-sm">This product may have been removed or is no longer available.</p>
         <button
@@ -214,7 +214,7 @@ export default function ProductDetailPage() {
   };
 
   return (
-    <div className="max-w-[1400px] mx-auto px-4 py-5">
+    <div className="max-w-[1400px] mx-auto px-3 sm:px-6 py-5">
       <Seo
         title={resolvedProduct.name}
         description={seoDesc}
