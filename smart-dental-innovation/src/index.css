@@ -453,13 +453,32 @@ body {
    Tailwind v4 here has no typography plugin, so style the allowed tags directly. */
 .rich-text > :first-child { margin-top: 0; }
 .rich-text > :last-child { margin-bottom: 0; }
-.rich-text p { margin: 0 0 0.6em; }
+.rich-text p { margin: 0; }
 .rich-text strong, .rich-text b { font-weight: 700; }
 .rich-text em, .rich-text i { font-style: italic; }
 .rich-text u { text-decoration: underline; }
-.rich-text ul { list-style: disc; padding-left: 1.4em; margin: 0.4em 0; }
-.rich-text ol { list-style: decimal; padding-left: 1.4em; margin: 0.4em 0; }
-.rich-text li { margin: 0.2em 0; }
+/* Lists:
+   - <ol> (numbered: Directions to Use steps) -> KEEP the 1. 2. 3. numbers.
+   - <ul> AND orphan <li> (Key Specifications etc.) -> NO bullet.
+   Order matters: bullet-removal must NOT touch <ol> items, so we scope it to ul/orphan only and
+   re-assert decimal on <ol li> with the same weight. */
+.rich-text ol { list-style: decimal; padding-left: 1.6em; margin: 0.5em 0; }
+.rich-text ol > li { list-style: decimal; margin: 0.4em 0; line-height: 1.6; padding-left: 0.25em; }
+.rich-text ul { list-style: none; padding-left: 0; margin: 0.5em 0; }
+.rich-text ul > li { list-style: none; margin: 0.45em 0; line-height: 1.6; }
+.rich-text ul > li::marker { content: ""; }
+/* Orphan <li> with no <ul>/<ol> parent -> treat like a bullet-less line. */
+.rich-text > li { list-style: none; margin: 0.45em 0; line-height: 1.6; }
+.rich-text > li::marker { content: ""; }
+/* "Label: value" rows — small gap after the bold label so it doesn't touch its value. */
+.rich-text li > strong:first-child, .rich-text li > b:first-child { margin-right: 0.35em; }
 .rich-text h3 { font-size: 1.05rem; font-weight: 700; margin: 0.7em 0 0.3em; }
 .rich-text h4 { font-size: 0.95rem; font-weight: 700; margin: 0.7em 0 0.3em; }
 .rich-text a { color: var(--color-brand-orange); text-decoration: underline; }
+/* Spec/feature tables (e.g. Key Specifications: Feature | Specification). Mirrors the reference
+   site's two-column layout: header row, bold first column, light row separators. */
+.rich-text table { width: 100%; border-collapse: collapse; margin: 0.2em 0; font-size: 0.95em; }
+.rich-text thead th { text-align: left; font-weight: 700; color: var(--color-brand-ink, #1f2937); padding: 0.5em 0.75em 0.5em 0; border-bottom: 1px solid #e5e7eb; }
+.rich-text td, .rich-text th { padding: 0.5em 0.75em 0.5em 0; vertical-align: top; border-bottom: 1px solid #f1f1f1; }
+.rich-text tbody tr:last-child td { border-bottom: 0; }
+.rich-text tbody td:first-child { font-weight: 600; color: var(--color-brand-ink, #1f2937); width: 40%; padding-right: 1em; }

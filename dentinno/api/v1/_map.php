@@ -26,16 +26,23 @@ function mapProduct(array $r): array {
         'mrp'         => $mrp,
         'price'       => $sell,
         'discount'    => (float)$r['discount_percent'],
-        'rating'      => $specs['rating']  ?? null,
-        'reviews'     => $specs['reviews'] ?? ($r['total_sales'] ?? 0),
+        // Real approved-review data (from the product_reviews subquery in products.php). Falls back
+        // to null/0 — NOT to total_sales — so a product with no reviews shows no rating at all.
+        'rating'      => isset($r['review_count']) && (int)$r['review_count'] > 0 ? round((float)$r['review_avg'], 1) : ($specs['rating'] ?? null),
+        'reviews'     => isset($r['review_count']) ? (int)$r['review_count'] : 0,
         'category'    => $r['category_slug'] ?? null,
         'warranty'    => $specs['warranty'] ?? null,
         'inStock'     => (int)$r['stock'] > 0,
         'stock'       => (int)$r['stock'],
         'description' => $r['description'],
+        'shortDescription' => $r['short_description'] ?? null,   // brief blurb shown under the price
         // Per-product accordion content (product detail page). Empty -> storefront falls back to global.
         'fullDescription' => $r['full_description'] ?? null,
         'keySpecifications' => normalizeSpecs($r['key_specifications'] ?? null),
+        // Key Specifications scraped from the live site are kept as RAW HTML (prose/lists/label:value)
+        // in key_specifications_html and rendered via RichText, matching the source exactly.
+        'keySpecificationsHtml' => (isset($r['key_specifications_html']) && trim((string)$r['key_specifications_html']) !== '')
+            ? $r['key_specifications_html'] : null,
         'directions'  => $r['directions_for_use'] ?? null,
         'packingInfo' => $r['packing_info'] ?? null,
         'additionalInfo' => $r['additional_information'] ?? null,
@@ -104,6 +111,20 @@ function mapCombo(array $r): array {
         'metaDescription'  => $r['meta_description'] ?? null,
         'items'    => $items,
         'variants' => [],
+        // Rich detail (combos now carry the same sections as products so they render a full
+        // product page). Mirrors mapProduct's field names so ProductDetailPage works unchanged.
+        'shortDescription'  => $r['short_description'] ?? null,
+        'fullDescription'   => $r['full_description'] ?? null,
+        'hoverImage'        => $r['hover_image'] ?? null,
+        'highlights'        => array_map(
+            fn($f) => is_array($f) ? ['title' => $f['title'] ?? '', 'text' => $f['text'] ?? ''] : ['title' => '', 'text' => (string)$f],
+            jcol($r['features'] ?? null, [])
+        ),
+        'keySpecificationsHtml' => (isset($r['key_specifications_html']) && trim((string)$r['key_specifications_html']) !== '') ? $r['key_specifications_html'] : null,
+        'directions'   => $r['directions_for_use'] ?? null,
+        'packingInfo'  => $r['packing_info'] ?? null,
+        'warrantyInfo' => $r['warranty_info'] ?? null,
+        'keyFeatures'  => $r['key_features'] ?? null,
     ];
 }
 

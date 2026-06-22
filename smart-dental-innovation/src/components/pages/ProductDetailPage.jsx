@@ -281,10 +281,19 @@ export default function ProductDetailPage() {
         </div>
 
         {/* CENTER details */}
-        <div className="lg:col-span-5 space-y-4">
+        <div className="lg:col-span-4 space-y-4">
           <div className="border border-gray-200 rounded-xl p-5">
             <div className="flex items-start gap-2 mb-2 flex-wrap">
-              <h1 className="text-2xl font-bold text-brand-ink leading-snug flex-1 min-w-0">{product.name}</h1>
+              <h1 className="text-2xl font-bold text-brand-ink leading-snug min-w-0">
+                {product.name}
+                {/* "Pack : <variant>" badge (e.g. "Pack : Generic"), matching the reference. Shown
+                    when the product carries a variant label. */}
+                {Array.isArray(product.variants) && product.variants[0]?.label && (
+                  <span className="align-middle ml-2 inline-block bg-[#3684bf] text-white text-xs font-semibold px-2.5 py-1 rounded-md whitespace-nowrap">
+                    Pack : {product.variants[0].label}
+                  </span>
+                )}
+              </h1>
             </div>
             <div className="mb-3 flex items-center gap-2 flex-wrap">
               {outOfStock && (
@@ -310,13 +319,16 @@ export default function ProductDetailPage() {
               <a className="text-[#3684bf] font-semibold underline cursor-pointer">{company.name}</a>
             </p>
 
+            {/* Rating pill: shown ONLY when this product has at least one approved review.
+                No reviews -> nothing shown. */}
+            {reviewCount > 0 && (
             <div className="relative mb-4">
               <button
                 onClick={() => setReviewsOpen((v) => !v)}
                 className="inline-flex items-center gap-2 border border-gray-300 rounded px-3 py-1.5 hover:border-gray-400 transition"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="#22c55e"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14l-5-4.87 6.91-1.01z" /></svg>
-                <span className="text-sm font-semibold text-brand-ink">{Number(ratingValue).toFixed(1)}</span>
+                <span className="text-sm font-semibold text-brand-ink">{Number(ratingValue) > 0 ? Number(ratingValue).toFixed(1) : "5.0"}</span>
                 <span className="text-sm text-brand-muted">| {reviewCount} Reviews</span>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className={`text-brand-muted transition ${reviewsOpen ? "rotate-180" : ""}`}><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" /></svg>
               </button>
@@ -350,6 +362,7 @@ export default function ProductDetailPage() {
                 </div>
               )}
             </div>
+            )}
 
             <div className="flex items-center justify-between gap-3 mb-3">
               <div className="flex items-center gap-2 flex-wrap">
@@ -383,8 +396,12 @@ export default function ProductDetailPage() {
               )}
             </div>
 
-            {product.description && (
-              <RichText html={product.description} className="text-[15px] text-brand-ink leading-relaxed" />
+            {/* Brief blurb under the price = short_description (plain text). The long Description
+                lives in the accordion below; this top box must stay short. */}
+            {(product.shortDescription || product.description) && (
+              product.shortDescription
+                ? <p className="text-[15px] text-brand-ink leading-relaxed whitespace-pre-line">{product.shortDescription}</p>
+                : <RichText html={product.description} className="text-[15px] text-brand-ink leading-relaxed" />
             )}
 
             {product.catalogueUrl && (
@@ -400,8 +417,8 @@ export default function ProductDetailPage() {
             )}
           </div>
 
-          <div className="group border border-gray-200 rounded-xl p-5 transition-all duration-300 hover:border-[#3684bf] hover:shadow-lg hover:-translate-y-0.5 cursor-pointer">
-            <h3 className="font-bold text-brand-ink mb-3 transition-colors duration-300 group-hover:text-[#3684bf]">Delivery Details</h3>
+          <div className="border border-gray-200 rounded-xl p-4">
+            <h3 className="font-bold text-brand-ink mb-3">Delivery Details</h3>
             <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-md px-3 py-1.5 transition-colors duration-200 hover:border-gray-800 focus-within:border-[#3684bf] focus-within:ring-1 focus-within:ring-[#3684bf]">
               <svg width="20" height="20" viewBox="0 0 20 20" aria-label="India" className="shrink-0 rounded-full overflow-hidden">
                 <defs>
@@ -483,7 +500,7 @@ export default function ProductDetailPage() {
         </div>
 
         {/* RIGHT — Available Offers */}
-        <div className="lg:col-span-3 space-y-4 lg:sticky lg:top-20 lg:self-start">
+        <div className="lg:col-span-4 space-y-4 lg:sticky lg:top-20 lg:self-start">
           <div className="border border-gray-200 rounded-xl p-5">
             <h3 className="text-center text-sm font-bold tracking-wider text-brand-ink mb-3 pb-3 border-b border-gray-100">
               AVAILABLE OFFERS
@@ -892,7 +909,7 @@ function ProductAccordions({ product, fallback = [] }) {
 
   const sections = [
     { id: "desc", title: "Description", body: product.fullDescription || product.description },
-    { id: "specs", title: "Key Specifications", specs },
+    { id: "specs", title: "Key Specifications", specs: product.keySpecificationsHtml ? [] : specs, body: product.keySpecificationsHtml || null },
     { id: "directions", title: "Directions to Use", body: product.directions },
     { id: "packing", title: "Packaging Info", body: product.packingInfo },
     { id: "additional", title: "Additional Information", body: product.additionalInfo },
@@ -900,7 +917,7 @@ function ProductAccordions({ product, fallback = [] }) {
     { id: "keyfeatures", title: "Key Features", body: product.keyFeatures },
     { id: "warrantyno", title: "Warranty No", body: product.warrantyNo },
     { id: "directionuse", title: "Direction of Use", body: product.directionOfUse },
-  ].filter((s) => (s.specs ? s.specs.length > 0 : !!(s.body && String(s.body).trim())));
+  ].filter((s) => (s.specs && s.specs.length > 0) || !!(s.body && String(s.body).trim()));
 
   // Only this product's own content (fallback is empty now — no global default accordions).
   const list = sections.length
@@ -1216,11 +1233,13 @@ function SmartBenefitsCard() {
 
   return (
     <div className="border border-gray-200 rounded-xl p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-bold text-brand-ink">{brand} Benefits</h3>
+      {/* Header: title can be a long brand name, so let it wrap and keep "Know more" pinned
+          top-right without being squished. */}
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <h3 className="font-bold text-brand-ink text-sm leading-snug">{brand} Benefits</h3>
         <button
           onClick={() => navigate("about")}
-          className="inline-flex items-center gap-1.5 bg-transparent border-none text-[#f97316] font-semibold cursor-pointer normal-case whitespace-nowrap hover:opacity-80"
+          className="shrink-0 inline-flex items-center gap-1 bg-transparent border-none text-[#f97316] font-semibold text-sm cursor-pointer normal-case whitespace-nowrap hover:opacity-80"
         >
           Know more
           <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -1228,13 +1247,15 @@ function SmartBenefitsCard() {
           </svg>
         </button>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      {/* 4 across, matching the reference: a soft rounded-square icon tile, then a centered
+          2-line label. min-w-0 keeps each label inside its own column (no overlap). */}
+      <div className="grid grid-cols-4 gap-x-3 gap-y-3">
         {productBenefits.map((b) => (
-          <div key={b.id} className="flex flex-col items-center text-center">
-            <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center mb-2">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="#0b1d3a">{icons[b.icon]}</svg>
+          <div key={b.id} className="flex flex-col items-center text-center min-w-0">
+            <div className="w-12 h-12 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center mb-2">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="#0b1d3a">{icons[b.icon]}</svg>
             </div>
-            <span className="text-[11px] font-semibold text-brand-ink leading-tight">{b.label}</span>
+            <span className="block w-full text-[11px] font-medium text-brand-muted leading-tight break-words">{b.label}</span>
           </div>
         ))}
       </div>
@@ -1250,18 +1271,23 @@ function RatingsReviewsCard({ product, rating = 0, count = 0, reviews = [], onSu
   return (
     <div className="border border-gray-200 rounded-xl p-5">
       <h3 className="font-bold text-brand-ink mb-3">Ratings & Reviews</h3>
-      <div className="flex items-center gap-3 mb-4">
-        <div className="flex items-center gap-1 bg-green-50 px-2 py-1 rounded">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="#22c55e"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14l-5-4.87 6.91-1.01z" /></svg>
-          <span className="text-sm font-bold text-brand-ink">{Number(rating).toFixed(1)}</span>
+      {/* Rating summary only when there's at least one review; otherwise prompt to be the first. */}
+      {count > 0 ? (
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-1 bg-green-50 px-2 py-1 rounded">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="#22c55e"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14l-5-4.87 6.91-1.01z" /></svg>
+            <span className="text-sm font-bold text-brand-ink">{Number(rating).toFixed(1)}</span>
+          </div>
+          <span className="text-sm text-brand-muted">{count} Reviews</span>
         </div>
-        <span className="text-sm text-brand-muted">{count} Reviews</span>
-      </div>
+      ) : (
+        <p className="text-sm text-brand-muted mb-4">No reviews yet. Be the first to review this product.</p>
+      )}
       <button
         onClick={() => setOpen(true)}
         className="w-full border border-gray-300 hover:border-[#3684bf] hover:text-[#3684bf] text-brand-ink font-bold py-2.5 rounded-md transition text-sm"
       >
-        View All Reviews
+        {count > 0 ? "View All Reviews" : "Write a Review"}
       </button>
       {open && (
         <ReviewsModal

@@ -4,6 +4,30 @@ require_once __DIR__ . '/../includes/auth.php';
 $page_title = 'Combos';
 requireView('combos');
 
+/**
+ * Allowlist-sanitize rich-text HTML coming from the admin Product-Details tab before
+ * storing. Mirrors products.php::sanitizeRichHtml() but ALSO whitelists table tags,
+ * because the combo Key Specifications field (key_specifications_html) is stored as a
+ * raw HTML table. Defense-in-depth: the storefront sanitizes again on render (DOMPurify).
+ * Returns null for empty input.
+ */
+if (!function_exists('sanitizeRichHtml')) {
+    function sanitizeRichHtml($html) {
+        if ($html === null) return null;
+        $html = (string)$html;
+        if (trim($html) === '') return null;
+        // 1. Keep only safe formatting + table tags (attributes still scrubbed below).
+        $html = strip_tags($html, '<b><strong><i><em><u><p><br><ul><ol><li><h3><h4><a><span><div><table><thead><tbody><tfoot><tr><td><th>');
+        // 2. Drop event-handler attributes (onclick, onerror, onmouseover, …).
+        $html = preg_replace('/\son\w+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $html);
+        // 3. Neutralise javascript:/data:/vbscript: URIs in href/src.
+        $html = preg_replace('/\b(href|src)\s*=\s*(["\'])\s*(?:javascript|data|vbscript):[^"\']*\2/i', '$1=$2#$2', $html);
+        // 4. Drop inline style attributes (can smuggle expression()/url() payloads).
+        $html = preg_replace('/\sstyle\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $html);
+        return $html;
+    }
+}
+
 // Image upload (multipart) — reuse products image folder.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['combo_image'])) {
     header('Content-Type: application/json');
@@ -96,6 +120,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $inStock   = $stock > 0 ? 1 : 0;
         $metaTitle = trim((string)($d['meta_title'] ?? '')) ?: null;
         $metaDesc  = trim((string)($d['meta_description'] ?? '')) ?: null;
+
+        // --- Rich product-detail fields (mirror products.php) ---
+        // Allowlist-sanitize the HTML content fields before storing (stored XSS defense).
+        $shortDesc   = sanitizeRichHtml($d['short_description'] ?? null);
+        $fullDesc    = sanitizeRichHtml($d['full_description'] ?? null);
+        $keySpecHtml = sanitizeRichHtml($d['key_specifications_html'] ?? null);
+        $directions  = sanitizeRichHtml($d['directions_for_use'] ?? null);
+        $packing     = sanitizeRichHtml($d['packing_info'] ?? null);
+        $warranty    = sanitizeRichHtml($d['warranty_info'] ?? null);
+        $keyFeatures = sanitizeRichHtml($d['key_features'] ?? null);
+        // Highlights -> `features` column as JSON [{title,text}].
+        $featuresJson = (!empty($d['highlights']) && is_array($d['highlights'])) ? json_encode(array_values($d['highlights'])) : null;
+        $sku         = trim((string)($d['sku'] ?? '')) ?: null;
+        $hoverImage  = trim((string)($d['hover_image'] ?? '')) ?: null;
+
         $selfId    = (int)($d['id'] ?? 0);
         // Slug: admin-editable, falls back to the name; kept UNIQUE (auto-suffixed on collision).
         $slug = generateSlug(trim((string)($d['slug'] ?? '')) !== '' ? $d['slug'] : $name) ?: 'combo';
@@ -103,14 +142,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         while (db()->fetchOne("SELECT id FROM combos WHERE slug=? AND id<>?", [$slug, $selfId])) { $slug = $slugBase . '-' . (++$n); }
         if (!empty($d['id'])) {
             db()->execute(
-                "UPDATE combos SET slug=?,name=?,description=?,meta_title=?,meta_description=?,mrp=?,price=?,discount_percent=?,image=?,images=?,items=?,stock=?,in_stock=?,is_active=? WHERE id=?",
-                [$slug,$name,$d['description']??'',$metaTitle,$metaDesc,$mrp,$price,$disc,($d['image'] ?? null)?:null,$images_json,$items_json,$stock,$inStock,$d['is_active']??1,$d['id']]
+                "UPDATE combos SET slug=?,name=?,description=?,meta_title=?,meta_description=?,mrp=?,price=?,discount_percent=?,image=?,images=?,items=?,stock=?,in_stock=?,is_active=?,sku=?,short_description=?,full_description=?,features=?,key_specifications_html=?,directions_for_use=?,packing_info=?,warranty_info=?,key_features=?,hover_image=? WHERE id=?",
+                [$slug,$name,$fullDesc,$metaTitle,$metaDesc,$mrp,$price,$disc,($d['image'] ?? null)?:null,$images_json,$items_json,$stock,$inStock,$d['is_active']??1,$sku,$shortDesc,$fullDesc,$featuresJson,$keySpecHtml,$directions,$packing,$warranty,$keyFeatures,$hoverImage,$d['id']]
             );
             echo json_encode(['success'=>true,'message'=>'Combo updated']);
         } else {
             db()->insert(
-                "INSERT INTO combos (slug,name,description,meta_title,meta_description,mrp,price,discount_percent,image,images,items,stock,in_stock,is_active) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                [$slug,$name,$d['description']??'',$metaTitle,$metaDesc,$mrp,$price,$disc,($d['image'] ?? null)?:null,$images_json,$items_json,$stock,$inStock,$d['is_active']??1]
+                "INSERT INTO combos (slug,name,description,meta_title,meta_description,mrp,price,discount_percent,image,images,items,stock,in_stock,is_active,sku,short_description,full_description,features,key_specifications_html,directions_for_use,packing_info,warranty_info,key_features,hover_image) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                [$slug,$name,$fullDesc,$metaTitle,$metaDesc,$mrp,$price,$disc,($d['image'] ?? null)?:null,$images_json,$items_json,$stock,$inStock,$d['is_active']??1,$sku,$shortDesc,$fullDesc,$featuresJson,$keySpecHtml,$directions,$packing,$warranty,$keyFeatures,$hoverImage]
             );
             echo json_encode(['success'=>true,'message'=>'Combo added']);
         }
@@ -170,6 +209,22 @@ foreach ($prodList as &$pl) { $pl['img'] = trim((string)$pl['img'], '"'); } unse
 $prodJson = json_encode($prodList);
 include __DIR__ . '/../includes/header.php';
 ?>
+
+<style>
+/* Rich-text (contenteditable) editor for combo product-detail fields — mirrors products.php */
+.rt-toolbar{display:flex;flex-wrap:wrap;gap:2px;background:var(--bg-elevated);border:1px solid var(--border-color);border-bottom:none;border-radius:8px 8px 0 0;padding:4px 6px;}
+.rt-toolbar button{width:30px;height:28px;background:none;border:none;border-radius:5px;color:var(--text-secondary);cursor:pointer;font-size:.8rem;display:grid;place-items:center;transition:.15s;}
+.rt-toolbar button:hover{background:rgba(201,168,76,.12);color:var(--gold-primary);}
+.rt-editor{border-radius:0 0 8px 8px !important;min-height:90px;max-height:320px;overflow-y:auto;line-height:1.5;}
+.rt-editor:focus{outline:none;border-color:var(--gold-primary);}
+.rt-editor ul{list-style:disc;padding-left:22px;margin:6px 0;}
+.rt-editor ol{list-style:decimal;padding-left:22px;margin:6px 0;}
+.rt-editor a{color:var(--gold-primary);text-decoration:underline;}
+.rt-editor table{border-collapse:collapse;width:100%;margin:6px 0;}
+.rt-editor th,.rt-editor td{border:1px solid var(--border-color);padding:4px 8px;text-align:left;}
+.rt-editor:empty:before{content:attr(data-placeholder);color:var(--text-muted);pointer-events:none;}
+.highlight-row{display:flex;gap:6px;margin-bottom:6px;align-items:flex-start;}
+</style>
 
 <div class="page-header fade-in">
     <div class="page-header-left">
@@ -289,7 +344,7 @@ include __DIR__ . '/../includes/header.php';
 
 <!-- Modal -->
 <div class="modal-overlay" id="comboModal" style="display:none;" onclick="if(event.target===this)closeModal('comboModal')">
-    <div class="modal-box" style="max-width:480px;text-align:left;padding:0;">
+    <div class="modal-box" style="max-width:560px;width:96vw;text-align:left;padding:0;">
         <div class="modal-head" style="padding:18px 22px;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;">
             <h2 id="comboModalTitle" style="font-family:'Playfair Display',serif;font-size:1.05rem;background:var(--gold-gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Add Combo</h2>
             <button class="close-btn" onclick="closeModal('comboModal')"><i class="fa-solid fa-xmark"></i></button>
@@ -310,10 +365,51 @@ include __DIR__ . '/../includes/header.php';
                 <label class="form-label">2. Combo Name * <small class="text-muted">(auto from products — edit if you like)</small></label>
                 <input type="text" class="form-control" id="combo_name" placeholder="auto-generated from selected products" oninput="comboNameTouched=true">
             </div>
-            <div class="form-group">
-                <label class="form-label">Description</label>
-                <textarea class="form-control" id="combo_desc" rows="2" placeholder="What's in this combo..."></textarea>
-            </div>
+
+            <!-- PRODUCT DETAILS — rich detail sections rendered on the combo storefront page.
+                 Placed right under the name (replaces the old single "Description" field). -->
+            <details open style="margin-top:6px;border-top:1px dashed var(--border-color);padding-top:10px;">
+                <summary style="cursor:pointer;font-weight:700;font-size:.85rem;color:var(--text-secondary);"><i class="fa-solid fa-align-left"></i> Product Details <small class="text-muted">(highlights, description, specs &amp; more)</small></summary>
+                <div style="margin-top:10px;">
+                    <div class="form-group">
+                        <label class="form-label">SKU <small class="text-muted">(optional internal code)</small></label>
+                        <input type="text" class="form-control" id="combo_sku" placeholder="e.g. COMBO-SCM-01">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Short Description</label>
+                        <textarea class="form-control" id="combo_short_desc" rows="2" placeholder="Brief tagline for listings..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Full Description</label>
+                        <textarea class="form-control" id="combo_full_desc" rows="4" placeholder="Detailed combo description..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Product Highlights <small class="text-muted">(Title + Text — shown as bullets on the combo page)</small></label>
+                        <div id="combo_highlights"></div>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="addComboHighlightRow()" style="margin-top:6px;"><i class="fa-solid fa-plus"></i> Add Highlight</button>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Key Specifications <small class="text-muted">(raw HTML — paste a spec table; shown in the Specifications section)</small></label>
+                        <textarea class="form-control" id="combo_key_spec_html" rows="4" placeholder="&lt;table&gt;&lt;tr&gt;&lt;th&gt;Spec&lt;/th&gt;&lt;td&gt;Value&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Directions for Use</label>
+                        <textarea class="form-control" id="combo_directions" rows="3" placeholder="Step-by-step usage instructions..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Packaging Info</label>
+                        <textarea class="form-control" id="combo_packing" rows="2" placeholder="e.g. 1× Scaler, 1× Mask box, User Manual"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Warranty</label>
+                        <textarea class="form-control" id="combo_warranty" rows="2" placeholder="e.g. 1 Year Manufacturer Warranty"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Key Features</label>
+                        <textarea class="form-control" id="combo_key_features" rows="3" placeholder="Main selling points / features..."></textarea>
+                    </div>
+                </div>
+            </details>
 
             <!-- STEP 3: pricing — MRP auto-summed, admin sets the deal price -->
             <div class="form-row" style="display:flex;gap:10px;">
@@ -374,6 +470,66 @@ include __DIR__ . '/../includes/header.php';
 <script>
 const CB_PRODUCTS = <?= $prodJson ?: '[]' ?>;
 const cbProdBySlug = Object.fromEntries(CB_PRODUCTS.map(p => [p.slug, p]));
+
+/* ── Rich-text editors (mirrors products.php) ────────────────────────────────
+   Each listed textarea stays in the DOM (hidden) as the source-of-truth .value
+   so the load/save code is untouched. A contenteditable overlay edits it; every
+   keystroke syncs editor.innerHTML -> textarea.value. */
+const CB_RT_FIELDS=['combo_short_desc','combo_full_desc','combo_key_spec_html','combo_directions','combo_packing','combo_warranty','combo_key_features'];
+const CB_RT_CMDS=[['bold','fa-bold','Bold'],['italic','fa-italic','Italic'],['underline','fa-underline','Underline'],['insertUnorderedList','fa-list-ul','Bullet list'],['insertOrderedList','fa-list-ol','Numbered list'],['createLink','fa-link','Insert link'],['removeFormat','fa-eraser','Clear formatting']];
+function cbRtEscape(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function cbRtLooksHtml(s){return /<[a-z!/][\s\S]*>/i.test(s);}
+function cbRtToHtml(v){v=v||'';return cbRtLooksHtml(v)?v:cbRtEscape(v).replace(/\n/g,'<br>');}
+function cbRtSync(ed){const ta=document.getElementById(ed.dataset.for);if(ta)ta.value=ed.innerHTML;}
+function cbRtExec(cmd,ed){
+  ed.focus();
+  // Emit semantic <b>/<i>/<u> tags instead of <span style="…"> (styled spans lose their
+  // style attribute to the server sanitizer, which silently kills the formatting).
+  try{document.execCommand('styleWithCSS',false,false);}catch(e){}
+  if(cmd==='createLink'){const url=prompt('Link URL:','https://');if(!url)return;document.execCommand('createLink',false,url);}
+  else document.execCommand(cmd,false,null);
+  cbRtSync(ed);
+}
+function initComboRichEditors(){
+  CB_RT_FIELDS.forEach(id=>{
+    const ta=document.getElementById(id);
+    if(!ta||ta.dataset.rtInit)return;
+    ta.dataset.rtInit='1';
+    ta.style.display='none';
+    const tb=document.createElement('div');tb.className='rt-toolbar';
+    const ed=document.createElement('div');ed.className='rt-editor form-control';ed.contentEditable='true';ed.dataset.for=id;
+    ed.setAttribute('data-placeholder',ta.getAttribute('placeholder')||'');
+    CB_RT_CMDS.forEach(([cmd,icon,title])=>{
+      const b=document.createElement('button');b.type='button';b.title=title;b.innerHTML='<i class="fa-solid '+icon+'"></i>';
+      b.addEventListener('mousedown',e=>e.preventDefault()); // keep text selection
+      b.addEventListener('click',()=>cbRtExec(cmd,ed));
+      tb.appendChild(b);
+    });
+    ed.addEventListener('input',()=>cbRtSync(ed));
+    ed.addEventListener('blur',()=>cbRtSync(ed));
+    ta.parentNode.insertBefore(tb,ta);
+    ta.parentNode.insertBefore(ed,ta);
+    ed.innerHTML=cbRtToHtml(ta.value);
+  });
+}
+// Refresh editor contents after openComboModal re-sets the hidden textareas.
+function cbRtSyncFromTextareas(){
+  CB_RT_FIELDS.forEach(id=>{
+    const ed=document.querySelector('.rt-editor[data-for="'+id+'"]');
+    const ta=document.getElementById(id);
+    if(ed&&ta)ed.innerHTML=cbRtToHtml(ta.value);
+  });
+}
+document.addEventListener('DOMContentLoaded',initComboRichEditors);
+
+// Highlight rows (Title + Text) -> saved into the `features` column as [{title,text}]
+function addComboHighlightRow(t='',x=''){
+  const d=document.createElement('div');d.className='highlight-row';
+  d.innerHTML=`<input type="text" class="form-control" placeholder="Title (e.g. Key Features)" value="${String(t).replace(/"/g,'&quot;')}" data-hl-title style="flex:1;">
+    <textarea class="form-control" placeholder="Text..." rows="2" data-hl-text style="flex:2;">${x||''}</textarea>
+    <button type="button" class="btn btn-ghost btn-sm btn-icon" onclick="this.closest('.highlight-row').remove()"><i class="fa-solid fa-minus" style="color:var(--danger);"></i></button>`;
+  document.getElementById('combo_highlights').appendChild(d);
+}
 function comboItemRowHtml(it={}) {
     let opts = CB_PRODUCTS.map(p => `<option value="${p.slug}" ${it.productId===p.slug?'selected':''}>${p.name.replace(/</g,'&lt;')}</option>`).join('');
     if (it.productId && !cbProdBySlug[it.productId]) opts += `<option value="${it.productId}" selected>${(it.name||'?').replace(/</g,'&lt;')} [removed]</option>`;
@@ -421,7 +577,6 @@ function openComboModal(c = null) {
     comboNameTouched = !!(c && c.name);   // editing keeps the saved name; new combo auto-names
     document.getElementById('combo_id').value     = c?.id || '';
     document.getElementById('combo_name').value   = c?.name || '';
-    document.getElementById('combo_desc').value   = c?.description || '';
     document.getElementById('combo_price').value  = c?.price || '';
     document.getElementById('combo_image').value  = c?.image || '';
     document.getElementById('combo_stock').value  = (c && c.stock != null) ? c.stock : 50;
@@ -429,6 +584,30 @@ function openComboModal(c = null) {
     document.getElementById('combo_slug').value       = c?.slug || '';
     document.getElementById('combo_meta_title').value = c?.meta_title || '';
     document.getElementById('combo_meta_desc').value  = c?.meta_description || '';
+    // Rich product-detail fields (hidden textareas mirrored by the contenteditable overlays).
+    document.getElementById('combo_sku').value             = c?.sku || '';
+    document.getElementById('combo_short_desc').value      = c?.short_description || '';
+    document.getElementById('combo_full_desc').value       = c?.full_description || '';
+    document.getElementById('combo_key_spec_html').value   = c?.key_specifications_html || '';
+    document.getElementById('combo_directions').value      = c?.directions_for_use || '';
+    document.getElementById('combo_packing').value         = c?.packing_info || '';
+    document.getElementById('combo_warranty').value        = c?.warranty_info || '';
+    document.getElementById('combo_key_features').value    = c?.key_features || '';
+    // Highlights — stored in `features` column as [{title,text}]. Back-compat: old plain
+    // strings -> {title:'', text}.
+    document.getElementById('combo_highlights').innerHTML='';
+    try{
+        const feats=c?.features?(typeof c.features==='string'?JSON.parse(c.features):c.features):[];
+        if(Array.isArray(feats)){
+            feats.forEach(f=>{
+                if(f && typeof f==='object') addComboHighlightRow(f.title||'', f.text||'');
+                else addComboHighlightRow('', String(f||''));
+            });
+        }
+    }catch(e){}
+    // Make sure the editors exist (modal may open before DOMContentLoaded fired), then refresh them.
+    initComboRichEditors();
+    cbRtSyncFromTextareas();
     document.getElementById('comboModalTitle').textContent = c ? 'Edit Combo' : 'Add Combo';
     renderComboImg();
     // items first (drives MRP + name)
@@ -492,14 +671,33 @@ async function saveCombo() {
     // Only the admin-uploaded combo cover (empty if none). Storefront falls back to the
     // bundled-product thumbnails when there's no custom cover.
     const image = document.getElementById('combo_image').value || '';
+    // Highlights -> stored in `features` column as [{title,text}]
+    const highlights=[];
+    document.querySelectorAll('#combo_highlights .highlight-row').forEach(row=>{
+        const t=row.querySelector('[data-hl-title]').value.trim();
+        const x=row.querySelector('[data-hl-text]').value.trim();
+        if(t||x)highlights.push({title:t,text:x});
+    });
     const data = { action:'save', id:document.getElementById('combo_id').value, name,
-        description:document.getElementById('combo_desc').value, mrp, price,
+        // The old standalone "Description" field was removed; the combo's description now comes
+        // from the Full Description in the Product Details section below.
+        description:document.getElementById('combo_full_desc').value, mrp, price,
         image, items,
         stock:document.getElementById('combo_stock').value,
         is_active:document.getElementById('combo_status').value,
         slug:document.getElementById('combo_slug').value,
         meta_title:document.getElementById('combo_meta_title').value,
-        meta_description:document.getElementById('combo_meta_desc').value };
+        meta_description:document.getElementById('combo_meta_desc').value,
+        // Rich product-detail fields
+        sku:document.getElementById('combo_sku').value,
+        short_description:document.getElementById('combo_short_desc').value,
+        full_description:document.getElementById('combo_full_desc').value,
+        highlights,
+        key_specifications_html:document.getElementById('combo_key_spec_html').value,
+        directions_for_use:document.getElementById('combo_directions').value,
+        packing_info:document.getElementById('combo_packing').value,
+        warranty_info:document.getElementById('combo_warranty').value,
+        key_features:document.getElementById('combo_key_features').value };
     const res = await fetch('combos.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(data)});
     const r = await res.json();
     if(r.success){ showToast(r.message,'success'); closeModal('comboModal'); setTimeout(()=>location.reload(),800); }

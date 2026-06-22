@@ -5,7 +5,10 @@ require_once __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/_map.php';
 
 $db = db();
-$sel = "p.*, c.slug AS category_slug, c.name AS category_name";
+// Real approved-review count + average per product (so cards show genuine review data, not sales).
+$sel = "p.*, c.slug AS category_slug, c.name AS category_name,
+        (SELECT COUNT(*) FROM product_reviews pr WHERE pr.product_id=p.id AND pr.is_approved=1 AND pr.is_deleted=0) AS review_count,
+        (SELECT AVG(pr.rating) FROM product_reviews pr WHERE pr.product_id=p.id AND pr.is_approved=1 AND pr.is_deleted=0) AS review_avg";
 
 // --- single by slug ---
 $slug = qstr('slug');
@@ -14,8 +17,11 @@ if ($slug !== '') {
         "SELECT $sel FROM products p LEFT JOIN categories c ON p.category_id=c.id
          WHERE p.slug=? AND p.is_active=1", [$slug]
     );
-    if (!$row) jsonErr('Product not found', 404);
-    jsonOut(['success' => true, 'product' => mapProduct($row)]);
+    if ($row) { jsonOut(['success' => true, 'product' => mapProduct($row)]); }
+    // Not a product — try combos (they now carry full detail and open as a product page).
+    $combo = $db->fetchOne("SELECT * FROM combos WHERE slug=? AND is_active=1 AND is_deleted=0", [$slug]);
+    if ($combo) { jsonOut(['success' => true, 'product' => mapCombo($combo)]); }
+    jsonErr('Product not found', 404);
 }
 
 // --- list ---

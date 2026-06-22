@@ -6,7 +6,12 @@ require_once __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/_map.php';
 
 $db = db();
-$sel = "p.*, c.slug AS category_slug FROM products p LEFT JOIN categories c ON p.category_id=c.id";
+// Include the real approved-review count + average so home cards show genuine review data
+// (same as the products.php list). Without this, mapProduct sees no review_count and reports 0.
+$sel = "p.*, c.slug AS category_slug,
+        (SELECT COUNT(*) FROM product_reviews pr WHERE pr.product_id=p.id AND pr.is_approved=1 AND pr.is_deleted=0) AS review_count,
+        (SELECT AVG(pr.rating) FROM product_reviews pr WHERE pr.product_id=p.id AND pr.is_approved=1 AND pr.is_deleted=0) AS review_avg
+        FROM products p LEFT JOIN categories c ON p.category_id=c.id";
 
 $bySource = function (string $source) use ($db, $sel) {
     if ($source === 'featured') {

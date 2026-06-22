@@ -58,15 +58,19 @@ export default function ProductCard({ product, onOpen }) {
           </svg>
         </button>
 
+        {/* Rating badge: shown ONLY when the product has at least one approved review.
+            No reviews -> no badge. */}
+        {Number(product.reviews) > 0 && (
         <div className="absolute bottom-2 left-2 bg-white/95 backdrop-blur px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1 text-[11px] sm:text-xs font-bold text-gray-800 border border-gray-100">
           <span className="text-amber-500">★</span>
-          <span>{product.rating?.toFixed(1) || "5.0"}</span>
+          <span>{Number(product.rating) > 0 ? Number(product.rating).toFixed(1) : "5.0"}</span>
           <span className="text-gray-300 mx-0.5">|</span>
           <svg className="w-3.5 h-3.5 text-[#4a92cb]" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM10 14.5l-3-3 1.41-1.41L10 11.67l4.59-4.59L16 8.5l-6 6z" />
           </svg>
-          <span className="text-gray-600 font-medium">{product.reviews || "0"}</span>
+          <span className="text-gray-600 font-medium">{Number(product.reviews)}</span>
         </div>
+        )}
       </div>
 
       <div className="flex flex-col flex-1 pt-3 pb-1 gap-2.5">

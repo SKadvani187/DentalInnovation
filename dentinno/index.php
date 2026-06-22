@@ -177,7 +177,7 @@ foreach ($statusCounts as $st => $cnt) {   // defensively include any status out
     <a href="<?= APP_URL ?>/pages/events.php" style="text-decoration:none;">
     <div class="stat-card" style="cursor:pointer;">
         <div class="stat-card-icon" style="background:rgba(52,152,219,.12);color:#3498DB;width:42px;height:42px;border-radius:10px;display:grid;place-items:center;font-size:1.1rem;margin-bottom:12px;">
-            <i class="fa-solid fa-calendar-star"></i>
+            <i class="fa-solid fa-calendar-days"></i>
         </div>
         <div class="stat-value" data-count="<?= $stats['upcoming_events'] ?? 0 ?>">0</div>
         <div class="stat-label">Upcoming Events</div>

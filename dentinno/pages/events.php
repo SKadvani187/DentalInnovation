@@ -147,7 +147,7 @@ include __DIR__ . '/../includes/header.php';
 
 <div class="page-header fade-in">
   <div class="page-header-left">
-    <h1><i class="fa-solid fa-calendar-star" style="color:var(--gold-primary);margin-right:10px;"></i>Event Management</h1>
+    <h1><i class="fa-solid fa-calendar-days" style="color:var(--gold-primary);margin-right:10px;"></i>Event Management</h1>
     <p>Conferences, workshops, webinars and exhibitions — <?= count($events) ?> events</p>
   </div>
   <?php if (can('events','create')): ?><button class="btn btn-gold" onclick="openEventModal()"><i class="fa-solid fa-plus"></i> Create Event</button><?php endif; ?>
