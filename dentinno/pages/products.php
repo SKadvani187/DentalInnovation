@@ -612,7 +612,10 @@ include __DIR__ . '/../includes/header.php';
             <div class="form-group"><label class="form-label">Discount Price (₹)</label><input type="number" class="form-control" id="prod_discount" placeholder="Optional"></div>
             <div class="form-group"><label class="form-label">Stock Qty *</label><input type="number" class="form-control" id="prod_stock" placeholder="0"></div>
           </div>
-          <div class="form-group" style="max-width:280px;"><label class="form-label">Low Stock Alert <small class="text-muted">(warn when stock ≤ this; default 5)</small></label><input type="number" min="0" class="form-control" id="prod_min_stock" placeholder="5"></div>
+          <div class="form-row">
+            <div class="form-group" style="flex:1;"><label class="form-label">Low Stock Alert <small class="text-muted">(warn when stock ≤ this; default 5)</small></label><input type="number" min="0" class="form-control" id="prod_min_stock" placeholder="5"></div>
+            <div class="form-group" style="flex:1;"><label class="form-label">Product Weight (kg)</label><input type="number" step="0.001" class="form-control" id="prod_weight" placeholder="e.g. 2.500"></div>
+          </div>
           <div class="form-row">
             <div class="form-group"><label class="form-label">Status</label><select class="form-control" id="prod_status"><option value="1">Active</option><option value="0">Inactive</option></select></div>
             <div class="form-group"><label class="form-label">Show in Bestsellers</label><select class="form-control" id="prod_featured"><option value="0">No</option><option value="1">Yes</option></select></div>
@@ -717,21 +720,15 @@ include __DIR__ . '/../includes/header.php';
 
         <!-- SHIPPING -->
         <div id="tab-ship_tab" class="tab-pane">
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Shipping Method</label>
-              <select class="form-control" id="prod_ship_method" onchange="toggleWeightField()">
-                <option value="" data-type="">— Default (use global shipping rules) —</option>
-                <?php foreach ($shipMethods as $m): ?>
-                <option value="<?= (int)$m['id'] ?>" data-type="<?= htmlspecialchars($m['type']) ?>"><?= htmlspecialchars($m['name']) ?> (<?= htmlspecialchars($m['type']) ?>)</option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Product Weight (kg)</label>
-              <input type="number" step="0.001" class="form-control" id="prod_weight" placeholder="e.g. 2.500">
-              <small class="text-muted" id="prod_weight_hint" style="font-size:.72rem;">Used only by the <strong>Weight-Based</strong> method.</small>
-            </div>
+          <div class="form-group">
+            <label class="form-label">Shipping Method</label>
+            <select class="form-control" id="prod_ship_method" onchange="toggleWeightField()">
+              <option value="" data-type="">— Default (use global shipping rules) —</option>
+              <?php foreach ($shipMethods as $m): ?>
+              <option value="<?= (int)$m['id'] ?>" data-type="<?= htmlspecialchars($m['type']) ?>"><?= htmlspecialchars($m['name']) ?> (<?= htmlspecialchars($m['type']) ?>)</option>
+              <?php endforeach; ?>
+            </select>
+            <small class="text-muted" id="prod_weight_hint" style="font-size:.72rem;display:none;">Set the <strong>Product Weight</strong> in the Basic tab — used by the Weight-Based method.</small>
           </div>
           <p class="text-muted" style="font-size:.78rem;margin-top:8px;">
             Methods come from <strong>Shipping Management</strong>. Leave method on
@@ -1091,18 +1088,14 @@ function renderGift(){
   }).join('');
 }
 
-// Weight is only meaningful for the Weight-Based method. Enable the field only when the
-// selected shipping method is of type "weight"; otherwise grey it out (and clear it).
+// Weight now lives in the Basic tab and is always editable (it's a real product attribute used
+// elsewhere too). The shipping tab only shows a hint when the Weight-Based method is selected,
+// reminding the admin that weight (set in Basic) drives that method. Never disable/clear weight.
 function toggleWeightField(){
   const sel = document.getElementById('prod_ship_method');
   const type = sel.options[sel.selectedIndex]?.dataset.type || '';
-  const isWeight = type === 'weight';
-  const wt = document.getElementById('prod_weight');
   const hint = document.getElementById('prod_weight_hint');
-  wt.disabled = !isWeight;
-  wt.style.opacity = isWeight ? '1' : '0.5';
-  if (!isWeight) wt.value = '';
-  if (hint) hint.style.color = isWeight ? 'var(--gold-primary)' : '';
+  if (hint) hint.style.display = (type === 'weight') ? 'block' : 'none';
 }
 
 // Open modal
