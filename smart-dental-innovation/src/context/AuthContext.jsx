@@ -31,6 +31,53 @@ export function AuthProvider({ children }) {
     }
   }, [setToken]);
 
+  // Mobile-step check: ask the backend whether this number already has a password set.
+  // The modal uses this to decide between the password screen (returning customer, no OTP)
+  // and the OTP flow (new/legacy account).
+  const checkMobile = useCallback(async (mobile) => {
+    if (!/^[6-9]\d{9}$/.test(mobile)) {
+      return { ok: false, error: "Enter a valid 10-digit mobile number." };
+    }
+    try {
+      const res = await api.checkMobile({ mobile });
+      return { ok: true, exists: !!res.exists, hasPassword: !!res.hasPassword, name: res.name || "" };
+    } catch (err) {
+      return { ok: false, error: err.message || "Could not reach the server." };
+    }
+  }, []);
+
+  // Password login (returning customer): verify the saved password — no OTP. On success the
+  // backend issues a token and returns the full customer; mirror it into local state.
+  const loginWithPassword = useCallback(async ({ mobile, password }) => {
+    if (!password) return { ok: false, error: "Enter your password." };
+    let res;
+    try {
+      res = await api.login({ mobile, password });
+    } catch (err) {
+      return { ok: false, error: err.message || "Incorrect password." };
+    }
+    setToken(res.token);
+    setAuthToken(res.token);
+    const c = res.customer || {};
+    const merged = {
+      mobile,
+      name: c.name || "",
+      email: c.email || "",
+      address: c.address || "",
+      addresses: c.addresses || [],
+      city: c.city || "",
+      state: c.state || "",
+      pincode: c.pincode || "",
+      clinicName: c.clinicName || "",
+    };
+    setUser(merged);
+    setAccounts((prev) => {
+      const without = prev.filter((a) => a.mobile !== mobile);
+      return [...without, { mobile, name: merged.name, email: merged.email, address: merged.address }];
+    });
+    return { ok: true };
+  }, [setToken, setUser, setAccounts]);
+
   // Request OTP via backend (real SMS/email + rate limiting).
   const requestOtp = useCallback(async (mobile) => {
     if (!/^[6-9]\d{9}$/.test(mobile)) {
@@ -103,7 +150,7 @@ export function AuthProvider({ children }) {
     return { ok: true, isNew: true, mobile };
   }, [accounts, setUser, setAccounts, syncToApi]);
 
-  const completeProfile = useCallback(async ({ mobile, name, email, address }) => {
+  const completeProfile = useCallback(async ({ mobile, name, email, address, password }) => {
     if (!name?.trim()) return { ok: false, error: "Enter your name." };
     const acc = { mobile, name: name.trim(), email: email || "", address: address || "" };
     // Persist the real name FIRST via action=profile (Bearer token from the login that ran
@@ -116,7 +163,12 @@ export function AuthProvider({ children }) {
     // (which made action=profile 401 and the save fail with "Couldn't save your name").
     if (token) setAuthToken(token);
     try {
-      await api.updateProfile({ name: acc.name, email: acc.email });
+      // Send the password alongside the name on registration so it is hashed + stored server-side
+      // (auth.php validates the strength rule). Omit the key entirely when no password is set
+      // (e.g. an address-book edit) so we never blank out an existing password.
+      const payload = { name: acc.name, email: acc.email };
+      if (password) payload.password = password;
+      await api.updateProfile(payload);
     } catch (err) {
       console.warn("[auth] completeProfile persist failed:", err.message);
       return { ok: false, error: "Couldn't save your name. Please check your connection and try again." };
@@ -211,8 +263,8 @@ export function AuthProvider({ children }) {
   }, [setToken]);
 
   const value = useMemo(
-    () => ({ user, token, requestOtp, verifyOtp, completeProfile, updateProfile, addAddress, updateAddress, setDefaultAddress, removeAddress, logout, clearToken }),
-    [user, token, requestOtp, verifyOtp, completeProfile, updateProfile, addAddress, updateAddress, setDefaultAddress, removeAddress, logout, clearToken]
+    () => ({ user, token, checkMobile, loginWithPassword, requestOtp, verifyOtp, completeProfile, updateProfile, addAddress, updateAddress, setDefaultAddress, removeAddress, logout, clearToken }),
+    [user, token, checkMobile, loginWithPassword, requestOtp, verifyOtp, completeProfile, updateProfile, addAddress, updateAddress, setDefaultAddress, removeAddress, logout, clearToken]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

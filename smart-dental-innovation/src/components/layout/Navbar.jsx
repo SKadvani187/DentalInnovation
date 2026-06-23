@@ -13,8 +13,9 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-[900] bg-white/80 backdrop-blur-xl border-b border-gray-200">
-      {/* Top row */}
-      <div className="flex items-center h-16 px-3 sm:px-6 gap-2 sm:gap-4">
+      {/* Top row — inner content capped to the same width as the page content so the
+          logo/search/account align with the page below (white bar stays full-width). */}
+      <div className="flex items-center h-16 px-3 sm:px-6 gap-2 sm:gap-4 max-w-[1400px] mx-auto">
         <a href="#" className="flex items-center gap-2 shrink-0">
           <div className="w-9 h-9 rounded-lg bg-brand-navy text-white flex items-center justify-center font-bold">
             SD
@@ -97,7 +98,7 @@ export default function Navbar() {
       </div>
 
       {/* Mobile search */}
-      <div className="md:hidden px-3 pb-3">
+      <div className="md:hidden px-3 pb-3 max-w-[1400px] mx-auto">
         <button
           type="button"
           onClick={() => openModal("search")}
@@ -111,7 +112,7 @@ export default function Navbar() {
       </div>
 
       {/* Nav links row */}
-      <nav className="flex items-center gap-8 px-3 sm:px-6 py-2 overflow-x-auto no-scrollbar">
+      <nav className="flex items-center gap-8 px-3 sm:px-6 py-2 overflow-x-auto no-scrollbar max-w-[1400px] mx-auto w-full">
         {navLinks.map((l) => (
           <button
             key={l}

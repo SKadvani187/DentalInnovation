@@ -5,15 +5,22 @@ import { useAuth } from "../../context/AuthContext";
 
 const OTP_LEN = 6;
 const RESEND_SECS = 30;
+// Password rule: >= 8 chars with at least one uppercase letter, one digit and one special char.
+const PW_RE = /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
 export default function AuthModal() {
   const { modal, closeModal } = useUI();
-  const { requestOtp, verifyOtp, completeProfile } = useAuth();
+  const { checkMobile, loginWithPassword, requestOtp, verifyOtp, completeProfile } = useAuth();
 
   const [step, setStep] = useState("mobile");
   const [mobile, setMobile] = useState("");
   const [otp, setOtp] = useState(Array(OTP_LEN).fill(""));
   const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [prefillName, setPrefillName] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [toastType, setToastType] = useState("error");
@@ -38,6 +45,11 @@ export default function AuthModal() {
       setMobile("");
       setOtp(Array(OTP_LEN).fill(""));
       setName("");
+      setPassword("");
+      setConfirmPassword("");
+      setLoginPassword("");
+      setPrefillName("");
+      setShowPw(false);
       setError("");
       setToast("");
       setInfo("");
@@ -92,13 +104,56 @@ export default function AuthModal() {
     return true;
   };
 
-  const onMobileSubmit = (e) => {
+  const onMobileSubmit = async (e) => {
     e.preventDefault();
     if (!/^[6-9]\d{9}$/.test(mobile)) {
       setToastType("error");
       setToast("Please enter a valid 10-digit mobile number");
       return;
     }
+    // Ask the backend whether this number already has a password. If so, go to the password
+    // screen and DO NOT generate an OTP (re-login uses the password). Otherwise start the OTP
+    // flow for a new/legacy account, which then prompts the buyer to set a password.
+    setLoading(true);
+    const chk = await checkMobile(mobile);
+    setLoading(false);
+    if (!chk.ok) {
+      setToastType("error");
+      setToast(chk.error || "Something went wrong. Please try again.");
+      return;
+    }
+    setPrefillName(chk.name || "");
+    if (chk.hasPassword) {
+      setLoginPassword("");
+      setError("");
+      setStep("password");
+      return;
+    }
+    startOtp(mobile);
+  };
+
+  const onPasswordLogin = async (e) => {
+    e.preventDefault();
+    if (!loginPassword) {
+      setToastType("error");
+      setToast("Please enter your password");
+      return;
+    }
+    setLoading(true);
+    const res = await loginWithPassword({ mobile, password: loginPassword });
+    setLoading(false);
+    if (!res.ok) {
+      setToastType("error");
+      setToast(res.error || "Incorrect password");
+      return;
+    }
+    closeModal();
+  };
+
+  // "Forgot password / login with OTP" — explicit user action, so generating an OTP here is fine.
+  const loginViaOtp = () => {
+    setLoginPassword("");
+    setOtp(Array(OTP_LEN).fill(""));
     startOtp(mobile);
   };
 
@@ -147,11 +202,9 @@ export default function AuthModal() {
       otpRefs.current[0]?.focus();
       return;
     }
-    if (res.isNew) {
-      setStep("profile");
-      return;
-    }
-    closeModal();
+    // OTP is only used by accounts without a password — always collect name + password next.
+    if (prefillName && !name) setName(prefillName);
+    setStep("profile");
   };
 
   const onVerify = async (e) => {
@@ -176,11 +229,9 @@ export default function AuthModal() {
       otpRefs.current[0]?.focus();
       return;
     }
-    if (res.isNew) {
-      setStep("profile");
-      return;
-    }
-    closeModal();
+    // OTP is only used by accounts without a password — always collect name + password next.
+    if (prefillName && !name) setName(prefillName);
+    setStep("profile");
   };
 
   const onProfileSubmit = async (e) => {
@@ -190,8 +241,16 @@ export default function AuthModal() {
       setError("Please enter your name.");
       return;
     }
+    if (!PW_RE.test(password)) {
+      setError("Password must be at least 8 characters and include one uppercase letter, one number and one special character.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
     setLoading(true);
-    const res = await completeProfile({ mobile, name });
+    const res = await completeProfile({ mobile, name, password });
     setLoading(false);
     if (!res.ok) {
       setError(res.error);
@@ -209,6 +268,7 @@ export default function AuthModal() {
   const editNumber = () => {
     setStep("mobile");
     setOtp(Array(OTP_LEN).fill(""));
+    setLoginPassword("");
     setError("");
     setInfo("");
     setResendIn(0);
@@ -250,7 +310,7 @@ export default function AuthModal() {
         className="relative w-full max-w-[420px] bg-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {(step === "otp" || step === "profile") && (
+        {(step === "otp" || step === "profile" || step === "password") && (
           <button
             onClick={() => { setStep(step === "profile" ? "otp" : "mobile"); setError(""); }}
             aria-label="Back"
@@ -278,6 +338,10 @@ export default function AuthModal() {
                 <path d="M12 2L3 7v6c0 5 4 9 9 10 5-1 9-5 9-10V7l-9-5z" />
                 <path d="M9 12l2 2 4-4" />
               </svg>
+            ) : step === "password" ? (
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor" className="text-gray-900 shrink-0">
+                <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm3 11c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" />
+              </svg>
             ) : step === "profile" ? (
               <svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor" className="text-gray-900 shrink-0">
                 <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4m0 2c-2.67 0-8 1.34-8 4v1c0 .55.45 1 1 1h14c.55 0 1-.45 1-1v-1c0-2.66-5.33-4-8-4" />
@@ -289,14 +353,16 @@ export default function AuthModal() {
             )}
             <div className="flex flex-col leading-tight">
               <h2 className="text-2xl font-bold text-gray-900">
-                {step === "mobile" ? "Sign In" : step === "otp" ? "Verify OTP" : "Complete Profile"}
+                {step === "mobile" ? "Sign In" : step === "otp" ? "Verify OTP" : step === "password" ? "Enter Password" : "Complete Profile"}
               </h2>
               <p className="text-sm text-gray-500 mt-0.5">
                 {step === "mobile"
                   ? "Please sign in to continue with checkout"
                   : step === "otp"
                   ? `We've sent a ${OTP_LEN}-digit code to +91 ${mobile}`
-                  : "Enter your name to complete registration"}
+                  : step === "password"
+                  ? `Enter your password for +91 ${mobile}`
+                  : "Complete your registration details"}
               </p>
             </div>
           </div>
@@ -321,9 +387,6 @@ export default function AuthModal() {
                     onChange={(e) => {
                       const v = e.target.value.replace(/\D/g, "").slice(0, 10);
                       setMobile(v);
-                      if (v.length === 10 && /^[6-9]\d{9}$/.test(v)) {
-                        startOtp(v);
-                      }
                     }}
                     className="flex-1 text-base focus:outline-none bg-transparent"
                   />
@@ -334,10 +397,55 @@ export default function AuthModal() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || mobile.length !== 10}
                 className="otp-btn w-full py-3.5 rounded-lg text-white font-bold text-sm uppercase tracking-wider"
               >
-                {loading ? "Sending..." : "Send OTP"}
+                {loading ? "Please wait..." : "Continue"}
+              </button>
+            </form>
+          )}
+
+          {step === "password" && (
+            <form onSubmit={onPasswordLogin}>
+              <div className="relative mb-4 group">
+                <label className="absolute -top-2 left-3 px-1 bg-white text-[11px] font-medium text-gray-500 z-10 group-focus-within:text-[#3684bf]">
+                  Password
+                </label>
+                <div className="flex items-center gap-2 border-2 border-gray-300 rounded-lg px-3 py-3 focus-within:border-[#3684bf] transition-colors">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-gray-500 shrink-0">
+                    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z" />
+                  </svg>
+                  <input
+                    autoFocus
+                    type={showPw ? "text" : "password"}
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    className="flex-1 text-base focus:outline-none bg-transparent"
+                    placeholder="Enter your password"
+                  />
+                  <button type="button" onClick={() => setShowPw((s) => !s)} className="text-[11px] font-semibold text-blue-600 shrink-0">
+                    {showPw ? "Hide" : "Show"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-xs mb-3">
+                <button type="button" onClick={editNumber} className="text-blue-600 font-semibold hover:underline">
+                  Edit Number
+                </button>
+                <button type="button" onClick={loginViaOtp} className="font-semibold text-blue-600 hover:underline">
+                  Forgot password? Login with OTP
+                </button>
+              </div>
+
+              <TrustBadges />
+
+              <button
+                type="submit"
+                disabled={loading || !loginPassword}
+                className="otp-btn w-full py-3.5 rounded-lg text-white font-bold text-sm uppercase tracking-wider"
+              >
+                {loading ? "Signing in..." : "Login"}
               </button>
             </form>
           )}
@@ -425,6 +533,52 @@ export default function AuthModal() {
                 </div>
               </div>
 
+              <div className="relative mb-4 group">
+                <label className="absolute -top-2 left-3 px-1 bg-white text-[11px] font-medium text-gray-500 z-10 group-focus-within:text-[#3684bf]">
+                  Password
+                </label>
+                <div className="flex items-center gap-2 border border-gray-300 rounded-lg px-3 py-3 focus-within:border-[#3684bf] transition-colors">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-gray-500 shrink-0">
+                    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z" />
+                  </svg>
+                  <input
+                    type={showPw ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="flex-1 text-base focus:outline-none bg-transparent"
+                    placeholder="Create a password"
+                  />
+                  <button type="button" onClick={() => setShowPw((s) => !s)} className="text-[11px] font-semibold text-blue-600 shrink-0">
+                    {showPw ? "Hide" : "Show"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="relative mb-3 group">
+                <label className="absolute -top-2 left-3 px-1 bg-white text-[11px] font-medium text-gray-500 z-10 group-focus-within:text-[#3684bf]">
+                  Re-enter Password
+                </label>
+                <div className="flex items-center gap-2 border border-gray-300 rounded-lg px-3 py-3 focus-within:border-[#3684bf] transition-colors">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-gray-500 shrink-0">
+                    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z" />
+                  </svg>
+                  <input
+                    type={showPw ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="flex-1 text-base focus:outline-none bg-transparent"
+                    placeholder="Re-enter your password"
+                  />
+                </div>
+              </div>
+
+              <p className={`text-[11px] mb-3 ${password && !PW_RE.test(password) ? "text-red-500" : "text-gray-400"}`}>
+                Use at least 8 characters with one uppercase letter, one number and one special character.
+              </p>
+              {confirmPassword && password !== confirmPassword && (
+                <p className="text-[11px] text-red-500 mb-3 -mt-2">Passwords do not match.</p>
+              )}
+
               {error && (
                 <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2 mb-3">{error}</p>
               )}
@@ -433,7 +587,7 @@ export default function AuthModal() {
 
               <button
                 type="submit"
-                disabled={!name.trim()}
+                disabled={!name.trim() || !PW_RE.test(password) || password !== confirmPassword}
                 className="otp-btn w-full py-3.5 rounded-lg text-white font-bold text-sm uppercase tracking-wider"
               >
                 Complete Registration

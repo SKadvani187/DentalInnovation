@@ -97,7 +97,9 @@ export const api = {
   requestOtp: (payload) => post("otp.php?action=request", payload), // {mobile} or {email}
   verifyOtp: (payload) => post("otp.php?action=verify", payload),   // {mobile, otp}
   // auth (customer)
-  login: (payload) => post("auth.php?action=login", payload),       // {mobile,name?,email?}
+  // Mobile-step check: does this number already have a password? -> { exists, hasPassword, name }
+  checkMobile: (payload) => post("auth.php?action=check", payload),  // {mobile}
+  login: (payload) => post("auth.php?action=login", payload),       // {mobile,password?} or {mobile,name?,email?}
   me: () => get("auth.php", { action: "me" }).then((j) => j.customer),
   updateProfile: (payload) => post("auth.php?action=profile", payload).then((j) => j.customer),
   // orders

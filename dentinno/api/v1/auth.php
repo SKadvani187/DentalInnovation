@@ -19,11 +19,47 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
 }
 $body = jsonBody();
 
+// --- check (storefront mobile step): does this number already have a password? ---
+// Drives the login UI: a number WITH a password is sent to the password screen (no OTP is
+// generated); a new/legacy number falls through to the OTP flow. Returns the real name (when
+// known) so the profile step can pre-fill it.
+if ($action === 'check') {
+    $mobile = trim((string)($body['mobile'] ?? ''));
+    if (!preg_match('/^[6-9]\d{9}$/', $mobile)) {
+        jsonErr('Enter a valid 10-digit mobile number.', 422);
+    }
+    $c = $db->fetchOne("SELECT name, password, is_provisional, is_deleted FROM customers WHERE phone=?", [$mobile]);
+    $exists      = $c && empty($c['is_deleted']);
+    $hasPassword = $exists && !empty($c['password']);
+    $realName    = ($exists && (int)($c['is_provisional'] ?? 0) !== 1) ? (string)$c['name'] : '';
+    jsonOut(['success' => true, 'exists' => (bool)$exists, 'hasPassword' => (bool)$hasPassword, 'name' => $realName]);
+}
+
 // --- login / register (find-or-create by phone) ---
 if ($action === 'login') {
     $mobile = trim((string)($body['mobile'] ?? ''));
     if (!preg_match('/^[6-9]\d{9}$/', $mobile)) {
         jsonErr('Enter a valid 10-digit mobile number.', 422);
+    }
+
+    // PASSWORD LOGIN (returning customer): a password in the body means the buyer is logging
+    // in with their saved password — verify it and issue a token WITHOUT any OTP. This is the
+    // path for re-login after sign-out, so no OTP is ever generated for a known account.
+    if (isset($body['password']) && (string)$body['password'] !== '') {
+        $existing = $db->fetchOne("SELECT * FROM customers WHERE phone=?", [$mobile]);
+        if (!$existing || !empty($existing['is_deleted'])) {
+            jsonErr('No account found for this number. Please sign up first.', 404);
+        }
+        if (empty($existing['password'])) {
+            jsonErr('No password set for this account. Please verify via OTP.', 403);
+        }
+        if (!password_verify((string)$body['password'], $existing['password'])) {
+            jsonErr('Incorrect password. Please try again.', 401);
+        }
+        $token = makeToken();
+        $db->execute("UPDATE customers SET api_token=? WHERE id=?", [$token, $existing['id']]);
+        $c = $db->fetchOne("SELECT * FROM customers WHERE id=?", [$existing['id']]);
+        jsonOut(['success' => true, 'isNew' => false, 'token' => $token, 'customer' => customerPublic($c)]);
     }
 
     // SECURITY: require a server-verified, unexpired OTP for THIS mobile before issuing a
@@ -89,6 +125,17 @@ if ($action === 'profile') {
         }
     }
     if (array_key_exists('addresses', $body)) { $fields[] = "addresses=?"; $params[] = json_encode($body['addresses']); }
+    // Password (set during registration / reset via OTP). Validate server-side — never trust the
+    // client — then store a bcrypt hash, never the plain text. Rule: >= 8 chars with at least one
+    // uppercase letter, one digit and one special character.
+    if (array_key_exists('password', $body) && trim((string)$body['password']) !== '') {
+        $pw = (string)$body['password'];
+        if (!preg_match('/^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/', $pw)) {
+            jsonErr('Password must be at least 8 characters and include one uppercase letter, one number and one special character.', 422);
+        }
+        $fields[] = "password=?";
+        $params[] = password_hash($pw, PASSWORD_DEFAULT);
+    }
     // Supplying a real name promotes a provisional (placeholder) account to a full customer.
     if (!empty(trim((string)($body['name'] ?? '')))) { $fields[] = "is_provisional=0"; }
     if ($fields) {
