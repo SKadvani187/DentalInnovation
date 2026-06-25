@@ -26,8 +26,9 @@ export function AuthProvider({ children }) {
       setAuthToken(res.token);
       return res;
     } catch (err) {
-      console.warn("[auth] API sync failed (offline mode):", err.message);
-      return null;
+      console.warn("[auth] API sync failed:", err.message);
+      // TEMP(debug): surface the real error so we can diagnose the login failure.
+      return { __syncError: err.message || "request failed" };
     }
   }, [setToken]);
 
@@ -99,8 +100,22 @@ export function AuthProvider({ children }) {
       return { ok: false, error: err.message || "Invalid OTP." };
     }
     // Verified — persist customer + token (backend find-or-create).
+    // NOTE: do NOT replay the locally-cached email here. The backend's email column is UNIQUE;
+    // if the cached email happens to collide with another customer, login throws *after* it has
+    // already rotated the api_token, leaving this browser holding a now-dead token (every later
+    // call 401s -> "Couldn't save your details"). The email is already stored server-side, so we
+    // only need the mobile to log in. The name is harmless (no unique constraint).
     const existing = accounts.find((a) => a.mobile === mobile);
-    const res = await syncToApi(mobile, existing ? { name: existing.name, email: existing.email } : {});
+    const res = await syncToApi(mobile, existing ? { name: existing.name } : {});
+
+    // If the backend login failed (network/server error), we have NO valid token. The profile
+    // step that follows REQUIRES a token to save the password, so surface the failure now and let
+    // the buyer retry — silently "logging in" from the local cache here would only fail later with
+    // a confusing "Couldn't save your details".
+    if (!res || res.__syncError) {
+      // TEMP(debug): include the real underlying error in the on-screen message.
+      return { ok: false, error: `Sign-in failed: ${res?.__syncError || "no response"}` };
+    }
 
     // Backend is authoritative: if it returns an existing customer with a real name,
     // log them straight in — even if this browser has no local account (incognito,
@@ -171,7 +186,7 @@ export function AuthProvider({ children }) {
       await api.updateProfile(payload);
     } catch (err) {
       console.warn("[auth] completeProfile persist failed:", err.message);
-      return { ok: false, error: "Couldn't save your name. Please check your connection and try again." };
+      return { ok: false, error: "Couldn't save your details. Please check your connection and try again." };
     }
     // Saved on the server — now update local state.
     const exists = accounts.find((a) => a.mobile === mobile);

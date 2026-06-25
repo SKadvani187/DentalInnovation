@@ -237,7 +237,11 @@ export default function AuthModal() {
   const onProfileSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    if (!name.trim()) {
+    // An already-registered customer keeps their existing name — we only collect a password,
+    // so no name field is shown and no name error can occur. New customers still enter a name.
+    const existingCustomer = prefillName.trim() !== "";
+    const finalName = existingCustomer ? prefillName.trim() : name.trim();
+    if (!existingCustomer && !finalName) {
       setError("Please enter your name.");
       return;
     }
@@ -250,7 +254,7 @@ export default function AuthModal() {
       return;
     }
     setLoading(true);
-    const res = await completeProfile({ mobile, name, password });
+    const res = await completeProfile({ mobile, name: finalName, password });
     setLoading(false);
     if (!res.ok) {
       setError(res.error);
@@ -273,6 +277,10 @@ export default function AuthModal() {
     setInfo("");
     setResendIn(0);
   };
+
+  // Existing registered customer (has a real name from the check step): the profile step only
+  // asks them to set a password — the name field is hidden so it can't error.
+  const existingCustomer = prefillName.trim() !== "";
 
   return createPortal(
     <div
@@ -353,7 +361,7 @@ export default function AuthModal() {
             )}
             <div className="flex flex-col leading-tight">
               <h2 className="text-2xl font-bold text-gray-900">
-                {step === "mobile" ? "Sign In" : step === "otp" ? "Verify OTP" : step === "password" ? "Enter Password" : "Complete Profile"}
+                {step === "mobile" ? "Sign In" : step === "otp" ? "Verify OTP" : step === "password" ? "Enter Password" : existingCustomer ? "Set Password" : "Complete Profile"}
               </h2>
               <p className="text-sm text-gray-500 mt-0.5">
                 {step === "mobile"
@@ -362,6 +370,8 @@ export default function AuthModal() {
                   ? `We've sent a ${OTP_LEN}-digit code to +91 ${mobile}`
                   : step === "password"
                   ? `Enter your password for +91 ${mobile}`
+                  : existingCustomer
+                  ? "Set a password to secure your account"
                   : "Complete your registration details"}
               </p>
             </div>
@@ -514,24 +524,30 @@ export default function AuthModal() {
 
           {step === "profile" && (
             <form onSubmit={onProfileSubmit}>
-              <div className="relative mb-5">
-                <label className="absolute -top-2 left-3 px-1 bg-white text-[11px] font-medium text-gray-500 z-10">
-                  Full Name
-                </label>
-                <div className="flex items-center gap-2 border border-blue-500 rounded-lg px-3 py-3">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-gray-500 shrink-0">
-                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4m0 2c-2.67 0-8 1.34-8 4v1c0 .55.45 1 1 1h14c.55 0 1-.45 1-1v-1c0-2.66-5.33-4-8-4" />
-                  </svg>
-                  <input
-                    autoFocus
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="flex-1 text-base focus:outline-none bg-transparent"
-                    placeholder="Enter your name"
-                  />
+              {existingCustomer ? (
+                <p className="text-sm text-gray-600 mb-4">
+                  Welcome back, <span className="font-semibold text-gray-900">{prefillName}</span>. Set a password to finish securing your account.
+                </p>
+              ) : (
+                <div className="relative mb-5">
+                  <label className="absolute -top-2 left-3 px-1 bg-white text-[11px] font-medium text-gray-500 z-10">
+                    Full Name
+                  </label>
+                  <div className="flex items-center gap-2 border border-blue-500 rounded-lg px-3 py-3">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-gray-500 shrink-0">
+                      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4m0 2c-2.67 0-8 1.34-8 4v1c0 .55.45 1 1 1h14c.55 0 1-.45 1-1v-1c0-2.66-5.33-4-8-4" />
+                    </svg>
+                    <input
+                      autoFocus
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="flex-1 text-base focus:outline-none bg-transparent"
+                      placeholder="Enter your name"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="relative mb-4 group">
                 <label className="absolute -top-2 left-3 px-1 bg-white text-[11px] font-medium text-gray-500 z-10 group-focus-within:text-[#3684bf]">
@@ -542,6 +558,7 @@ export default function AuthModal() {
                     <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z" />
                   </svg>
                   <input
+                    autoFocus={existingCustomer}
                     type={showPw ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -587,10 +604,10 @@ export default function AuthModal() {
 
               <button
                 type="submit"
-                disabled={!name.trim() || !PW_RE.test(password) || password !== confirmPassword}
+                disabled={loading || (!existingCustomer && !name.trim()) || !PW_RE.test(password) || password !== confirmPassword}
                 className="otp-btn w-full py-3.5 rounded-lg text-white font-bold text-sm uppercase tracking-wider"
               >
-                Complete Registration
+                {loading ? "Saving..." : existingCustomer ? "Set Password" : "Complete Registration"}
               </button>
             </form>
           )}
