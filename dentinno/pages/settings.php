@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/settings_helpers.php';  // productSelect / imgUploadBox / settingJsonCard + key contract
+require_once __DIR__ . '/../includes/order_mailer.php';      // omcSendTest / resendOrderAdminMail / resendOrderCustomerMail
 $page_title = 'Settings';
 
 // Image upload for banners (shared products folder)
@@ -49,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             'aboutConfig','aboutSections','banners','branding','bulkRule','combosPage','company',
             'contactConfig','contactSections','coupons','fbtItems','featured','footerConfig','freeGifts',
             'gvpPage','gvpThreshold','heroSlides','homeSections','lowStockThreshold','maintenanceMode','navMenu','offerZoneHero',
-            'otpConfig','paymentOptions','payments','policies','premiumCategories','priceBounds','pricePresets',
+            'orderMailConfig','otpConfig','paymentOptions','payments','policies','premiumCategories','priceBounds','pricePresets',
             'productBenefits','productDefaults','rfSection','sampleReviews','sectionToCategory',
             'shippingConfig','shopByPricePage','socials','sortOptions','stats','taxConfig','tierOffers',
             'trustBadges','whatsappConfig',
@@ -58,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             echo json_encode(['success'=>false,'message'=>'Unknown setting key']); exit;
         }
         // Protected keys (secrets / admin-only) may only be written by a super_admin.
-        $PROTECTED = ['otpConfig', 'whatsappConfig'];
+        $PROTECTED = ['orderMailConfig', 'otpConfig', 'whatsappConfig'];
         if (in_array($key, $PROTECTED, true) && ($_SESSION['admin_role'] ?? '') !== 'super_admin') {
             http_response_code(403);
             echo json_encode(['success' => false, 'message' => 'Forbidden: super admin only']);
@@ -73,6 +74,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             [$key, $encoded]);
         logActivity('updated', 'setting', $key, 'CMS / config: ' . $key);
         echo json_encode(['success'=>true,'message'=>'Saved']);
+    } elseif (($d['action'] ?? '') === 'send_test_order_mail') {
+        // Order email config holds SMTP secrets -> super admin only.
+        if (($_SESSION['admin_role'] ?? '') !== 'super_admin') {
+            http_response_code(403);
+            echo json_encode(['success'=>false,'message'=>'Forbidden: super admin only']); exit;
+        }
+        $cfg  = is_array($d['config'] ?? null) ? $d['config'] : [];
+        $type = ($d['type'] ?? '') === 'failed' ? 'failed' : 'placed';
+        $res  = omcSendTest($cfg, $type);
+        echo json_encode(['success'=>!empty($res['ok']), 'message'=>$res['message'] ?? '']);
+    } elseif (($d['action'] ?? '') === 'retry_order_mail') {
+        if (($_SESSION['admin_role'] ?? '') !== 'super_admin') {
+            http_response_code(403);
+            echo json_encode(['success'=>false,'message'=>'Forbidden: super admin only']); exit;
+        }
+        $orderId = (int)($d['orderId'] ?? 0);
+        $type    = (string)($d['type'] ?? '');
+        if ($orderId <= 0) { echo json_encode(['success'=>false,'message'=>'Invalid order']); exit; }
+        // mail_type 'customer' resends the buyer confirmation (+PDF); 'placed'/'failed' the admin notice.
+        $ok = $type === 'customer'
+            ? resendOrderCustomerMail($orderId)
+            : resendOrderAdminMail($orderId, $type === 'failed' ? 'failed' : 'placed');
+        echo json_encode(['success'=>$ok, 'message'=>$ok ? 'Email sent.' : 'Send failed — check the SMTP config and the server error log.']);
     } else { echo json_encode(['success'=>false,'message'=>'Unknown action']); }
     } catch (Throwable $e) {
         echo json_encode(['success'=>false,'message'=>'Server error: ' . $e->getMessage()]);
