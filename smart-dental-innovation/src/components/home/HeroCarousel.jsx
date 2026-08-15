@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
 import { useAppNavigate } from "../../hooks/useAppNavigate";
@@ -38,14 +39,13 @@ export default function HeroCarousel() {
               <div
                 key={i}
                 onClick={() => go(s.productId)}
-                className="embla__slide flex flex-col items-center cursor-pointer"
-              >
+                className="embla__slide flex flex-col items-center justify-center cursor-pointer min-w-0 w-full h-[400px] lg:h-[500px]">
                 <img
                   src={s.src}
                   alt=""
                   loading={i === 0 ? "eager" : "lazy"}
                   decoding="async"
-                  className="w-full h-auto block"
+                  className="w-full h-full object-contain block"
                 />
               </div>
             ))}
