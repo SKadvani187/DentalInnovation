@@ -350,6 +350,7 @@ include __DIR__ . '/../includes/header.php';
       'trust'   => '🛡️ Trust Badges',
       'stats'   => '📊 Stats Bar',
       'layout'  => '🧩 Home Page Layout',
+      'homebanner' => '🖼️ Home Banner',
     ]; ?>
     <?php foreach ($homeSecs as $hk => $hl): ?>
       <button type="button" class="btn btn-ghost btn-sm home-subtab" data-sec="<?= $hk ?>" onclick="showHomeSec('<?= $hk ?>')"><?= $hl ?></button>
@@ -833,7 +834,7 @@ function saveMaintenanceMode(){
 
 // Shared: save any setting key with a JSON value
 async function saveSetting(key, value, label, silent) {
-    const res = await fetch('settings.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'save_setting',key,value})});
+  const res = await fetch('settings.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'save_setting',key,value})});
     const r = await res.json();
     // silent = skip the per-key toast (used when one button saves several keys → one toast at the end).
     if (silent && r.success) return r;
@@ -876,6 +877,41 @@ async function saveSetting(key, value, label, silent) {
     <?php endforeach; ?>
     <button class="btn btn-gold" onclick="savePromo()"><i class="fa-solid fa-floppy-disk"></i> Save Promo Banners</button>
     <input type="file" id="promoFileInput" accept="image/*" style="display:none">
+  </div>
+</div>
+
+<?php $bn = $site['banners'] ?? []; $homebanner = $bn['homebanner'] ?? []; ?>
+</div><!-- /contact group -->
+<div data-cfg="home">
+<!-- Home Banner Grid -->
+<div class="card fade-in" data-home="homebanner" style="margin-top:18px;">
+  <div class="card-header"><span class="card-title"><i class="fa-solid fa-panorama text-gold" style="margin-right:8px;"></i>Home Banner Grid</span><small class="text-muted">3 home banners (desktop + mobile image) + product links</small></div>
+  <div class="card-body">
+    <?php
+    $slots = [
+      ['left','Left (large)','leftImg','leftImgM','leftId','Large tile — recommended ~800×800 (1:1 square)'],
+      ['tr','Top Right','topRightImg','topRightImgM','topRightId','Wide tile — recommended ~800×400 (2:1 landscape)'],
+      ['br','Bottom Right','bottomRightImg','bottomRightImgM','bottomRightId','Wide tile — recommended ~800×400 (2:1 landscape)'],
+    ];
+    foreach ($slots as $sl): ?>
+    <div style="border:1px solid var(--border-color);border-radius:10px;padding:12px;margin-bottom:12px;">
+      <div class="font-bold" style="margin-bottom:2px;"><?= $sl[1] ?></div>
+      <div class="text-muted" style="font-size:.72rem;margin-bottom:10px;"><i class="fa-solid fa-circle-info"></i> <?= $sl[5] ?> · JPG/PNG/WebP · upload both desktop &amp; mobile for best results</div>
+      <div class="grid-2" style="gap:14px;">
+        <div>
+          <label class="form-label">Desktop Image</label>
+          <?= imgUploadBox("hb_{$sl[0]}_d", $homebanner[$sl[2]] ?? '', "uploadHomeBanner('{$sl[0]}','d')") ?>
+        </div>
+        <div>
+          <label class="form-label">Mobile Image</label>
+          <?= imgUploadBox("hb_{$sl[0]}_m", $homebanner[$sl[3]] ?? '', "uploadHomeBanner('{$sl[0]}','m')") ?>
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:10px;"><label class="form-label">Opens Product (on click) <small class="text-muted">(optional)</small></label><?= productSelect("hb_{$sl[0]}_id", $homebanner[$sl[4]] ?? '') ?></div>
+    </div>
+    <?php endforeach; ?>
+    <button class="btn btn-gold" onclick="saveHomeBanners()"><i class="fa-solid fa-floppy-disk"></i> Save Home Banners</button>
+    <input type="file" id="homeBannerFileInput" accept="image/*" style="display:none">
   </div>
 </div>
 
@@ -1877,6 +1913,9 @@ function setImg(id, url){
 function uploadPromo(slot, variant){
   genericUpload((url)=> setImg(`pm_${slot}_${variant}`, url))('promoFileInput');
 }
+function uploadHomeBanner(slot, variant){
+  genericUpload((url)=> setImg(`hb_${slot}_${variant}`, url))('homeBannerFileInput');
+}
 function uploadRf(id){
   genericUpload((url)=> setImg(id, url))('rfFileInput');
 }
@@ -2338,6 +2377,31 @@ function savePromo(){
   saveSetting('banners', banners, 'Promo banners');
 }
 
+//save home banner
+function saveHomeBanners(){
+  console.log("saveHomeBanners called");
+  const v = id => document.getElementById(id).value;
+  console.log("id", v);
+  const homebanner = {
+    leftId: v('hb_left_id'), topRightId: v('hb_tr_id'), bottomRightId: v('hb_br_id'),
+    leftImg: v('hb_left_d'), topRightImg: v('hb_tr_d'), bottomRightImg: v('hb_br_d'),
+    leftImgM: v('hb_left_m'), topRightImgM: v('hb_tr_m'), bottomRightImgM: v('hb_br_m'),
+  };
+  // Soft-warn (don't block) on incomplete slots: a link with no image won't render a banner,
+  // and a desktop image without a mobile one falls back awkwardly on phones.
+  const slots = [['Left','hb_left_id','hb_left_d','hb_left_m'],['Top Right','hb_tr_id','hb_tr_d','hb_tr_m'],['Bottom Right','hb_br_id','hb_br_d','hb_br_m']];
+  const issues = [];
+  slots.forEach(([label,idF,dF,mF]) => {
+    const hasId=!!v(idF), hasD=!!v(dF), hasM=!!v(mF);
+    if (hasId && !hasD) issues.push(`${label}: has a product link but no desktop image (won't show)`);
+    else if (hasD && !hasM) issues.push(`${label}: desktop image set but no mobile image`);
+  });
+  if (issues.length && !confirm('Some home banner slots look incomplete:\n\n• ' + issues.join('\n• ') + '\n\nSave anyway?')) return;
+  const banners = <?= json_encode($site['banners'] ?? [], JSON_UNESCAPED_SLASHES) ?> || {};
+  banners.homebanner = homebanner;
+  saveSetting('banners', banners, 'Home banners');
+}
+
 // ---- Trust Badges ----
 let TRUST = <?= json_encode($site['trustBadges'] ?? [], JSON_UNESCAPED_SLASHES) ?> || [];
 function renderTrust(){ document.getElementById('trust_rows').innerHTML = TRUST.map((t,i)=>`
@@ -2363,7 +2427,7 @@ renderTiers(); renderFeat(); renderSort(); renderPp(); renderPo(); renderHome();
 
   // Home Page config: show one section grid per sub-tab (Home Page Layout is last).
   if (active === 'home') {
-    const ORDER = ['hero','promo','premium','rf','trust','stats','layout'];
+    const ORDER = ['hero','promo','premium','rf','trust','stats','layout','homebanner'];
     window.showHomeSec = function (sec) {
       if (!ORDER.includes(sec)) sec = ORDER[0];
       document.querySelectorAll('[data-home]').forEach(c => {

@@ -270,19 +270,15 @@ export function PremiumCategories({products}){
   );
 }
 
-export function HomeBanner({
-  bannerLeftId = "n-003",
-  bannerTopRightId = "p-010",
-  bannerBottomRightId = "e-007",
-} = {}){
+export function HomeBanner(props = {}){
   const navigate = useAppNavigate();
   const { nameFor } = useProductIndex();
+  const { banners } = useSettings();
+  const homebanner = banners?.homebanner || {};
+  const bannerLeftId = props.leftId ?? homebanner.leftId ?? "i-001";
+  const bannerTopRightId = props.topRightId ?? homebanner.topRightId ?? "i-002";
+  const bannerBottomRightId = props.bottomRightId ?? homebanner.bottomRightId ?? "i-003"
   const go = (id) => navigate("product", { id, name: nameFor(id) });
-  const mobileBanners = [
-    { src: "https://merchant-cdn.storedum.com/new_website_banner_mobile_2_(1).png", id: bannerLeftId },
-    { src: "https://merchant-cdn.storedum.com/new_banner_2.webp", id: bannerTopRightId },
-    { src: "https://merchant-cdn.storedum.com/new_website_banner_mobile_1_1.webp", id: bannerBottomRightId },
-  ];
   return(
     <div className="px-2 sm:px-0">
       <section className="max-w-[1400px] mx-auto px-3 sm:px-6 py-6 sm:py-10">
@@ -296,7 +292,7 @@ export function HomeBanner({
             className="aspect-[8/5] w-[calc(50%-10px)] relative overflow-hidden rounded-[15px] cursor-pointer group"
           >
             <img
-              src="https://merchant-cdn.storedum.com/new_website_banner_mobile_2.png"
+              src={homebanner.leftImg || "https://merchant-cdn.storedum.com/new_website_banner_mobile_2.png"}
               alt="Featured Promotion"
               loading="lazy"
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-102"
@@ -312,7 +308,7 @@ export function HomeBanner({
               className="w-full h-[calc(50%-10px)] relative overflow-hidden rounded-[15px] cursor-pointer group"
             >
               <img
-                src="https://merchant-cdn.storedum.com/new_website_banner_desktop_(2).webp"
+                src={homebanner.topRightImg || "https://merchant-cdn.storedum.com/new_website_banner_desktop_(2).webp"}
                 alt="Secondary Offer"
                 loading="lazy"
                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-102"
@@ -325,7 +321,7 @@ export function HomeBanner({
               className="w-full h-[calc(50%-10px)] relative overflow-hidden rounded-[15px] cursor-pointer group"
             >
               <img
-                src="https://merchant-cdn.storedum.com/new_website_banner_desktop.png"
+                src={homebanner.bottomRightImg || "https://merchant-cdn.storedum.com/new_website_banner_desktop.png"}
                 alt="Tertiary Offer"
                 loading="lazy"
                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-102"
@@ -335,22 +331,55 @@ export function HomeBanner({
           </div>
         </div>
 
-        {/* MOBILE VIEW: Horizontal Swipe Track (Visible on extra-small screens only) */}
-        <div className="flex sm:hidden flex-row gap-[10px] overflow-x-auto whitespace-nowrap thin-scroller scrollbar-none pb-1">
-          {mobileBanners.map((b, index) => (
-            <div
-              key={index}
-              onClick={() => go(b.id)}
-              className="shrink-0 w-[80vw] aspect-[8/5] relative rounded-[10px] overflow-hidden cursor-pointer"
-            >
-              <img
-                src={b.src}
-                alt={`Mobile Slide ${index + 1}`}
-                loading="lazy"
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-            </div>
-          ))}
+
+        {/* MOBILE VIEW SCROLLABLE CAROUSEL TRACK */}
+        <div className="flex sm:hidden flex-row gap-3 overflow-x-auto whitespace-nowrap no-scrollbar scroll-smooth -mx-4 px-4 py-1">
+
+          {/* Mobile Card 1 */}
+          <div
+            onClick={() => go(bannerLeftId)}
+            style={{ backgroundImage: `url('https://merchant-cdn.storedum.com/new_website_banner_mobile_2_220px_(1).png')` }}
+            className="shrink-0 w-[80vw] aspect-[8/5] relative rounded-[10px] overflow-hidden cursor-pointer bg-cover bg-center bg-no-repeat shadow-sm"
+          >
+            <img
+              alt="Mobile Banner 1"
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-0 h-full w-full object-cover text-transparent"
+              src={homebanner.leftImgM || "https://merchant-cdn.storedum.com/new_website_banner_mobile_2_(1).png"}
+            />
+          </div>
+
+          {/* Mobile Card 2 */}
+          <div
+            onClick={() => go(bannerTopRightId)}
+            style={{ backgroundImage: `url('https://merchant-cdn.storedum.com/new_banner_2_220px.webp')` }}
+            className="shrink-0 w-[80vw] aspect-[8/5] relative rounded-[10px] overflow-hidden cursor-pointer bg-cover bg-center bg-no-repeat shadow-sm"
+          >
+            <img
+              alt="Mobile Banner 2"
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-0 h-full w-full object-cover text-transparent"
+              src={homebanner.topRightImgM || "https://merchant-cdn.storedum.com/new_banner_2.webp"}
+            />
+          </div>
+
+          {/* Mobile Card 3 */}
+          <div
+            onClick={() => go(bannerBottomRightId)}
+            style={{ backgroundImage: `url('https://merchant-cdn.storedum.com/new_website_banner_mobile_1_1_220px.webp')` }}
+            className="shrink-0 w-[80vw] aspect-[8/5] relative rounded-[10px] overflow-hidden cursor-pointer bg-cover bg-center bg-no-repeat shadow-sm"
+          >
+            <img
+              alt="Mobile Banner 3"
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-0 h-full w-full object-cover text-transparent"
+              src={homebanner.bottomRightImgM || "https://merchant-cdn.storedum.com/new_website_banner_mobile_1_1.webp"}
+            />
+          </div>
+
         </div>
 
       </section>
