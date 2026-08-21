@@ -39,19 +39,13 @@ export default function HeroCarousel() {
               <div
                 key={i}
                 onClick={() => go(s.productId)}
-                className="embla__slide relative min-w-0 w-full h-[400px] lg:h-[500px] overflow-hidden">
-                <img
-                  src={s.src}
-                  alt=""
-                  aria-hidden="true"
-                  className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-70"
-                />
+                className="embla__slide relative min-w-0 w-full h-[400px] lg:h-[435px] overflow-hidden">
                 <img
                   src={s.src}
                   alt=""
                   loading={i === 0 ? "eager" : "lazy"}
                   decoding="async"
-                  className="relative z-10 w-full h-full object-contain block"
+                  className="relative z-10 w-full h-full"
                 />
               </div>
             ))}
