@@ -52,6 +52,433 @@ body {
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* Thin, subtle scrollbar for scroll areas like the category-filter list. */
+.thin-scrollbar { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+.thin-scrollbar::-webkit-scrollbar { width: 6px; }
+.thin-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+.thin-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+.thin-scrollbar::-webkit-scrollbar-track { background: transparent; }
+
 .embla { overflow: hidden; }
 .embla__container { display: flex; }
 .embla__slide { flex: 0 0 100%; min-width: 0; }
+
+/* Auth modal SEND OTP / VERIFY button — match reference site hover */
+.otp-btn {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+  cursor: pointer;
+}
+.otp-btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -75%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.6s ease;
+}
+.otp-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #3684bf 0%, #1f5f96 100%);
+  box-shadow: 0 8px 20px rgba(54, 132, 191, 0.45);
+  transform: translateY(-1px);
+}
+.otp-btn:hover:not(:disabled)::before {
+  left: 125%;
+}
+.otp-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 3px 8px rgba(54, 132, 191, 0.35);
+}
+.otp-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* Animated search bar placeholder — letters flip in from bottom, out to top */
+@keyframes search-letter-in {
+  0%   { opacity: 0; transform: rotateX(90deg) translateY(40%); }
+  60%  { opacity: 1; transform: rotateX(0deg) translateY(0); }
+  100% { opacity: 1; transform: rotateX(0deg) translateY(0); }
+}
+@keyframes search-letter-out {
+  0%   { opacity: 1; transform: rotateX(0deg) translateY(0); }
+  100% { opacity: 0; transform: rotateX(-90deg) translateY(-40%); }
+}
+.search-letter {
+  display: inline-block;
+  transform-origin: center bottom;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+}
+.search-letter.in  { animation: search-letter-in  450ms ease forwards; }
+.search-letter.out { animation: search-letter-out 350ms ease forwards; }
+
+/* Animated Buy Now button — match reference site */
+@keyframes buy-now-shake {
+  0%, 100% { transform: translate(0, 0); }
+  10% { transform: translate(-1px, 1px); }
+  20% { transform: translate(1px, -1px); }
+  30% { transform: translate(-1px, -1px); }
+  40% { transform: translate(1px, 1px); }
+  50% { transform: translate(0, 0); }
+}
+@keyframes buy-now-shimmer {
+  0% { left: -20px; }
+  100% { left: 120%; }
+}
+.buy-now-btn {
+  width: 100%;
+  height: 50px;
+  flex-shrink: 0;
+  position: relative;
+  animation: buy-now-shake 4000ms ease 700ms infinite;
+  transition: 0.2s;
+}
+.buy-now-btn__shadow {
+  height: calc(100% - 5px);
+  width: calc(100% - 5px);
+  position: absolute;
+  background-color: #2b2b2b;
+  border-radius: 8px;
+  bottom: 0;
+  right: 0;
+}
+.buy-now-btn__face {
+  height: calc(100% - 5px);
+  width: calc(100% - 5px);
+  border: 2px solid #2b2b2b;
+  position: absolute;
+  background-color: #f6d739;
+  border-radius: 8px;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-transform: uppercase;
+  font-weight: 800;
+  overflow: hidden;
+  transition: 0.2s;
+  color: black;
+  user-select: none;
+}
+.buy-now-btn__face:hover {
+  background-color: #fde047;
+}
+.buy-now-btn--disabled .buy-now-btn__face,
+.buy-now-btn--disabled .buy-now-btn__face:hover {
+  background-color: #cccccc !important;
+  cursor: not-allowed;
+}
+.buy-now-btn__shimmer {
+  position: absolute;
+  width: 30px;
+  height: 90px;
+  background-color: white;
+  opacity: 0.8;
+  top: -10px;
+  left: -20px;
+  transform: rotate(20deg) translate(-50%, 0);
+  animation: buy-now-shimmer 2500ms ease 700ms infinite;
+  pointer-events: none;
+}
+
+/* Auth modal error toast — match reference site */
+@keyframes auth-toast-in {
+  from { opacity: 0; transform: translate(-50%, -10px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+.auth-toast {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1200;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 320px;
+  max-width: 90vw;
+  padding: 12px 16px;
+  background: #fdecea;
+  border: 1px solid #f5c2c0;
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  color: #5f2120;
+  font-size: 14px;
+  font-weight: 400;
+  animation: auth-toast-in 0.25s ease-out;
+}
+.auth-toast--success {
+  background: #edf7ee;
+  border-color: #bfe0c2;
+  color: #1e4620;
+}
+.auth-toast--success .auth-toast__msg,
+.auth-toast--success .auth-toast__close {
+  color: #1e4620;
+}
+.auth-toast--success .auth-toast__icon {
+  color: #16a34a;
+}
+.auth-toast__icon {
+  display: inline-flex;
+  color: #d32f2f;
+  flex-shrink: 0;
+}
+.auth-toast__msg {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #5f2120;
+}
+.auth-toast__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: #5f2120;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0.65;
+  transition: opacity 0.15s, background 0.15s;
+}
+.auth-toast__close:hover {
+  opacity: 1;
+  background: rgba(211, 47, 47, 0.08);
+}
+
+/* Dual-thumb price range slider */
+.price-range-thumb {
+  height: 24px;
+  margin: 0;
+  pointer-events: none;
+}
+.price-range-thumb::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #3684bf;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  cursor: grab;
+  position: relative;
+  z-index: 10;
+}
+.price-range-thumb::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.15);
+}
+.price-range-thumb::-moz-range-thumb {
+  pointer-events: auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #3684bf;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  cursor: grab;
+}
+.price-range-thumb::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 4px;
+}
+.price-range-thumb::-moz-range-track {
+  background: transparent;
+  height: 4px;
+}
+
+/* About page — Core Values card hover */
+.core-value-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  will-change: transform;
+}
+.core-value-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 14px 30px rgba(54, 132, 191, 0.18);
+  border-color: #cfe5f5;
+}
+
+/* Mission/Vision cards */
+.mv-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.mv-card:hover {
+  transform: translateY(-6px);
+  border-color: #5fb6ff;
+  box-shadow: 0 18px 40px rgba(95, 182, 255, 0.18);
+}
+
+/* What We Offer tiles */
+.offer-tile {
+  transition: transform 0.25s ease, background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.offer-tile:hover {
+  background: #dbeaf5;
+  border-color: #5fb6ff;
+  transform: translateY(-3px);
+  box-shadow: 0 8px 18px rgba(54, 132, 191, 0.15);
+}
+
+/* CTA buttons */
+.cta-btn {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease, border-color 0.25s ease;
+}
+.cta-btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -75%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.6s ease;
+}
+.cta-btn:hover::before {
+  left: 125%;
+}
+.cta-primary:hover {
+  background: #13335f;
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(11, 29, 58, 0.35);
+}
+.cta-outline:hover {
+  border-color: #3684bf;
+  color: #3684bf;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(54, 132, 191, 0.2);
+}
+
+/* Contact page — Our Office cards */
+.office-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.office-card:hover {
+  transform: translateY(-6px);
+  border-color: #5fb6ff;
+  box-shadow: 0 14px 30px rgba(54, 132, 191, 0.18);
+}
+
+/* About — Trust rows */
+.trust-row {
+  transition: transform 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+}
+.trust-row:hover {
+  transform: translateX(6px);
+  background: #eaf4fc;
+  box-shadow: 0 6px 18px rgba(54, 132, 191, 0.12);
+}
+
+.promise-row {
+  transition: transform 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+}
+.promise-row:hover {
+  transform: translateX(6px);
+  background: #dbeaf5;
+  box-shadow: 0 6px 18px rgba(54, 132, 191, 0.15);
+}
+
+/* Home category tile hover */
+.category-tile__circle {
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.category-tile:hover .category-tile__circle {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 30px rgba(54, 132, 191, 0.2);
+  --tw-ring-color: #3684bf;
+}
+
+/* Global toast (cart add, etc.) */
+@keyframes global-toast-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.global-toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 260px;
+  max-width: 360px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  font-size: 14px;
+  font-weight: 500;
+  animation: global-toast-in 0.25s ease-out;
+}
+.global-toast--success { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+.global-toast--error   { background: #fdecea; border-color: #f5c2c0; color: #5f2120; }
+.global-toast--info    { background: #eff6ff; border-color: #bfdbfe; color: #1e3a8a; }
+.global-toast--success .global-toast__icon { color: #16a34a; }
+.global-toast--error   .global-toast__icon { color: #dc2626; }
+.global-toast--info    .global-toast__icon { color: #2563eb; }
+.global-toast__icon { display: inline-flex; flex-shrink: 0; }
+.global-toast__msg { flex: 1; }
+.global-toast__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s, background 0.15s;
+  color: inherit;
+}
+.global-toast__close:hover { opacity: 1; background: rgba(0, 0, 0, 0.05); }
+
+/* Rich text rendered from admin Content-tab HTML (see components/RichText.jsx).
+   Tailwind v4 here has no typography plugin, so style the allowed tags directly. */
+.rich-text > :first-child { margin-top: 0; }
+.rich-text > :last-child { margin-bottom: 0; }
+.rich-text p { margin: 0; }
+.rich-text strong, .rich-text b { font-weight: 700; }
+.rich-text em, .rich-text i { font-style: italic; }
+.rich-text u { text-decoration: underline; }
+/* Lists:
+   - <ol> (numbered: Directions to Use steps) -> KEEP the 1. 2. 3. numbers.
+   - <ul> AND orphan <li> (Key Specifications etc.) -> NO bullet.
+   Order matters: bullet-removal must NOT touch <ol> items, so we scope it to ul/orphan only and
+   re-assert decimal on <ol li> with the same weight. */
+.rich-text ol { list-style: decimal; padding-left: 1.6em; margin: 0.5em 0; }
+.rich-text ol > li { list-style: decimal; margin: 0.4em 0; line-height: 1.6; padding-left: 0.25em; }
+.rich-text ul { list-style: none; padding-left: 0; margin: 0.5em 0; }
+.rich-text ul > li { list-style: none; margin: 0.45em 0; line-height: 1.6; }
+.rich-text ul > li::marker { content: ""; }
+/* Orphan <li> with no <ul>/<ol> parent -> treat like a bullet-less line. */
+.rich-text > li { list-style: none; margin: 0.45em 0; line-height: 1.6; }
+.rich-text > li::marker { content: ""; }
+/* "Label: value" rows — small gap after the bold label so it doesn't touch its value. */
+.rich-text li > strong:first-child, .rich-text li > b:first-child { margin-right: 0.35em; }
+.rich-text h3 { font-size: 1.05rem; font-weight: 700; margin: 0.7em 0 0.3em; }
+.rich-text h4 { font-size: 0.95rem; font-weight: 700; margin: 0.7em 0 0.3em; }
+.rich-text a { color: var(--color-brand-orange); text-decoration: underline; }
+/* Spec/feature tables (e.g. Key Specifications: Feature | Specification). Mirrors the reference
+   site's two-column layout: header row, bold first column, light row separators. */
+.rich-text table { width: 100%; border-collapse: collapse; margin: 0.2em 0; font-size: 0.95em; }
+.rich-text thead th { text-align: left; font-weight: 700; color: var(--color-brand-ink, #1f2937); padding: 0.5em 0.75em 0.5em 0; border-bottom: 1px solid #e5e7eb; }
+.rich-text td, .rich-text th { padding: 0.5em 0.75em 0.5em 0; vertical-align: top; border-bottom: 1px solid #f1f1f1; }
+.rich-text tbody tr:last-child td { border-bottom: 0; }
+.rich-text tbody td:first-child { font-weight: 600; color: var(--color-brand-ink, #1f2937); width: 40%; padding-right: 1em; }

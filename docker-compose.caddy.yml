@@ -1,0 +1,32 @@
+# Optional override that puts Caddy in front of the app for automatic HTTPS
+# (free Let's Encrypt certs, auto-renew). Use together with the base file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d --build
+#
+# Requirements: a real domain whose DNS A record points at this server, and
+# ports 80 + 443 open. Set DOMAIN in your .env and use https://DOMAIN/... URLs.
+
+services:
+  web:
+    # Caddy terminates TLS and proxies to web internally; don't expose 80 directly.
+    # !reset clears the base file's port mapping (needs Docker Compose v2.24+).
+    ports: !reset []
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

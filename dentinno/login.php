@@ -10,16 +10,25 @@ if (isLoggedIn()) {
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email    = sanitize($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
-
-    if (empty($email) || empty($password)) {
-        $error = 'Please enter email and password.';
-    } elseif (!loginAdmin($email, $password)) {
-        $error = 'Invalid credentials. Please try again.';
+    $lock = loginLockRemaining();
+    if ($lock > 0) {
+        $error = 'Too many failed attempts. Please try again in ' . ceil($lock / 60) . ' minute(s).';
+    } elseif (!verifyCsrf()) {
+        $error = 'Your session expired. Please reload the page and try again.';
     } else {
-        header('Location: ' . APP_URL . '/index.php');
-        exit;
+        $email    = sanitize($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
+
+        if (empty($email) || empty($password)) {
+            $error = 'Please enter email and password.';
+        } elseif (!loginAdmin($email, $password)) {
+            loginRegisterFailure();   // throttle brute-force guessing
+            $error = 'Invalid credentials. Please try again.';
+        } else {
+            loginClearFailures();
+            header('Location: ' . APP_URL . '/index.php');
+            exit;
+        }
     }
 }
 ?>
@@ -172,6 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
 
             <form method="POST" action="">
+                <?= csrfField() ?>
                 <div class="form-group">
                     <label class="form-label">Email Address</label>
                     <div class="input-icon-wrapper">
@@ -204,12 +214,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </button>
             </form>
 
-            <div class="login-hint">
+            <!-- <div class="login-hint">
                 <strong>Demo Credentials:</strong><br>
                 Email: <strong>admin@dentinno.com</strong><br>
                 Password: <strong>password</strong>
                 <br><small style="color:var(--text-muted);margin-top:6px;display:block;">⚠️ Default password is "password" — change it after setup</small>
-            </div>
+            </div> -->
         </div>
     </div>
 </div>

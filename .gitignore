@@ -1,0 +1,19 @@
+# Secrets — real credentials live here, never committed (see includes/config.php loader).
+dentinno/includes/config.local.php
+
+# Docker runtime env (real secrets) — commit .env.docker.example instead.
+.env
+
+# React build output
+smart-dental-innovation/dist/
+
+# Dependencies
+node_modules/
+
+# Logs / OS / editor cruft
+*.log
+.DS_Store
+Thumbs.db
+
+# Local scratch test files
+dentinno/_t_*.php

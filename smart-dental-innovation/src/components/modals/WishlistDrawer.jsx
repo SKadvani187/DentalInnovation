@@ -3,7 +3,7 @@ import Button from "../ui/Button";
 import { useUI } from "../../context/UIContext";
 import { useWishlist } from "../../context/WishlistContext";
 import { useCart } from "../../context/CartContext";
-import { findProductById } from "../../data/products";
+import { useProducts, useCombos } from "../../hooks/useApiData";
 
 const fmt = (n) => `₹${n.toLocaleString("en-IN")}`;
 
@@ -11,8 +11,11 @@ export default function WishlistDrawer() {
   const { modal, closeModal } = useUI();
   const { ids, remove } = useWishlist();
   const { addToCart } = useCart();
+  const { data: allProducts } = useProducts();
+  const { data: combos } = useCombos();
 
-  const items = ids.map(findProductById).filter(Boolean);
+  const lookup = (id) => allProducts.find((p) => p.id === id) || combos.find((c) => c.id === id);
+  const items = ids.map(lookup).filter(Boolean);
 
   return (
     <Drawer open={modal === "wishlist"} onClose={closeModal} title={`Your Wishlist (${items.length})`}>

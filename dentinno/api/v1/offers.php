@@ -1,0 +1,77 @@
+<?php
+// GET /api/v1/offers.php -> active offers (offer zone)
+require_once __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/_map.php';
+
+// Exclude expired offers (valid_till in the past). Compute "now" in PHP using the
+// app timezone (config sets Asia/Kolkata) rather than trusting the MySQL session tz.
+$now = date('Y-m-d H:i:s');
+$rows = db()->fetchAll(
+    "SELECT * FROM offers
+     WHERE is_active=1 AND (valid_till IS NULL OR valid_till >= ?)
+     ORDER BY sort_order",
+    [$now]
+);
+
+// Batch-load free gift items relationally (with each gift's product slug for the cart).
+$giftsByOffer = [];
+if ($rows) {
+    $offerIds = array_map(fn($r) => (int)$r['id'], $rows);
+    $ph = implode(',', array_fill(0, count($offerIds), '?'));
+    $giftRows = db()->fetchAll(
+        "SELECT oi.*, p.slug AS product_slug
+         FROM offer_items oi
+         LEFT JOIN products p ON p.id = oi.product_id
+         WHERE oi.offer_id IN ($ph)
+         ORDER BY oi.offer_id, oi.sort_order, oi.id",
+        $offerIds
+    );
+    foreach ($giftRows as $g) $giftsByOffer[(int)$g['offer_id']][] = $g;
+}
+
+// Real "bought today" count per product slug (distinct orders today containing that product).
+$soldRows = db()->fetchAll(
+    "SELECT oi.product_slug AS slug, COUNT(DISTINCT oi.order_id) AS cnt
+     FROM order_items oi JOIN orders o ON o.id = oi.order_id
+     WHERE DATE(o.created_at) = CURDATE() AND oi.product_slug IS NOT NULL
+     GROUP BY oi.product_slug"
+);
+$soldToday = [];
+foreach ($soldRows as $r) $soldToday[$r['slug']] = (int)$r['cnt'];
+
+// Product lookup so the offer's main product always reflects the REAL linked product
+// (name/image/price) — clicking the card opens exactly what the card shows.
+// Only LIVE products are eligible as an offer's main product — a soft-deleted/inactive
+// product must not back an offer card (clicking it would open a non-existent product).
+$prodRows = db()->fetchAll("SELECT id, slug, name, price, discount_price, JSON_EXTRACT(images,'$[0]') AS img FROM products WHERE is_deleted=0 AND is_active=1");
+$mainById = [];   // offers.product_id (int) -> live main-product data (relational source of truth)
+foreach ($prodRows as $pr) {
+    $mainById[(int)$pr['id']] = [
+        'slug'  => $pr['slug'],
+        'name'  => $pr['name'],
+        'image' => trim((string)$pr['img'], '"'),
+        'mrp'   => (float)$pr['price'],
+        'price' => $pr['discount_price'] !== null ? (float)$pr['discount_price'] : (float)$pr['price'],
+    ];
+}
+
+$offers = [];
+foreach ($rows as $r) {
+    // Skip offers whose linked product is missing/deleted/inactive — otherwise the Offer Zone
+    // renders a dead card and the product page spins forever on "Loading product…".
+    $pidInt = (int)($r['product_id'] ?? 0);
+    if ($pidInt && !isset($mainById[$pidInt])) continue;
+    // mapOffer resolves the main product (id, name, image, mrp, price) from the relational
+    // offers.product_id via $mainById — not the legacy JSON snapshot — so nothing drifts.
+    $o = mapOffer($r, $giftsByOffer[(int)$r['id']] ?? [], $mainById);
+    $pid = $o['mainProduct']['productId'] ?? null;
+    // Social-proof count: admin chooses 'manual' (fixed number) or 'live' (real orders today).
+    if (($r['social_mode'] ?? 'live') === 'manual') {
+        $o['boughtToday'] = max(0, (int)($r['social_count'] ?? 0));
+    } else {
+        $o['boughtToday'] = $pid && isset($soldToday[$pid]) ? $soldToday[$pid] : 0;
+    }
+    $offers[] = $o;
+}
+
+jsonOut(['success' => true, 'offers' => $offers]);

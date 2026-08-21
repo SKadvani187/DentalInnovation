@@ -222,6 +222,7 @@ input, select, textarea, button { font-family: inherit; }
 .main-wrapper {
     margin-left: var(--sidebar-w);
     flex: 1;
+    min-width: 0;   /* let wide children (the data table) scroll inside instead of forcing the whole page wider than the viewport */
     display: flex;
     flex-direction: column;
     min-height: 100vh;
@@ -363,11 +364,12 @@ input, select, textarea, button { font-family: inherit; }
 /* ═══════════════════════════════
    PAGE CONTENT
 ═══════════════════════════════ */
-.page-content { padding: 28px; flex: 1; }
+.page-content { padding: 28px; flex: 1; min-width: 0; }
 
 .page-header {
     display: flex; justify-content: space-between; align-items: center;
     margin-bottom: 28px;
+    flex-wrap: wrap; gap: 12px;   /* let the action buttons wrap below the title instead of clipping */
 }
 .page-header-left h1 {
     font-family: 'DM Serif Display', Georgia, serif;
@@ -585,7 +587,17 @@ tbody tr:last-child td { border-bottom: none; }
     box-shadow: 0 0 0 3px rgba(184,134,11,0.12);
 }
 .form-control::placeholder { color: var(--text-muted); }
-select.form-control { cursor: pointer; }
+select.form-control {
+    cursor: pointer;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    padding-right: 38px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23B8860B' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+}
+select.form-control option { background: var(--bg-elevated); color: var(--text-primary); }
 textarea.form-control { resize: vertical; min-height: 90px; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
@@ -649,10 +661,15 @@ textarea.form-control { resize: vertical; min-height: 90px; }
    FILTER BAR
 ═══════════════════════════════ */
 .filter-bar {
-    display: flex; gap: 12px; align-items: center;
-    margin-bottom: 20px; flex-wrap: wrap;
+    display: flex; gap: 8px; align-items: center;
+    margin-bottom: 20px; flex-wrap: nowrap;   /* keep everything on ONE row */
 }
-.filter-bar .form-control { max-width: 200px; }
+/* Selects share the row and shrink together so search + all filters + buttons stay on one line. */
+.filter-bar .form-control { flex: 1 1 0; min-width: 0; max-width: 160px; }
+/* Filter / Reset buttons keep their natural size, never shrink. */
+.filter-bar .btn { flex: 0 0 auto; white-space: nowrap; }
+/* On smaller screens the single row would overflow — allow it to wrap there only. */
+@media (max-width: 1100px) { .filter-bar { flex-wrap: wrap; } }
 .search-input {
     background: var(--bg-elevated);
     border: 1px solid var(--border-color);
@@ -662,15 +679,26 @@ textarea.form-control { resize: vertical; min-height: 90px; }
     font-size: 0.85rem;
     outline: none;
     transition: all var(--transition);
-    width: 240px;
-    position: relative;
+    width: 100%;
+    box-sizing: border-box;
 }
-.search-wrapper { position: relative; }
+/* Fill the wrapper (which controls width via flex/min/max) so the input never overflows
+   its container and overlaps the Voice / Image Search buttons sitting next to it. */
+.search-wrapper { position: relative; flex: 1 1 0; min-width: 140px; max-width: 280px; }
 .search-wrapper i {
     position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
     color: var(--text-muted); font-size: 0.85rem; pointer-events: none;
 }
 .search-input:focus { border-color: var(--border-active); }
+
+/* Keyboard accessibility: a visible focus ring for keyboard users (not on mouse clicks). */
+a:focus-visible, button:focus-visible, .btn:focus-visible, .nav-item:focus-visible,
+input:focus-visible, select:focus-visible, textarea:focus-visible,
+.page-item:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid var(--gold-primary);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
 
 /* ═══════════════════════════════
    TOASTS

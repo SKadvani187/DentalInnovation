@@ -1,17 +1,16 @@
+
 import { useCallback, useEffect, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
-
-const slides = [
-  "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_5_1.webp",
-  "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_10.webp",
-  "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_9_(3).webp",
-  "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_9_1.webp",
-  "https://merchant-cdn.storedum.com/Smart_Hex_driver.png",
-  "https://merchant-cdn.storedum.com/New_Website_slider_344_x_1080_px_8.webp",
-  "https://merchant-cdn.storedum.com/new_Website_slider_344_x_1080_px_5_(1).png",
-];
+import { useAppNavigate } from "../../hooks/useAppNavigate";
+import { useProductIndex } from "../../hooks/useProductIndex";
+import { useSettings } from "../../context/SettingsContext";
 
 export default function HeroCarousel() {
+  const navigate = useAppNavigate();
+  const { nameFor } = useProductIndex();
+  const { heroSlides } = useSettings();
+  const slides = Array.isArray(heroSlides) ? heroSlides : [];
+  const go = (id) => navigate("product", { id, name: nameFor(id) });
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
   const [selected, setSelected] = useState(0);
 
@@ -32,18 +31,27 @@ export default function HeroCarousel() {
   }, [emblaApi]);
 
   return (
-    <section className="relative max-w-[1400px] mx-auto px-3 sm:px-6 mt-[15px]">
-      <div className="relative overflow-hidden rounded-[20px]">
+    <section className="relative max-w-[1400px] mx-auto">
+      <div className="relative overflow-hidden">
         <div className="embla" ref={emblaRef}>
           <div className="embla__container">
-            {slides.map((src, i) => (
-              <div key={i} className="embla__slide flex flex-col items-center cursor-pointer">
+            {slides.map((s, i) => (
+              <div
+                key={i}
+                onClick={() => go(s.productId)}
+                className="embla__slide relative min-w-0 w-full h-[400px] lg:h-[500px] overflow-hidden">
                 <img
-                  src={src}
+                  src={s.src}
+                  alt=""
+                  aria-hidden="true"
+                  className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-70"
+                />
+                <img
+                  src={s.src}
                   alt=""
                   loading={i === 0 ? "eager" : "lazy"}
                   decoding="async"
-                  className="w-full h-auto block"
+                  className="relative z-10 w-full h-full object-contain block"
                 />
               </div>
             ))}
@@ -54,14 +62,20 @@ export default function HeroCarousel() {
         <button
           onClick={scrollPrev}
           aria-label="Previous"
-          className="hidden sm:flex absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/30 backdrop-blur-md text-white items-center justify-center hover:bg-white/50 transition"
+          className="hidden sm:flex absolute left-4 top-1/2 -translate-y-1/2
+             w-11 h-11 rounded-full
+             bg-black/45 hover:bg-black/70
+             backdrop-blur-md text-white
+             ring-1 ring-white/25 shadow-lg
+             items-center justify-center transition
+             focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.77 3.77 16 2 6 12l10 10 1.77-1.77L9.54 12z" /></svg>
         </button>
         <button
           onClick={scrollNext}
           aria-label="Next"
-          className="hidden sm:flex absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/30 backdrop-blur-md text-white items-center justify-center hover:bg-white/50 transition"
+          className="hidden sm:flex absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/45 hover:bg-black/70 backdrop-blur-md text-white items-center justify-center transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="rotate-180"><path d="M17.77 3.77 16 2 6 12l10 10 1.77-1.77L9.54 12z" /></svg>
         </button>

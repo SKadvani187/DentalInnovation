@@ -1,0 +1,68 @@
+# Dental Innovation — production stack (HTTP on port 80).
+# For automatic HTTPS, also use docker-compose.caddy.yml (see DEPLOY_DOCKER.md).
+#
+#   docker compose up -d --build
+#
+# All secrets/config come from a local .env file (copy .env.docker.example).
+
+services:
+  db:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${DB_NAME}
+      MARIADB_USER: ${DB_USER}
+      MARIADB_PASSWORD: ${DB_PASS}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASS}
+    volumes:
+      - db_data:/var/lib/mysql
+      # Core schema is imported ONCE, on the first (empty) start of the db volume.
+      - ./dentinno/database.sql:/docker-entrypoint-initdb.d/01-core-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  web:
+    build:
+      context: .
+      args:
+        # Baked into the React bundle at build time — must be the PUBLIC API URL.
+        VITE_API_URL: ${VITE_API_URL}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # --- database (read by dentinno/includes/config.php via getenv) ---
+      DB_HOST: db
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      # --- app ---
+      APP_URL: ${APP_URL}
+      APP_DEBUG: "false"
+      OTP_DEV_RETURN: "false"
+      OTP_SSL_INSECURE: "false"
+      # --- payment gateway (live keys in production) ---
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET}
+      # --- OTP / email (optional) ---
+      FAST2SMS_API_KEY: ${FAST2SMS_API_KEY}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      # --- AI image search (optional) ---
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    ports:
+      - "80:80"
+    volumes:
+      # Persist uploaded product/banner images across container rebuilds.
+      - uploads:/var/www/html/dentinno/assets/images/products
+
+volumes:
+  db_data:
+  uploads:

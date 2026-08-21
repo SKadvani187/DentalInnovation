@@ -1,0 +1,239 @@
+<?php
+require_once __DIR__ . '/../includes/config.php';
+require_once __DIR__ . '/../includes/auth.php';
+$page_title = 'Testimonials';
+requireView('testimonials');
+
+// Image upload (shared products folder)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['t_image'])) {
+    header('Content-Type: application/json');
+    if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    requireAction('testimonials', 'edit');
+    $upload_dir = __DIR__ . '/../assets/images/products/';
+    if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
+    $file = $_FILES['t_image'];
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) { echo json_encode(['success'=>false,'message'=>'Upload failed (error code '.($file['error'] ?? '?').')']); exit; }
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, ['jpg','jpeg','png','webp','gif'])) { echo json_encode(['success'=>false,'message'=>'Invalid file type']); exit; }
+    // Verify the actual file CONTENT, not just the extension (a .jpg could be a PHP script).
+    $fi = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : false;
+    $mime = $fi ? finfo_file($fi, $file['tmp_name']) : '';
+    if ($mime && !in_array($mime, ['image/jpeg','image/png','image/webp','image/gif'], true)) {
+        echo json_encode(['success'=>false,'message'=>'The file is not a valid image (content check failed)']); exit;
+    }
+    if (!imageDimsOk($file['tmp_name'])) { echo json_encode(['success'=>false,'message'=>'Image must be a valid file no larger than 6000×6000 px']); exit; }
+    if ($file['size'] > 5*1024*1024) { echo json_encode(['success'=>false,'message'=>'File too large']); exit; }
+    $fname = 'tst_' . time() . '_' . rand(1000,9999) . '.' . $ext;
+    if (move_uploaded_file($file['tmp_name'], $upload_dir . $fname)) {
+        echo json_encode(['success'=>true,'url'=> APP_URL.'/assets/images/products/'.$fname]);
+    } else { echo json_encode(['success'=>false,'message'=>'Upload failed']); }
+    exit;
+}
+
+// AJAX JSON actions
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+    header('Content-Type: application/json');
+    if (!verifyCsrf()) { http_response_code(403); echo json_encode(['success'=>false,'message'=>'Invalid CSRF token. Reload the page.']); exit; }
+    // Never let a PHP warning/exception leak HTML into the JSON response (breaks res.json()).
+    try {
+    $d = json_decode(file_get_contents('php://input'), true);
+    $action = $d['action'] ?? '';
+    requireAction('testimonials', rbacCrudVerb($action, $d));
+
+    if ($action === 'save') {
+        $rating = max(1, min(5, (int)($d['rating'] ?? 5)));
+        // Required fields enforced server-side (never trust the client form).
+        $name = trim((string)($d['name'] ?? ''));
+        $text = trim((string)($d['text'] ?? ''));
+        if ($name === '' || $text === '') { echo json_encode(['success'=>false,'message'=>'Name and review text are required']); exit; }
+        $avatar  = ($d['avatar'] ?? '') ?: null;
+        $pImage  = ($d['product_image'] ?? '') ?: null;
+        $pName   = ($d['product_name'] ?? '') ?: null;
+        $active  = !empty($d['is_active']) ? 1 : 0;
+        if (!empty($d['id'])) {
+            db()->execute(
+                "UPDATE testimonials SET name=?,avatar=?,product_image=?,product_name=?,rating=?,text=?,is_active=? WHERE id=?",
+                [$name,$avatar,$pImage,$pName,$rating,$text,$active,(int)$d['id']]
+            );
+            echo json_encode(['success'=>true,'message'=>'Testimonial updated']);
+        } else {
+            $slug = 't-' . substr((string)time(), -6);
+            db()->insert(
+                "INSERT INTO testimonials (slug,name,avatar,product_image,product_name,rating,text,is_active) VALUES (?,?,?,?,?,?,?,?)",
+                [$slug,$name,$avatar,$pImage,$pName,$rating,$text,$active]
+            );
+            echo json_encode(['success'=>true,'message'=>'Testimonial added']);
+        }
+    } elseif ($action === 'toggle') {
+        db()->execute("UPDATE testimonials SET is_active = NOT is_active WHERE id=?", [(int)($d['id'] ?? 0)]);
+        echo json_encode(['success'=>true,'message'=>'Status updated']);
+    } elseif ($action === 'delete') {
+        db()->execute("DELETE FROM testimonials WHERE id=?", [(int)($d['id'] ?? 0)]);
+        echo json_encode(['success'=>true,'message'=>'Testimonial deleted']);
+    }
+    } catch (Throwable $e) {
+        echo json_encode(['success'=>false,'message'=>'Server error: ' . $e->getMessage()]);
+    }
+    exit;
+}
+
+$search = sanitize($_GET['search'] ?? '');
+$tWhere = ''; $tParams = [];
+if ($search) { $tWhere = "WHERE name LIKE ? OR text LIKE ? OR product_name LIKE ?"; $tParams = ["%$search%","%$search%","%$search%"]; }
+$testimonials = db()->fetchAll("SELECT * FROM testimonials $tWhere ORDER BY sort_order, id", $tParams);
+include __DIR__ . '/../includes/header.php';
+?>
+
+<div class="page-header fade-in">
+    <div class="page-header-left">
+        <h1>Testimonials</h1>
+        <p>Customer reviews shown on the storefront home page</p>
+    </div>
+    <?php if (can('testimonials','create')): ?><button class="btn btn-gold" onclick="openTstModal()"><i class="fa-solid fa-plus"></i> Add Testimonial</button><?php endif; ?>
+</div>
+
+<div class="filter-bar fade-in" style="flex-wrap:wrap;gap:8px;">
+    <div class="search-wrapper" style="flex:1;min-width:180px;max-width:300px;">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" class="search-input" id="searchInput" placeholder="Search testimonials..." value="<?= htmlspecialchars($search) ?>" onkeydown="if(event.key==='Enter')applyFilters()">
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="applyFilters()"><i class="fa-solid fa-filter"></i> Filter</button>
+    <a href="testimonials.php" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate-left"></i> Reset</a>
+</div>
+
+<div class="grid-3 fade-in">
+    <?php foreach($testimonials as $t): ?>
+    <div class="card" id="tst-card-<?= $t['id'] ?>" style="transition:all .2s;">
+        <div class="card-body">
+            <div style="display:flex;gap:12px;">
+                <img src="<?= htmlspecialchars($t['avatar'] ?: '') ?>" style="width:46px;height:46px;border-radius:50%;object-fit:cover;background:#eee;border:1px solid var(--border-color);flex-shrink:0;" onerror="this.style.opacity=.2">
+                <div style="flex:1;min-width:0;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                        <div class="font-bold" style="font-size:.92rem;"><?= htmlspecialchars($t['name']) ?></div>
+                        <span class="badge badge-<?= $t['is_active']?'success':'secondary' ?>" style="flex-shrink:0;"><?= $t['is_active']?'Active':'Inactive' ?></span>
+                    </div>
+                    <div class="text-muted" style="font-size:.78rem;margin-top:5px;line-height:1.45;"><?= htmlspecialchars(mb_strimwidth($t['text'],0,120,'…')) ?></div>
+                </div>
+            </div>
+            <div style="margin-top:12px;display:flex;justify-content:flex-end;gap:6px;">
+                <?php if (can('testimonials','edit')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick='openTstModal(<?= htmlspecialchars(json_encode($t, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT), ENT_QUOTES) ?>)'><i class="fa-solid fa-pen"></i></button><?php endif; ?>
+                <?php if (can('testimonials','delete')): ?><button class="btn btn-ghost btn-sm btn-icon" onclick="deleteTst(<?= $t['id'] ?>)"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button><?php endif; ?>
+            </div>
+        </div>
+    </div>
+    <?php endforeach; ?>
+</div>
+<?php if(empty($testimonials)): ?>
+<div class="card fade-in" style="text-align:center;padding:48px 20px;">
+    <i class="fa-solid fa-quote-right" style="font-size:2.6rem;color:var(--border-active);margin-bottom:12px;"></i>
+    <?php if($search !== ''): ?>
+    <h3 style="font-size:1rem;margin-bottom:4px;">No testimonials match "<?= htmlspecialchars($search) ?>"</h3>
+    <p class="text-muted" style="font-size:.85rem;margin-bottom:14px;">Try a different search — or reset to see all testimonials.</p>
+    <a href="testimonials.php" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate-left"></i> Reset</a>
+    <?php else: ?>
+    <h3 style="font-size:1rem;margin-bottom:4px;">No testimonials yet</h3>
+    <p class="text-muted" style="font-size:.85rem;margin-bottom:14px;">Add customer quotes to feature on the storefront home page.</p>
+    <button class="btn btn-gold btn-sm" onclick="openTstModal()"><i class="fa-solid fa-plus"></i> Add your first testimonial</button>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
+
+<!-- Modal -->
+<div class="modal-overlay" id="tstModal" style="display:none;" onclick="if(event.target===this)closeModal('tstModal')">
+    <div class="modal-box" style="max-width:460px;text-align:left;padding:0;">
+        <div class="modal-head" style="padding:18px 22px;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;">
+            <h2 id="tstModalTitle" style="font-family:'Playfair Display',serif;font-size:1.05rem;background:var(--gold-gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Add Testimonial</h2>
+            <button class="close-btn" onclick="closeModal('tstModal')"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div style="padding:22px;max-height:70vh;overflow:auto;">
+            <input type="hidden" id="tst_id">
+            <div class="form-group"><label class="form-label">Customer Name *</label><input type="text" class="form-control" id="tst_name" placeholder="e.g. Dr. Patel"></div>
+            <div class="form-group">
+                <label class="form-label">Avatar Image</label>
+                <div class="drop-zone" id="tstDrop" onclick="document.getElementById('tstImgInput').click()" style="border:2px dashed var(--border-active);border-radius:10px;padding:16px;text-align:center;cursor:pointer;">
+                    <i class="fa-solid fa-user-circle" style="font-size:1.5rem;color:var(--gold-primary);display:block;margin-bottom:5px;"></i>
+                    <span style="color:var(--text-secondary);font-size:.8rem;">Upload avatar (or paste URL below)</span>
+                </div>
+                <input type="file" id="tstImgInput" accept="image/*" style="display:none" onchange="uploadTstImg(this.files)">
+                <div id="tstImgPreview" style="margin-top:8px;"></div>
+                <input type="text" class="form-control" id="tst_avatar" placeholder="Avatar URL" style="margin-top:8px;" oninput="renderTstImg()">
+            </div>
+            <div class="form-group"><label class="form-label">Product Name</label><input type="text" class="form-control" id="tst_product_name" placeholder="e.g. Implant Hex Driver"></div>
+            <div class="form-group"><label class="form-label">Product Image URL</label><input type="text" class="form-control" id="tst_product_image" placeholder="Optional product image URL"></div>
+            <div class="form-group"><label class="form-label">Rating</label>
+                <select class="form-control" id="tst_rating">
+                    <option value="5">★★★★★ (5)</option><option value="4">★★★★ (4)</option><option value="3">★★★ (3)</option><option value="2">★★ (2)</option><option value="1">★ (1)</option>
+                </select>
+            </div>
+            <div class="form-group"><label class="form-label">Review Text *</label><textarea class="form-control" id="tst_text" rows="4" placeholder="What the customer said..."></textarea></div>
+            <div class="form-group"><label class="form-label">Status</label>
+                <select class="form-control" id="tst_status"><option value="1">Active</option><option value="0">Inactive</option></select>
+            </div>
+        </div>
+        <div style="padding:14px 22px;border-top:1px solid var(--border-color);display:flex;justify-content:flex-end;gap:10px;">
+            <button class="btn btn-ghost" onclick="closeModal('tstModal')">Cancel</button>
+            <button class="btn btn-gold" onclick="saveTst()"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function applyFilters(){const v=document.getElementById('searchInput').value;window.location.href='testimonials.php'+(v?('?search='+encodeURIComponent(v)):'');}
+function openTstModal(t = null) {
+    document.getElementById('tst_id').value            = t?.id || '';
+    document.getElementById('tst_name').value          = t?.name || '';
+    document.getElementById('tst_avatar').value        = t?.avatar || '';
+    document.getElementById('tst_product_name').value  = t?.product_name || '';
+    document.getElementById('tst_product_image').value = t?.product_image || '';
+    document.getElementById('tst_rating').value        = t?.rating ?? 5;
+    document.getElementById('tst_text').value          = t?.text || '';
+    document.getElementById('tst_status').value        = t?.is_active ?? 1;
+    document.getElementById('tstModalTitle').textContent = t ? 'Edit Testimonial' : 'Add Testimonial';
+    renderTstImg();
+    openModal('tstModal');
+}
+async function uploadTstImg(files) {
+    const file = files[0]; if(!file) return;
+    const fd = new FormData(); fd.append('t_image', file);
+    try {
+        const res = await fetch('testimonials.php',{method:'POST',body:fd});
+        const data = await res.json();
+        if(data.success){ document.getElementById('tst_avatar').value=data.url; renderTstImg(); }
+        else showToast(data.message,'danger');
+    } catch(e){ showToast('Upload error','danger'); }
+}
+function renderTstImg() {
+    const url = document.getElementById('tst_avatar').value;
+    document.getElementById('tstImgPreview').innerHTML = url
+        ? `<img src="${url}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:1px solid var(--border-color);">`
+        : '';
+}
+async function saveTst() {
+    const name = document.getElementById('tst_name').value.trim();
+    const text = document.getElementById('tst_text').value.trim();
+    if(!name||!text){ showToast('Name and Review text are required','warning'); return; }
+    const data = { action:'save', id:document.getElementById('tst_id').value, name, text,
+        avatar:document.getElementById('tst_avatar').value,
+        product_name:document.getElementById('tst_product_name').value,
+        product_image:document.getElementById('tst_product_image').value,
+        rating:document.getElementById('tst_rating').value,
+        is_active:document.getElementById('tst_status').value };
+    const res = await fetch('testimonials.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(data)});
+    const r = await res.json();
+    if(r.success){ showToast(r.message,'success'); closeModal('tstModal'); setTimeout(()=>location.reload(),800); }
+    else showToast(r.message,'danger');
+}
+function toggleTst(id){
+    fetch('testimonials.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'toggle',id})})
+    .then(r=>r.json()).then(d=>{if(d.success){showToast('Status updated','success');setTimeout(()=>location.reload(),600);}});
+}
+function deleteTst(id) {
+    showConfirm('Delete Testimonial','This review will be removed from the storefront.', async () => {
+        const res = await fetch('testimonials.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({action:'delete',id})});
+        const r = await res.json();
+        if(r.success){ showToast('Testimonial deleted','success'); const el=document.getElementById(`tst-card-${id}`); if(el){el.style.opacity='0';setTimeout(()=>el.remove(),300);} }
+        else showToast(r.message,'danger');
+    });
+}
+</script>
+<?php include __DIR__ . '/../includes/footer.php'; ?>

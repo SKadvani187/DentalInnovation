@@ -1,0 +1,5 @@
+# Uploaded media only — never execute server-side code from this folder.
+php_flag engine off
+<FilesMatch "\.(php|php3|php4|php5|php7|phtml|pht|phar|cgi|pl|asp|aspx|sh)$">
+    Require all denied
+</FilesMatch>

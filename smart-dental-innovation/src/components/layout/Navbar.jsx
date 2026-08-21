@@ -13,8 +13,9 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-[900] bg-white/80 backdrop-blur-xl border-b border-gray-200">
-      {/* Top row */}
-      <div className="flex items-center h-16 px-3 sm:px-6 gap-2 sm:gap-4">
+      {/* Top row — inner content capped to the same width as the page content so the
+          logo/search/account align with the page below (white bar stays full-width). */}
+      <div className="flex items-center h-16 px-3 sm:px-6 gap-2 sm:gap-4 max-w-[1400px] mx-auto">
         <a href="#" className="flex items-center gap-2 shrink-0">
           <div className="w-9 h-9 rounded-lg bg-brand-navy text-white flex items-center justify-center font-bold">
             SD
@@ -29,6 +30,7 @@ export default function Navbar() {
         <div className="flex-1 max-w-2xl hidden md:block">
           <button
             type="button"
+            onClick={() => openModal("search")}
             className="w-full h-10 flex items-center gap-3 px-4 border border-gray-300 rounded-lg text-left text-brand-muted hover:border-brand-navy transition"
           >
             <svg width="18" height="18" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.2">
@@ -56,7 +58,7 @@ export default function Navbar() {
                 <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4m0 2c-2.67 0-8 1.34-8 4v1c0 .55.45 1 1 1h14c.55 0 1-.45 1-1v-1c0-2.66-5.33-4-8-4" />
               </svg>
             </span>
-            <span className="text-sm font-medium">Sign In</span>
+            <span className="text-sm font-medium">You</span>
           </button>
         )}
 
@@ -96,9 +98,10 @@ export default function Navbar() {
       </div>
 
       {/* Mobile search */}
-      <div className="md:hidden px-3 pb-3">
+      <div className="md:hidden px-3 pb-3 max-w-[1400px] mx-auto">
         <button
           type="button"
+          onClick={() => openModal("search")}
           className="w-full h-10 flex items-center gap-3 px-4 border border-gray-300 rounded-lg text-left text-brand-muted"
         >
           <svg width="16" height="16" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.2">
@@ -109,7 +112,7 @@ export default function Navbar() {
       </div>
 
       {/* Nav links row */}
-      <nav className="flex items-center gap-8 px-3 sm:px-6 py-2 overflow-x-auto no-scrollbar">
+      <nav className="flex items-center gap-8 px-3 sm:px-6 py-2 overflow-x-auto no-scrollbar max-w-[1400px] mx-auto w-full">
         {navLinks.map((l) => (
           <button
             key={l}

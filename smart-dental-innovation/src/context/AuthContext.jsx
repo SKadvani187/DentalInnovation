@@ -1,37 +1,285 @@
-import { createContext, useContext, useMemo, useCallback } from "react";
+import { createContext, useContext, useMemo, useCallback, useEffect } from "react";
 import { useLocalStorage } from "../hooks/useLocalStorage";
+import api, { setAuthToken } from "../lib/api";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useLocalStorage("sdi:user", null);
   const [accounts, setAccounts] = useLocalStorage("sdi:accounts", []);
+  const [token, setToken] = useLocalStorage("sdi:token", null);
 
-  const signup = useCallback(({ name, email, password }) => {
-    if (!name || !email || !password) {
-      return { ok: false, error: "All fields are required." };
+  // Restore token into the API client on load.
+  useEffect(() => { setAuthToken(token); }, [token]);
+
+  // NOTE: a previous "self-heal" effect silently re-acquired a token via api.login()
+  // (find-or-create) whenever a profile existed without a token. The backend now requires
+  // a server-verified OTP before issuing a token (auth.php), so that path is both blocked
+  // and a security hole if it weren't — removed. A token-less session re-authenticates
+  // through the normal OTP flow instead.
+
+  // Persist the customer to the backend (find-or-create) and capture the API token.
+  const syncToApi = useCallback(async (mobile, profile = {}) => {
+    try {
+      const res = await api.login({ mobile, ...profile });
+      setToken(res.token);
+      setAuthToken(res.token);
+      return res;
+    } catch (err) {
+      console.warn("[auth] API sync failed:", err.message);
+      // TEMP(debug): surface the real error so we can diagnose the login failure.
+      return { __syncError: err.message || "request failed" };
     }
-    if (accounts.some((a) => a.email === email)) {
-      return { ok: false, error: "Account with this email already exists." };
+  }, [setToken]);
+
+  // Mobile-step check: ask the backend whether this number already has a password set.
+  // The modal uses this to decide between the password screen (returning customer, no OTP)
+  // and the OTP flow (new/legacy account).
+  const checkMobile = useCallback(async (mobile) => {
+    if (!/^[6-9]\d{9}$/.test(mobile)) {
+      return { ok: false, error: "Enter a valid 10-digit mobile number." };
     }
-    const newAccount = { name, email, password };
-    setAccounts([...accounts, newAccount]);
-    setUser({ name, email });
-    return { ok: true };
-  }, [accounts, setAccounts, setUser]);
+    try {
+      const res = await api.checkMobile({ mobile });
+      return { ok: true, exists: !!res.exists, hasPassword: !!res.hasPassword, name: res.name || "" };
+    } catch (err) {
+      return { ok: false, error: err.message || "Could not reach the server." };
+    }
+  }, []);
 
-  const login = useCallback(({ email, password }) => {
-    const acc = accounts.find((a) => a.email === email && a.password === password);
-    if (!acc) return { ok: false, error: "Invalid email or password." };
-    setUser({ name: acc.name, email: acc.email });
+  // Password login (returning customer): verify the saved password — no OTP. On success the
+  // backend issues a token and returns the full customer; mirror it into local state.
+  const loginWithPassword = useCallback(async ({ mobile, password }) => {
+    if (!password) return { ok: false, error: "Enter your password." };
+    let res;
+    try {
+      res = await api.login({ mobile, password });
+    } catch (err) {
+      return { ok: false, error: err.message || "Incorrect password." };
+    }
+    setToken(res.token);
+    setAuthToken(res.token);
+    const c = res.customer || {};
+    const merged = {
+      mobile,
+      name: c.name || "",
+      email: c.email || "",
+      address: c.address || "",
+      addresses: c.addresses || [],
+      city: c.city || "",
+      state: c.state || "",
+      pincode: c.pincode || "",
+      clinicName: c.clinicName || "",
+    };
+    setUser(merged);
+    setAccounts((prev) => {
+      const without = prev.filter((a) => a.mobile !== mobile);
+      return [...without, { mobile, name: merged.name, email: merged.email, address: merged.address }];
+    });
     return { ok: true };
-  }, [accounts, setUser]);
+  }, [setToken, setUser, setAccounts]);
 
-  const logout = useCallback(() => setUser(null), [setUser]);
+  // Request OTP via backend (real SMS/email + rate limiting).
+  const requestOtp = useCallback(async (mobile) => {
+    if (!/^[6-9]\d{9}$/.test(mobile)) {
+      return { ok: false, error: "Enter a valid 10-digit mobile number." };
+    }
+    try {
+      const res = await api.requestOtp({ mobile });
+      return { ok: true, devOtp: res.devOtp || null, sent: res.sent, devMode: res.devMode, attemptsLeft: res.attemptsLeft, message: res.message };
+    } catch (err) {
+      return { ok: false, error: err.message || "Could not send OTP." };
+    }
+  }, []);
+
+  // Verify OTP via backend. On success: log in (find-or-create) and capture token.
+  const verifyOtp = useCallback(async ({ mobile, otp }) => {
+    try {
+      await api.verifyOtp({ mobile, otp });
+    } catch (err) {
+      return { ok: false, error: err.message || "Invalid OTP." };
+    }
+    // Verified — persist customer + token (backend find-or-create).
+    // NOTE: do NOT replay the locally-cached email here. The backend's email column is UNIQUE;
+    // if the cached email happens to collide with another customer, login throws *after* it has
+    // already rotated the api_token, leaving this browser holding a now-dead token (every later
+    // call 401s -> "Couldn't save your details"). The email is already stored server-side, so we
+    // only need the mobile to log in. The name is harmless (no unique constraint).
+    const existing = accounts.find((a) => a.mobile === mobile);
+    const res = await syncToApi(mobile, existing ? { name: existing.name } : {});
+
+    // If the backend login failed (network/server error), we have NO valid token. The profile
+    // step that follows REQUIRES a token to save the password, so surface the failure now and let
+    // the buyer retry — silently "logging in" from the local cache here would only fail later with
+    // a confusing "Couldn't save your details".
+    if (!res || res.__syncError) {
+      // TEMP(debug): include the real underlying error in the on-screen message.
+      return { ok: false, error: `Sign-in failed: ${res?.__syncError || "no response"}` };
+    }
+
+    // Backend is authoritative: if it returns an existing customer with a real name,
+    // log them straight in — even if this browser has no local account (incognito,
+    // cleared storage, different device). This is the main "OTP ok but not logged in" fix.
+    const apiCust = res?.customer;
+    // A provisional account has only a placeholder name ("Customer 1234") — treat it as NOT
+    // having a profile so the name-prompt still shows (otherwise the placeholder sticks and the
+    // customer never appears in the admin list).
+    const apiHasProfile =
+      apiCust && res?.isNew === false && !apiCust.isProvisional && apiCust.name && apiCust.name.trim() !== "";
+    if (apiHasProfile) {
+      const merged = {
+        mobile,
+        name: apiCust.name,
+        email: apiCust.email || "",
+        address: apiCust.address || "",
+        addresses: apiCust.addresses || [],
+        city: apiCust.city || "",
+        state: apiCust.state || "",
+        pincode: apiCust.pincode || "",
+        clinicName: apiCust.clinicName || "",
+      };
+      setUser(merged);
+      // Cache locally so future logins on this browser are instant.
+      setAccounts((prev) => {
+        const without = prev.filter((a) => a.mobile !== mobile);
+        return [...without, { mobile, name: merged.name, email: merged.email, address: merged.address }];
+      });
+      return { ok: true, isNew: false };
+    }
+
+    // If the backend says this account is still PROVISIONAL (placeholder name, not yet
+    // completed), force the name-prompt even when this browser has a cached local account or
+    // the API is reachable — otherwise the "Customer 1234" placeholder sticks and the customer
+    // never shows up in the admin list. The API verdict wins over the local cache here.
+    if (apiCust?.isProvisional) {
+      return { ok: true, isNew: true, mobile };
+    }
+
+    // Local account known (offline / API down) — log in from it.
+    if (existing) {
+      setUser({ ...existing });
+      return { ok: true, isNew: false };
+    }
+
+    // Genuinely new (no profile yet): ask for name to complete profile.
+    return { ok: true, isNew: true, mobile };
+  }, [accounts, setUser, setAccounts, syncToApi]);
+
+  const completeProfile = useCallback(async ({ mobile, name, email, address, password }) => {
+    if (!name?.trim()) return { ok: false, error: "Enter your name." };
+    const acc = { mobile, name: name.trim(), email: email || "", address: address || "" };
+    // Persist the real name FIRST via action=profile (Bearer token from the login that ran
+    // during OTP verify). We AWAIT it and surface failures — a silent failure left the
+    // placeholder "Customer XXXX" in the admin list and the customer hidden. NOT api.login()
+    // (the OTP was already consumed, so a 2nd login would fail OTP verification).
+    //
+    // Re-assert the auth token from state right before the call: the post-login token-sync
+    // effect runs after render, so the module-level token could otherwise be stale/null here
+    // (which made action=profile 401 and the save fail with "Couldn't save your name").
+    if (token) setAuthToken(token);
+    try {
+      // Send the password alongside the name on registration so it is hashed + stored server-side
+      // (auth.php validates the strength rule). Omit the key entirely when no password is set
+      // (e.g. an address-book edit) so we never blank out an existing password.
+      const payload = { name: acc.name, email: acc.email };
+      if (password) payload.password = password;
+      await api.updateProfile(payload);
+    } catch (err) {
+      console.warn("[auth] completeProfile persist failed:", err.message);
+      return { ok: false, error: "Couldn't save your details. Please check your connection and try again." };
+    }
+    // Saved on the server — now update local state.
+    const exists = accounts.find((a) => a.mobile === mobile);
+    if (exists) {
+      setAccounts(accounts.map((a) => (a.mobile === mobile ? { ...a, ...acc } : a)));
+    } else {
+      setAccounts([...accounts, acc]);
+    }
+    setUser(acc);
+    return { ok: true };
+  }, [accounts, setAccounts, setUser, token]);
+
+  // Best-effort backend persistence of the address book. Addresses live in
+  // customers.addresses (JSON) via auth.php?action=profile, so they survive re-login /
+  // a cleared browser. Fire-and-forget: local state is already updated; if the API is
+  // down we stay in offline mode (the next login re-sync reconciles).
+  const persistProfile = useCallback((updates) => {
+    if (!token) return;
+    api.updateProfile(updates).catch((err) => console.warn("[auth] profile persist failed:", err.message));
+  }, [token]);
+
+  const updateProfile = useCallback((updates) => {
+    if (!user) return { ok: false };
+    const next = { ...user, ...updates };
+    setUser(next);
+    setAccounts(accounts.map((a) => (a.mobile === user.mobile ? { ...a, ...next } : a)));
+    persistProfile(updates);
+    return { ok: true };
+  }, [user, accounts, setAccounts, setUser, persistProfile]);
+
+  const addAddress = useCallback((addr) => {
+    if (!user) return { ok: false };
+    const list = user.addresses || [];
+    const id = `addr-${Date.now()}`;
+    let next = [...list, { id, ...addr }];
+    if (addr.isDefault) {
+      next = next.map((a) => ({ ...a, isDefault: a.id === id }));
+    }
+    const updated = { ...user, addresses: next };
+    setUser(updated);
+    setAccounts(accounts.map((a) => (a.mobile === user.mobile ? updated : a)));
+    persistProfile({ addresses: next });
+    return { ok: true, id };
+  }, [user, accounts, setAccounts, setUser, persistProfile]);
+
+  // Replace an existing address (edit) by id, optionally promoting it to default.
+  const updateAddress = useCallback((id, patch) => {
+    if (!user) return { ok: false };
+    let next = (user.addresses || []).map((a) => (a.id === id ? { ...a, ...patch } : a));
+    if (patch.isDefault) next = next.map((a) => ({ ...a, isDefault: a.id === id }));
+    const updated = { ...user, addresses: next };
+    setUser(updated);
+    setAccounts(accounts.map((a) => (a.mobile === user.mobile ? updated : a)));
+    persistProfile({ addresses: next });
+    return { ok: true };
+  }, [user, accounts, setAccounts, setUser, persistProfile]);
+
+  // Promote one address to default (clears the flag on the rest).
+  const setDefaultAddress = useCallback((id) => {
+    if (!user) return { ok: false };
+    const next = (user.addresses || []).map((a) => ({ ...a, isDefault: a.id === id }));
+    const updated = { ...user, addresses: next };
+    setUser(updated);
+    setAccounts(accounts.map((a) => (a.mobile === user.mobile ? updated : a)));
+    persistProfile({ addresses: next });
+    return { ok: true };
+  }, [user, accounts, setAccounts, setUser, persistProfile]);
+
+  const removeAddress = useCallback((id) => {
+    if (!user) return { ok: false };
+    const next = (user.addresses || []).filter((a) => a.id !== id);
+    const updated = { ...user, addresses: next };
+    setUser(updated);
+    setAccounts(accounts.map((a) => (a.mobile === user.mobile ? updated : a)));
+    persistProfile({ addresses: next });
+    return { ok: true };
+  }, [user, accounts, setAccounts, setUser, persistProfile]);
+
+  const logout = useCallback(() => {
+    setUser(null);
+    setToken(null);
+    setAuthToken(null);
+  }, [setUser, setToken]);
+
+  // Clear only a stale/invalid token (e.g. after a 401), without wiping the user profile.
+  const clearToken = useCallback(() => {
+    setToken(null);
+    setAuthToken(null);
+  }, [setToken]);
 
   const value = useMemo(
-    () => ({ user, signup, login, logout }),
-    [user, signup, login, logout]
+    () => ({ user, token, checkMobile, loginWithPassword, requestOtp, verifyOtp, completeProfile, updateProfile, addAddress, updateAddress, setDefaultAddress, removeAddress, logout, clearToken }),
+    [user, token, checkMobile, loginWithPassword, requestOtp, verifyOtp, completeProfile, updateProfile, addAddress, updateAddress, setDefaultAddress, removeAddress, logout, clearToken]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

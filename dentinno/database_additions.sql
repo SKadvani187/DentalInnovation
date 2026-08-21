@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS shipping_methods (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(150) NOT NULL,
     description TEXT,
-    type ENUM('flat','free','product','weight','price','flexible') DEFAULT 'flat',
+    type ENUM('flat','free','product','weight','price','flexible','quantity') DEFAULT 'flat',
     base_cost DECIMAL(10,2) DEFAULT 0.00,
     is_active TINYINT(1) DEFAULT 1,
     sort_order INT DEFAULT 0,
@@ -40,6 +40,9 @@ CREATE TABLE IF NOT EXISTS shipping_rules (
     rule_type ENUM('weight','price','quantity','product') NOT NULL,
     min_value DECIMAL(12,2) DEFAULT 0,
     max_value DECIMAL(12,2) DEFAULT NULL,
+    -- For rule_type='product': the product Shipping Class this rule targets.
+    -- Rule applies when ANY cart line has this class (min/max are ignored).
+    product_class ENUM('standard','bulky','fragile','express_only','free') DEFAULT NULL,
     cost DECIMAL(10,2) NOT NULL,
     is_free TINYINT(1) DEFAULT 0,
     is_active TINYINT(1) DEFAULT 1,
@@ -99,7 +102,14 @@ ALTER TABLE products
     ADD COLUMN IF NOT EXISTS directions_for_use TEXT DEFAULT NULL AFTER key_specifications,
     ADD COLUMN IF NOT EXISTS additional_information TEXT DEFAULT NULL AFTER directions_for_use,
     ADD COLUMN IF NOT EXISTS warranty_info TEXT DEFAULT NULL AFTER additional_information,
-    ADD COLUMN IF NOT EXISTS weight_kg DECIMAL(8,3) DEFAULT NULL AFTER warranty_info;
+    ADD COLUMN IF NOT EXISTS weight_kg DECIMAL(8,3) DEFAULT NULL AFTER warranty_info,
+    ADD COLUMN IF NOT EXISTS shipping_class ENUM('standard','bulky','fragile','express_only','free') NOT NULL DEFAULT 'standard' AFTER weight_kg;
+
+-- Connect the product "Shipping Class" dropdown to the shipping engine:
+-- a per-class rate on the Shipping page. (product_class is also in the CREATE above
+-- for fresh installs; this ALTER covers existing databases.)
+ALTER TABLE shipping_rules
+    ADD COLUMN IF NOT EXISTS product_class ENUM('standard','bulky','fragile','express_only','free') DEFAULT NULL AFTER max_value;
 
 -- Product FAQs
 CREATE TABLE IF NOT EXISTS product_faqs (
