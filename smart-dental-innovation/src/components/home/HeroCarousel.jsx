@@ -75,13 +75,7 @@ export default function HeroCarousel() {
         <button
           onClick={scrollNext}
           aria-label="Next"
-          className="hidden sm:flex absolute left-4 top-1/2 -translate-y-1/2
-             w-11 h-11 rounded-full
-             bg-black/45 hover:bg-black/70
-             backdrop-blur-md text-white
-             ring-1 ring-white/25 shadow-lg
-             items-center justify-center transition
-             focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          className="hidden sm:flex absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/45 hover:bg-black/70 backdrop-blur-md text-white items-center justify-center transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="rotate-180"><path d="M17.77 3.77 16 2 6 12l10 10 1.77-1.77L9.54 12z" /></svg>
         </button>
