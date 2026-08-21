@@ -43,20 +43,29 @@ export default function CategoryGrid({ items }) {
           ))}
         </div>
 
-        <button
-          onClick={() => scroll(-1)}
-          aria-label="Scroll left"
-          className="hidden sm:flex absolute -left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white shadow-md ring-1 ring-gray-200 hover:bg-brand-navy hover:text-white items-center justify-center transition"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M14 6 8 12l6 6 1.41-1.41L10.83 12l4.58-4.59z" /></svg>
-        </button>
-        <button
-          onClick={() => scroll(1)}
-          aria-label="Scroll right"
-          className="hidden sm:flex absolute -right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white shadow-md ring-1 ring-gray-200 hover:bg-brand-navy hover:text-white items-center justify-center transition"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" /></svg>
-        </button>
+        {categories != null && categories.length > 0 && (
+          <>
+            <button
+              onClick={() => scroll(-1)}
+              aria-label="Scroll left"
+              className="hidden sm:flex absolute -left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white shadow-md ring-1 ring-gray-200 hover:bg-brand-navy hover:text-white items-center justify-center transition"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M14 6 8 12l6 6 1.41-1.41L10.83 12l4.58-4.59z" />
+              </svg>
+            </button>
+
+            <button
+              onClick={() => scroll(1)}
+              aria-label="Scroll right"
+              className="hidden sm:flex absolute -right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white shadow-md ring-1 ring-gray-200 hover:bg-brand-navy hover:text-white items-center justify-center transition"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+              </svg>
+            </button>
+          </>
+        )}
       </div>
     </section>
   );
