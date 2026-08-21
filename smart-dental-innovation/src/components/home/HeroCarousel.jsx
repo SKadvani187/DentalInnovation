@@ -31,8 +31,8 @@ export default function HeroCarousel() {
   }, [emblaApi]);
 
   return (
-    <section className="relative max-w-[1400px] mx-auto px-3 sm:px-6 mt-[15px]">
-      <div className="relative overflow-hidden rounded-[20px]">
+    <section className="relative max-w-[1400px] mx-auto">
+      <div className="relative overflow-hidden">
         <div className="embla" ref={emblaRef}>
           <div className="embla__container">
             {slides.map((s, i) => (
