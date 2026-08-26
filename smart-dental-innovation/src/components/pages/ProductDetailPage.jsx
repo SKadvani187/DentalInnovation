@@ -400,8 +400,8 @@ export default function ProductDetailPage() {
                 lives in the accordion below; this top box must stay short. */}
             {(product.shortDescription || product.description) && (
               product.shortDescription
-                ? <p className="text-[15px] text-brand-ink leading-relaxed whitespace-pre-line">{product.shortDescription}</p>
-                : <RichText html={product.description} className="text-[15px] text-brand-ink leading-relaxed" />
+                ? <RichText html={product.shortDescription} className="text-[15px] text-[#556575] leading-relaxed whitespace-pre-line"/>
+                : <RichText html={product.description} className="text-[15px] text-[#556575] leading-relaxed whitespace-pre-line" />
             )}
 
             {product.catalogueUrl && (
