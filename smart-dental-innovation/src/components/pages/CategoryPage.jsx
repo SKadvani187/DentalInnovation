@@ -464,8 +464,12 @@ function VariantsModal({ product, variants, priceRange, anchorRef, onClose }) {
           {variants.map((v) => {
             const ci = getCartItem(v.label);
             const qty = ci?.qty || 0;
+            // qty null/undefined = this option isn't stock-tracked; only a tracked 0 is sold out.
+            const tracked = v.qty !== null && v.qty !== undefined;
+            const soldOut = tracked && v.qty <= 0;
+            const atLimit = tracked && qty >= v.qty;
             return (
-              <li key={v.label} className="flex items-center justify-between px-5 py-3 gap-3">
+              <li key={v.label} className={`flex items-center justify-between px-5 py-3 gap-3 ${soldOut ? "opacity-50" : ""}`}>
                 <div className="min-w-0">
                   <p className="font-semibold text-brand-ink text-sm">{v.label}</p>
                   <div className="flex items-center gap-2 flex-wrap mt-0.5">
@@ -475,12 +479,24 @@ function VariantsModal({ product, variants, priceRange, anchorRef, onClose }) {
                       <span className="text-xs font-bold text-green-600">{v.discount}% OFF</span>
                     )}
                   </div>
+                  {soldOut ? (
+                    <p className="text-xs font-semibold text-red-600 mt-0.5">Out of stock</p>
+                  ) : tracked && v.qty <= 5 ? (
+                    <p className="text-xs font-semibold text-orange-600 mt-0.5">Only {v.qty} left</p>
+                  ) : null}
                 </div>
-                {qty > 0 ? (
+                {soldOut ? (
+                  <span className="text-xs font-bold text-brand-muted uppercase tracking-wider px-4 py-1.5">Sold out</span>
+                ) : qty > 0 ? (
                   <div className="inline-flex items-center border-2 border-[#3684bf] rounded overflow-hidden">
                     <button onClick={() => dec(v)} className="w-8 h-8 text-[#3684bf] font-bold hover:bg-blue-50">−</button>
                     <span className="w-8 text-center font-bold text-brand-ink">{qty}</span>
-                    <button onClick={() => inc(v)} className="w-8 h-8 text-[#3684bf] font-bold hover:bg-blue-50">+</button>
+                    <button
+                      onClick={() => inc(v)}
+                      disabled={atLimit}
+                      title={atLimit ? `Only ${v.qty} in stock` : undefined}
+                      className="w-8 h-8 text-[#3684bf] font-bold hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                    >+</button>
                   </div>
                 ) : (
                   <button

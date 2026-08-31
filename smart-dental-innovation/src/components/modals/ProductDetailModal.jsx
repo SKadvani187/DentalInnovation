@@ -18,11 +18,14 @@ export default function ProductDetailModal() {
 
   useEffect(() => {
     setQty(1);
-    // Catalog variants are objects ({label, price, mrp}); ignore any legacy string entries.
+    // Catalog variants are objects ({label, price, mrp, qty}); ignore any legacy string entries.
     const objVariants = Array.isArray(selectedProduct?.variants)
       ? selectedProduct.variants.filter((v) => typeof v === "object")
       : [];
-    setVariant(objVariants[0] || null);
+    // Preselect the first option that can actually be bought, so the modal never opens on a
+    // sold-out variant with the Add button disabled for no visible reason.
+    const inStock = objVariants.filter((v) => v.qty === null || v.qty === undefined || v.qty > 0);
+    setVariant(inStock[0] || objVariants[0] || null);
   }, [selectedProduct]);
 
   if (!selectedProduct) return null;
@@ -32,6 +35,9 @@ export default function ProductDetailModal() {
   // Price reflects the selected variant when one exists.
   const activePrice = variant?.price ?? p.price;
   const activeMrp = variant?.mrp ?? p.mrp;
+  // qty null/undefined = option not stock-tracked; only a tracked 0 blocks the sale.
+  const isSoldOut = (v) => v && v.qty !== null && v.qty !== undefined && v.qty <= 0;
+  const variantSoldOut = isSoldOut(variant);
 
   const handleAdd = () => {
     // Match the cart's variant model: pass the variant LABEL (string) + variant pricing.
@@ -75,15 +81,20 @@ export default function ProductDetailModal() {
             <div className="mt-5">
               <p className="text-xs font-semibold uppercase tracking-wider text-brand-ink mb-2">Variant</p>
               <div className="flex gap-2 flex-wrap">
-                {variants.map((v) => (
-                  <button
-                    key={v.label}
-                    onClick={() => setVariant(v)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-semibold border transition ${variant?.label === v.label ? "bg-brand-navy text-white border-brand-navy" : "bg-white text-brand-ink border-gray-300 hover:border-brand-navy"}`}
-                  >
-                    {v.label}
-                  </button>
-                ))}
+                {variants.map((v) => {
+                  const out = isSoldOut(v);
+                  return (
+                    <button
+                      key={v.label}
+                      onClick={() => setVariant(v)}
+                      disabled={out}
+                      title={out ? "Out of stock" : undefined}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold border transition ${variant?.label === v.label ? "bg-brand-navy text-white border-brand-navy" : "bg-white text-brand-ink border-gray-300 hover:border-brand-navy"} ${out ? "opacity-40 line-through cursor-not-allowed hover:border-gray-300" : ""}`}
+                    >
+                      {v.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -98,8 +109,8 @@ export default function ProductDetailModal() {
           </div>
 
           <div className="mt-auto pt-6 flex flex-col sm:flex-row gap-2">
-            <Button variant="primary" size="lg" className="flex-1" onClick={handleAdd}>
-              Add to Cart
+            <Button variant="primary" size="lg" className="flex-1" onClick={handleAdd} disabled={variantSoldOut}>
+              {variantSoldOut ? "Out of Stock" : "Add to Cart"}
             </Button>
             <Button variant={wished ? "navy" : "outline"} size="lg" onClick={() => toggle(p.id)}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill={wished ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8">

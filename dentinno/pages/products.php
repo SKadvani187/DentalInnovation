@@ -91,9 +91,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $images_json = !empty($d['images']) ? json_encode($d['images']) : null;
         $hover_image = !empty($d['hover_image']) ? $d['hover_image'] : null;
 
-        // Variants: keep only valid {label, price, mrp}; auto-compute discount %. Stored in the
-        // exact JSON shape the storefront reads: [{label,price,mrp,discount}].
+        // Variants: keep only valid {label, price, mrp, qty}; auto-compute discount %. Stored in the
+        // exact JSON shape the storefront reads: [{label,price,mrp,discount,qty}].
+        // qty = that variant's own stock; null means "not tracked" (the product-level stock is used).
+        // Labels are de-duplicated (last one wins) because orders resolve a variant BY LABEL.
         $variants = null;
+        $variantQtySum = null;   // set only when EVERY variant carries a qty -> becomes products.stock
         if (!empty($d['variants']) && is_array($d['variants'])) {
             $clean = [];
             foreach ($d['variants'] as $v) {
@@ -102,9 +105,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 $vm = (float)($v['mrp'] ?? 0);
                 if ($vl === '' || $vp <= 0) continue;
                 if ($vm < $vp) $vm = $vp;
-                $clean[] = ['label'=>$vl, 'price'=>$vp, 'mrp'=>$vm, 'discount'=> $vm > 0 ? (int)round((($vm - $vp) / $vm) * 100) : 0];
+                $vq = (isset($v['qty']) && $v['qty'] !== '' && $v['qty'] !== null) ? max(0, (int)$v['qty']) : null;
+                $clean[$vl] = ['label'=>$vl, 'price'=>$vp, 'mrp'=>$vm, 'discount'=> $vm > 0 ? (int)round((($vm - $vp) / $vm) * 100) : 0, 'qty'=>$vq];
             }
+            $clean = array_values($clean);
             $variants = $clean ? json_encode($clean) : null;
+            // Per-variant stock is only coherent when every option is tracked; a partial set keeps
+            // the product-level stock authoritative so nothing silently oversells.
+            if ($clean && count(array_filter($clean, fn($v) => $v['qty'] !== null)) === count($clean)) {
+                $variantQtySum = array_sum(array_column($clean, 'qty'));
+            }
         }
 
         // Quantity offers: admin enters {minQty, price-each}; store as [{minQty,rate,label}] with
@@ -132,6 +142,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $metaTitle = trim((string)($d['meta_title'] ?? '')) ?: null;
         $metaDesc  = trim((string)($d['meta_description'] ?? '')) ?: null;
         $stock     = (int)$d['stock'];
+        // Fully-tracked variants own the inventory: products.stock becomes their total so the admin
+        // list, low-stock alerts, the ledger and the storefront in-stock badge all stay correct.
+        if ($variantQtySum !== null) $stock = $variantQtySum;
         $minStock  = max(0, (int)($d['min_stock_alert'] ?? 5));   // low-stock alert threshold
 
         if (!empty($d['id'])) {
@@ -610,7 +623,7 @@ include __DIR__ . '/../includes/header.php';
             <div class="form-group"><label class="form-label">Cost Price (₹) <small class="text-muted">(for margin)</small></label><input type="number" class="form-control" id="prod_cost" placeholder="Optional"></div>
             <div class="form-group"><label class="form-label">HSN Code <small class="text-muted">(for GST tax invoice)</small></label><input type="text" class="form-control" id="prod_hsn" maxlength="12" placeholder="e.g. 9018"></div>
             <div class="form-group"><label class="form-label">Discount Price (₹)</label><input type="number" class="form-control" id="prod_discount" placeholder="Optional"></div>
-            <div class="form-group"><label class="form-label">Stock Qty *</label><input type="number" class="form-control" id="prod_stock" placeholder="0"></div>
+            <div class="form-group"><label class="form-label">Stock Qty * <small class="text-muted">(auto-set to the variant total when every variant has a QTY)</small></label><input type="number" class="form-control" id="prod_stock" placeholder="0"></div>
           </div>
           <div class="form-row">
             <div class="form-group" style="flex:1;"><label class="form-label">Low Stock Alert <small class="text-muted">(warn when stock ≤ this; default 5)</small></label><input type="number" min="0" class="form-control" id="prod_min_stock" placeholder="5"></div>
@@ -637,8 +650,13 @@ include __DIR__ . '/../includes/header.php';
             Add variants only if this product is sold in multiple options. The storefront shows them as
             selectable choices with per-variant pricing. Discount % is auto-calculated. Leave empty for a single-price product.
           </p>
+          <p class="text-muted" style="font-size:.78rem;margin-bottom:10px;">
+            <strong>QTY</strong> is that variant's own stock. Fill it on <em>every</em> variant to track stock per option —
+            orders then deduct from the chosen variant, an out-of-stock variant can't be ordered, and the
+            Basic tab's Stock Qty is auto-set to the total. Leave QTY blank to keep using the single product-level stock.
+          </p>
           <div style="display:flex;gap:8px;font-size:.72rem;color:var(--text-muted);padding:0 6px 4px;font-weight:600;">
-            <span style="flex:2;">LABEL</span><span style="flex:1;">MRP (₹)</span><span style="flex:1;">PRICE (₹)</span><span style="width:34px;"></span>
+            <span style="flex:2;">LABEL</span><span style="flex:1;">MRP (₹)</span><span style="flex:1;">PRICE (₹)</span><span style="flex:1;">QTY</span><span style="width:34px;"></span>
           </div>
           <div id="variants_container"></div>
           <button type="button" class="btn btn-ghost btn-sm" onclick="addVariantRow()" style="margin-top:8px;"><i class="fa-solid fa-plus"></i> Add Variant</button>
@@ -936,13 +954,16 @@ function addSpecRow(k='',v=''){
   document.getElementById('specs_container').appendChild(d);
 }
 
-// Variant rows -> saved into the `variants` column as [{label,mrp,price,discount}]
-function addVariantRow(label='', mrp='', price=''){
+// Variant rows -> saved into the `variants` column as [{label,mrp,price,discount,qty}].
+// qty is the variant's own stock; blank/null means "not tracked" (falls back to products.stock).
+function addVariantRow(label='', mrp='', price='', qty=''){
+  const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   const d=document.createElement('div');d.className='variant-row';
   d.style.cssText='display:flex;gap:8px;margin-bottom:8px;align-items:center;';
-  d.innerHTML=`<input type="text" class="form-control" placeholder="e.g. Generic / 4 mm" value="${String(label).replace(/"/g,'&quot;')}" data-var-label style="flex:2;">
-    <input type="number" min="0" class="form-control" placeholder="MRP" value="${mrp}" data-var-mrp style="flex:1;">
-    <input type="number" min="0" class="form-control" placeholder="Price" value="${price}" data-var-price style="flex:1;">
+  d.innerHTML=`<input type="text" class="form-control" placeholder="e.g. Generic / 4 mm" value="${esc(label)}" data-var-label style="flex:2;">
+    <input type="number" min="0" step="0.01" class="form-control" placeholder="MRP" value="${esc(mrp)}" data-var-mrp style="flex:1;">
+    <input type="number" min="0" step="0.01" class="form-control" placeholder="Price" value="${esc(price)}" data-var-price style="flex:1;">
+    <input type="number" min="0" step="1" class="form-control" placeholder="Qty" value="${esc(qty)}" data-var-qty style="flex:1;" title="This variant's own stock. Leave blank to use the product-level stock.">
     <button type="button" class="btn btn-ghost btn-sm btn-icon" onclick="this.closest('.variant-row').remove()"><i class="fa-solid fa-minus" style="color:var(--danger);"></i></button>`;
   document.getElementById('variants_container').appendChild(d);
 }
@@ -1145,7 +1166,7 @@ function openProductModal(p=null){
   document.getElementById('variants_container').innerHTML='';
   try{
     const vs=p?.variants?(typeof p.variants==='string'?JSON.parse(p.variants):p.variants):[];
-    if(Array.isArray(vs)) vs.forEach(v=>addVariantRow(v.label||'', v.mrp||'', v.price||''));
+    if(Array.isArray(vs)) vs.forEach(v=>addVariantRow(v.label||'', v.mrp||'', v.price||'', (v.qty===null||v.qty===undefined)?'':v.qty));
   }catch(e){}
   // Quantity offers: stored as {minQty,rate}; show as per-unit price = sell × (1 − rate).
   document.getElementById('bulkoffers_container').innerHTML='';
@@ -1213,13 +1234,16 @@ async function saveProduct(){
     const x=row.querySelector('[data-hl-text]').value.trim();
     if(t||x)features.push({title:t,text:x});
   });
-  // Variants -> [{label, mrp, price}] (server computes discount, validates, stores JSON)
+  // Variants -> [{label, mrp, price, qty}] (server computes discount, validates, stores JSON).
+  // qty '' is sent as null = "stock not tracked for this variant".
   const variants=[];
   document.querySelectorAll('#variants_container .variant-row').forEach(row=>{
     const label=row.querySelector('[data-var-label]').value.trim();
     const mrp=parseFloat(row.querySelector('[data-var-mrp]').value)||0;
     const price=parseFloat(row.querySelector('[data-var-price]').value)||0;
-    if(label && price>0) variants.push({label, mrp: mrp||price, price});
+    const qtyRaw=row.querySelector('[data-var-qty]').value.trim();
+    const qty=qtyRaw===''?null:Math.max(0,parseInt(qtyRaw,10)||0);
+    if(label && price>0) variants.push({label, mrp: mrp||price, price, qty});
   });
   // Quantity offers -> [{minQty, price}] (server derives the rate from price vs selling price)
   const bulk_offers=[];
