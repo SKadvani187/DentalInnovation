@@ -193,6 +193,7 @@ export function CartProvider({ children }) {
   const updateQty = useCallback((key, qty) => {
     setItems((prev) => {
       const line = prev.find((i) => i.key === key);
+      console.log("stock",prev);
       if (!line) return prev;
       // Clamp to [1, stock] for product lines (stock known); gifts/offers just clamp ≥1.
       const newQty = line.type === "product" ? capToStock(Math.max(1, qty), line.stock) : Math.max(1, qty);

@@ -33,7 +33,7 @@ function reverseOrderEffects(int $orderId): bool {
     $order = $db->fetchOne("SELECT id, customer_id, total, coupon_id FROM orders WHERE id = ?", [$orderId]);
     if (!$order) return false;
     $items = $db->fetchAll(
-        "SELECT product_id, product_slug, quantity FROM order_items WHERE order_id = ?",
+        "SELECT product_id, product_slug, variant, quantity FROM order_items WHERE order_id = ?",
         [$orderId]
     );
 
@@ -44,6 +44,14 @@ function reverseOrderEffects(int $orderId): bool {
             "UPDATE products SET stock = stock + ?, total_sales = GREATEST(0, total_sales - ?) WHERE id = ?"
         );
         $restockCombo = $pdo->prepare("UPDATE combos SET stock = stock + ? WHERE slug = ?");
+        // Mirror of the per-variant decrement in orders.php: put the units back into the exact
+        // option that was sold, matched by the label snapshotted on the order line.
+        $restockVariant = $pdo->prepare(
+            "UPDATE products
+                SET variants = JSON_SET(variants, CONCAT('$[', ?, '].qty'),
+                        CAST(JSON_UNQUOTE(JSON_EXTRACT(variants, CONCAT('$[', ?, '].qty'))) AS SIGNED) + ?)
+              WHERE id = ?"
+        );
 
         foreach ($items as $it) {
             $qty = (int)$it['quantity'];
@@ -52,6 +60,22 @@ function reverseOrderEffects(int $orderId): bool {
                 // Gift lines (price 0) still consumed stock + bumped total_sales at creation,
                 // so they are restocked here too — symmetric with orders.php.
                 $restockProd->execute([$qty, $qty, (int)$it['product_id']]);
+                // Tracked variant: give the units back to that option as well. A label that no
+                // longer exists (variant since renamed/removed) is skipped — products.stock above
+                // has already absorbed the units, so nothing is lost.
+                if (!empty($it['variant'])) {
+                    $prow = $db->fetchOne("SELECT variants FROM products WHERE id = ?", [(int)$it['product_id']]);
+                    $list = ($prow && !empty($prow['variants'])) ? json_decode($prow['variants'], true) : null;
+                    if (is_array($list)) {
+                        foreach ($list as $i => $v) {
+                            if (is_array($v) && (string)($v['label'] ?? '') === (string)$it['variant']
+                                && isset($v['qty']) && $v['qty'] !== null) {
+                                $restockVariant->execute([(int)$i, (int)$i, $qty, (int)$it['product_id']]);
+                                break;
+                            }
+                        }
+                    }
+                }
                 // Ledger: stock back in from a refund (best-effort).
                 recordStockMovement((int)$it['product_id'], $qty, 'refund', null, $order['order_number'] ?? null);
             } elseif (!empty($it['product_slug'])) {

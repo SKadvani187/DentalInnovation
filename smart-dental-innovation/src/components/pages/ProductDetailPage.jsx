@@ -87,6 +87,12 @@ export default function ProductDetailPage() {
   const cartItem = items.find((i) => i.id === product.id && !i.variant);
   const qty = cartItem?.qty || 0;
   const outOfStock = product.inStock === false;
+  // A product sold in options is only ever bought THROUGH an option — the order API rejects a
+  // variant-less line for it — so the top card defers its Add button to the variants list below.
+  const productVariants = Array.isArray(product.variants)
+    ? product.variants.filter((v) => v && typeof v === "object" && v.label)
+    : [];
+  const hasVariants = productVariants.length > 0;
 
   const [pincode, setPincode] = useState("");
   const [pinMsg, setPinMsg] = useState("");
@@ -286,11 +292,12 @@ export default function ProductDetailPage() {
             <div className="flex items-start gap-2 mb-2 flex-wrap">
               <h1 className="text-2xl font-bold text-brand-ink leading-snug min-w-0">
                 {product.name}
-                {/* "Pack : <variant>" badge (e.g. "Pack : Generic"), matching the reference. Shown
-                    when the product carries a variant label. */}
-                {Array.isArray(product.variants) && product.variants[0]?.label && (
+                {/* "Pack : <variant>" badge (e.g. "Pack : Generic"), matching the reference. Only
+                    for a single-option product — with several options the badge would name one
+                    arbitrarily while the buyer picks from the Available Variants list below. */}
+                {productVariants.length === 1 && (
                   <span className="align-middle ml-2 inline-block bg-[#3684bf] text-white text-xs font-semibold px-2.5 py-1 rounded-md whitespace-nowrap">
-                    Pack : {product.variants[0].label}
+                    Pack : {productVariants[0].label}
                   </span>
                 )}
               </h1>
@@ -377,6 +384,10 @@ export default function ProductDetailPage() {
                 >
                   OUT OF STOCK
                 </button>
+              ) : hasVariants ? (
+                <span className="text-xs font-semibold text-brand-muted whitespace-nowrap">
+                  Choose an option below ↓
+                </span>
               ) : qty > 0 ? (
                 <div className="inline-flex items-center border border-orange-500 rounded-lg overflow-hidden" style={{ borderRadius: 8 }}>
                   <button onClick={dec} className="w-8 h-8 text-orange-500 text-lg font-semibold hover:bg-orange-50 transition">−</button>
@@ -416,6 +427,9 @@ export default function ProductDetailPage() {
               </a>
             )}
           </div>
+
+          {/* This product's own options, right under the main card — each adds its own price. */}
+          <ProductVariants product={product} />
 
           <div className="border border-gray-200 rounded-xl p-4">
             <h3 className="font-bold text-brand-ink mb-3">Delivery Details</h3>
@@ -490,7 +504,7 @@ export default function ProductDetailPage() {
             )}
           </div>
 
-          <AvailableVariants product={product} />
+          {/* <AvailableVariants product={product} /> */}
 
           <ProductHighlights highlights={product.highlights} />
 
@@ -798,6 +812,121 @@ function ProductGallery({ product, wished, onWish }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * This product's own variants ({label, price, mrp, discount, qty}) as a selectable list, each
+ * line adding ITS OWN price/label to the cart. `qty` is the variant's own stock: null/undefined
+ * means the option isn't stock-tracked, so only a tracked 0 blocks the sale.
+ * (Not to be confused with RelatedProducts below, which is same-category cross-sell.)
+ */
+function ProductVariants({ product }) {
+  const { addToCart, items, updateQty, removeFromCart } = useCart();
+  const { openModal } = useUI();
+
+  const variants = Array.isArray(product.variants)
+    ? product.variants.filter((v) => v && typeof v === "object" && v.label)
+    : [];
+  if (variants.length === 0) return null;
+
+  const getCartItem = (label) => items.find((i) => i.id === product.id && i.variant === label);
+  const isTracked = (v) => v.qty !== null && v.qty !== undefined;
+  const isSoldOut = (v) => isTracked(v) && v.qty <= 0;
+
+  const onAdd = (v) => {
+    addToCart({ ...product, price: v.price, mrp: v.mrp }, 1, v.label);
+    openModal("cart");
+  };
+  const inc = (v) => {
+    const ci = getCartItem(v.label);
+    if (ci) updateQty(ci.key, ci.qty + 1);
+    else onAdd(v);
+  };
+  const dec = (v) => {
+    const ci = getCartItem(v.label);
+    if (!ci) return;
+    if (ci.qty <= 1) removeFromCart(ci.key);
+    else updateQty(ci.key, ci.qty - 1);
+  };
+
+  const prices = variants.map((v) => Number(v.price) || 0).filter((p) => p > 0);
+  const low = prices.length ? Math.min(...prices) : 0;
+  const high = prices.length ? Math.max(...prices) : 0;
+
+  return (
+    <div className="border border-gray-200 rounded-xl p-5">
+      <div className="flex items-baseline justify-between gap-2 mb-1">
+        <h3 className="font-bold text-brand-ink">Available Variants</h3>
+        <span className="text-xs text-brand-muted">
+          {variants.length} option{variants.length > 1 ? "s" : ""}
+          {low > 0 && <> · {low === high ? fmt(low) : `${fmt(low)} – ${fmt(high)}`}</>}
+        </span>
+      </div>
+      <p className="text-xs text-brand-muted mb-3">Pick the option you need — each has its own price.</p>
+
+      <ul className="divide-y divide-gray-100">
+        {variants.map((v) => {
+          const ci = getCartItem(v.label);
+          const qty = ci?.qty || 0;
+          const soldOut = isSoldOut(v);
+          const atLimit = isTracked(v) && qty >= v.qty;
+          return (
+            <li
+              key={v.label}
+              className={`flex items-center justify-between gap-3 py-3 ${soldOut ? "opacity-50" : ""}`}
+            >
+              <div className="min-w-0">
+                <p className="font-semibold text-brand-ink text-sm">{v.label}</p>
+                <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                  <span className="text-sm font-bold text-brand-ink">{fmt(v.price)}</span>
+                  {Number(v.mrp) > Number(v.price) && (
+                    <span className="text-xs text-brand-muted line-through">
+                      ₹{Number(v.mrp).toLocaleString("en-IN")}
+                    </span>
+                  )}
+                  {v.discount > 0 && (
+                    <span className="text-xs font-bold text-green-600">{v.discount}% OFF</span>
+                  )}
+                </div>
+                {soldOut ? (
+                  <p className="text-xs font-semibold text-red-600 mt-0.5">Out of stock</p>
+                ) : isTracked(v) && v.qty <= 5 ? (
+                  <p className="text-xs font-semibold text-orange-600 mt-0.5">Only {v.qty} left</p>
+                ) : null}
+              </div>
+
+              {soldOut ? (
+                <span className="text-xs font-bold text-brand-muted uppercase tracking-wider px-4 py-1.5 shrink-0">
+                  Sold out
+                </span>
+              ) : qty > 0 ? (
+                <div className="inline-flex items-center border border-orange-500 rounded-lg overflow-hidden shrink-0">
+                  <button onClick={() => dec(v)} className="w-8 h-8 text-orange-500 text-lg font-semibold hover:bg-orange-50 transition">−</button>
+                  <span className="w-8 text-center font-semibold text-brand-ink text-sm">{qty}</span>
+                  <button
+                    onClick={() => inc(v)}
+                    disabled={atLimit}
+                    title={atLimit ? `Only ${v.qty} in stock` : undefined}
+                    className="w-8 h-8 text-orange-500 text-lg font-semibold hover:bg-orange-50 transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                  >+</button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => onAdd(v)}
+                  type="button"
+                  title={`Add ${v.label} to cart`}
+                  className="shrink-0 text-orange-500 border border-orange-500 hover:bg-orange-50 font-medium uppercase text-sm tracking-wide transition"
+                  style={{ borderRadius: 8, paddingBlock: 4, paddingInline: 22, minWidth: 64 }}
+                >
+                  add
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

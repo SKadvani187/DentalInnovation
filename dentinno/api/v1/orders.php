@@ -88,8 +88,31 @@ foreach ($items as $it) {
     $offerLines[$oslug] = ['row' => $orow, 'qty' => max(1, (int)($it['qty'] ?? 1))];
 }
 
-$resolved  = [];   // normalized order_items rows to write
-$stockNeed = [];   // products.id => total qty needed (friendly pre-check)
+$resolved    = [];   // normalized order_items rows to write
+$stockNeed   = [];   // products.id => total qty needed (friendly pre-check)
+$variantNeed = [];   // "pid|index" => ['pid','index','label','name','need'] for tracked variants
+
+/**
+ * Locate a variant inside a product's `variants` JSON by its exact label.
+ * Returns [index, row] or null. Matching by label is what makes the variant the client sent
+ * authoritative — the client never supplies the price or the stock.
+ */
+function findVariant(?string $json, ?string $label): ?array {
+    if ($json === null || $json === '' || $label === null || $label === '') return null;
+    $list = json_decode($json, true);
+    if (!is_array($list)) return null;
+    foreach ($list as $i => $v) {
+        if (is_array($v) && isset($v['label']) && (string)$v['label'] === $label) return [(int)$i, $v];
+    }
+    return null;
+}
+
+/** True when a product row carries at least one usable variant. */
+function hasVariants(?string $json): bool {
+    if ($json === null || $json === '') return false;
+    $list = json_decode($json, true);
+    return is_array($list) && count($list) > 0;
+}
 
 foreach ($items as $it) {
     $type = $it['type'] ?? 'product';
@@ -106,6 +129,7 @@ foreach ($items as $it) {
         if (!$prod || !$prod['is_active']) jsonErr('A product in an offer is unavailable', 409);
         if ($slug !== '' && $slug !== $prod['slug']) jsonErr('Offer / product mismatch', 409);  // anti-tamper
         $resolved[] = ['product_id'=>$pid,'slug'=>$prod['slug'],'name'=>$prod['name'],'variant'=>$it['variant']??null,
+                       'variant_index'=>null,
                        'qty'=>$qty,'price'=>(float)$orow['special_price'],'line_type'=>'offer','offer_id'=>(int)$orow['id']];
         $stockNeed[$pid] = ($stockNeed[$pid] ?? 0) + $qty;
     }
@@ -130,6 +154,7 @@ foreach ($items as $it) {
         if (!$parentInCart) jsonErr('A free gift has no qualifying product in the cart', 409);
         $gpid = (int)$gprod['id'];
         $resolved[] = ['product_id'=>$gpid,'slug'=>$gprod['slug'],'name'=>$gprod['name'],'variant'=>null,
+                       'variant_index'=>null,
                        'qty'=>$qty,'price'=>0.0,'line_type'=>'gift','offer_id'=>null];
         $stockNeed[$gpid] = ($stockNeed[$gpid] ?? 0) + $qty;
     }
@@ -155,17 +180,41 @@ foreach ($items as $it) {
         $gpid    = $gift['product_id'] !== null ? (int)$gift['product_id'] : null;
         // Free gifts are always ₹0, never trusted from the client.
         $resolved[] = ['product_id'=>$gpid,'slug'=>($gift['pslug'] ?? ($slug ?: null)),'name'=>$gift['name'],
-                       'variant'=>$gift['variant'],'qty'=>$giftQty,'price'=>0.0,'line_type'=>'gift','offer_id'=>(int)$orow['id']];
+                       'variant'=>$gift['variant'],'variant_index'=>null,
+                       'qty'=>$giftQty,'price'=>0.0,'line_type'=>'gift','offer_id'=>(int)$orow['id']];
         if ($gpid) $stockNeed[$gpid] = ($stockNeed[$gpid] ?? 0) + $giftQty;
     }
     else {  // normal catalog product (or a combo from its own table)
         if ($slug === '') jsonErr('Invalid item in cart', 422);
-        $prod = $db->fetchOne("SELECT id, slug, name, price, discount_price, stock, is_active FROM products WHERE slug=?", [$slug]);
+        $prod = $db->fetchOne("SELECT id, slug, name, price, discount_price, stock, variants, is_active FROM products WHERE slug=?", [$slug]);
         if ($prod) {
             if (!$prod['is_active']) jsonErr('A product in your cart is unavailable', 409);
             $price = $prod['discount_price'] !== null ? (float)$prod['discount_price'] : (float)$prod['price'];
             $pid   = (int)$prod['id'];
-            $resolved[] = ['product_id'=>$pid,'slug'=>$prod['slug'],'name'=>$prod['name'],'variant'=>$it['variant']??null,
+
+            // Variant resolution. A product that HAS variants must be ordered with one, and the
+            // label must exist — otherwise the line would deduct from the wrong pool.
+            $vLabel = (isset($it['variant']) && $it['variant'] !== '') ? (string)$it['variant'] : null;
+            $vIndex = null;
+            if (hasVariants($prod['variants'])) {
+                if ($vLabel === null) jsonErr('Please choose an option for "' . $prod['name'] . '"', 422);
+                $found = findVariant($prod['variants'], $vLabel);
+                if (!$found) jsonErr('That option is no longer available for "' . $prod['name'] . '"', 409);
+                [$vIndex, $vRow] = $found;
+                // qty null = this variant isn't stock-tracked; the product-level check still applies.
+                if (isset($vRow['qty']) && $vRow['qty'] !== null) {
+                    $k = $pid . '|' . $vIndex;
+                    if (!isset($variantNeed[$k])) {
+                        $variantNeed[$k] = ['pid'=>$pid, 'index'=>$vIndex, 'label'=>$vLabel, 'name'=>$prod['name'], 'need'=>0];
+                    }
+                    $variantNeed[$k]['need'] += $qty;
+                }
+            } else {
+                $vLabel = null;   // no variants configured -> never persist a client-supplied label
+            }
+
+            $resolved[] = ['product_id'=>$pid,'slug'=>$prod['slug'],'name'=>$prod['name'],'variant'=>$vLabel,
+                           'variant_index'=>$vIndex,
                            'qty'=>$qty,'price'=>$price,'line_type'=>'product','offer_id'=>null];
             $stockNeed[$pid] = ($stockNeed[$pid] ?? 0) + $qty;
         } else {
@@ -174,6 +223,7 @@ foreach ($items as $it) {
             $combo = $db->fetchOne("SELECT id, slug, name, price, is_active FROM combos WHERE slug=?", [$slug]);
             if (!$combo || !$combo['is_active']) jsonErr('An item in your cart is unavailable', 409);
             $resolved[] = ['product_id'=>null,'slug'=>$combo['slug'],'name'=>$combo['name'],'variant'=>$it['variant']??null,
+                           'variant_index'=>null,
                            'qty'=>$qty,'price'=>(float)$combo['price'],'line_type'=>'product','offer_id'=>null];
         }
     }
@@ -186,6 +236,16 @@ foreach ($stockNeed as $pid => $need) {
     $row = $db->fetchOne("SELECT name, stock FROM products WHERE id=?", [$pid]);
     if (!$row || (int)$row['stock'] < $need) {
         jsonErr('Insufficient stock for "' . ($row['name'] ?? 'an item') . '"', 409);
+    }
+}
+// Same friendly pre-check, per tracked variant — a product can hold plenty of total stock while
+// the specific option the customer picked is sold out.
+foreach ($variantNeed as $vn) {
+    $row = $db->fetchOne("SELECT variants FROM products WHERE id=?", [$vn['pid']]);
+    $found = $row ? findVariant($row['variants'], $vn['label']) : null;
+    $have  = ($found && isset($found[1]['qty']) && $found[1]['qty'] !== null) ? (int)$found[1]['qty'] : null;
+    if ($have === null || $have < $vn['need']) {
+        jsonErr('"' . $vn['name'] . ' — ' . $vn['label'] . '" is out of stock', 409);
     }
 }
 
@@ -281,6 +341,15 @@ try {
     // the last unit under concurrent orders.
     $decStock = $pdo->prepare("UPDATE products SET stock = stock - ?, total_sales = total_sales + ? WHERE id=? AND stock >= ?");
     $decCombo = $pdo->prepare("UPDATE combos SET stock = stock - ? WHERE slug=? AND stock >= ?");
+    // Per-variant decrement, atomic the same way: the qty>=needed guard lives in the WHERE clause,
+    // so two concurrent orders can never both take the last unit of one option.
+    $decVariant = $pdo->prepare(
+        "UPDATE products
+            SET variants = JSON_SET(variants, CONCAT('$[', ?, '].qty'),
+                    CAST(JSON_UNQUOTE(JSON_EXTRACT(variants, CONCAT('$[', ?, '].qty'))) AS SIGNED) - ?)
+          WHERE id = ?
+            AND CAST(JSON_UNQUOTE(JSON_EXTRACT(variants, CONCAT('$[', ?, '].qty'))) AS SIGNED) >= ?"
+    );
 
     foreach ($resolved as $l) {
         $insItem->execute([
@@ -292,6 +361,15 @@ try {
             $decStock->execute([$l['qty'], $l['qty'], $l['product_id'], $l['qty']]);
             if ($decStock->rowCount() !== 1) {
                 throw new RuntimeException('"' . $l['name'] . '" just went out of stock');
+            }
+            // Tracked variant: take the units out of that option's own pool too. products.stock is
+            // kept as the sum of the variant quantities, so both stay in step.
+            if (isset($l['variant_index']) && $l['variant_index'] !== null && isset($variantNeed[$l['product_id'] . '|' . $l['variant_index']])) {
+                $vi = (int)$l['variant_index'];
+                $decVariant->execute([$vi, $vi, $l['qty'], $l['product_id'], $vi, $l['qty']]);
+                if ($decVariant->rowCount() !== 1) {
+                    throw new RuntimeException('"' . $l['name'] . ' — ' . $l['variant'] . '" just went out of stock');
+                }
             }
             // Ledger: stock out for this sale (best-effort; inside the order txn).
             recordStockMovement((int)$l['product_id'], -(int)$l['qty'], 'sale', null, $orderNumber);
