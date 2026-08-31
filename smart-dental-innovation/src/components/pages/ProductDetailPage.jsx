@@ -787,7 +787,7 @@ function ProductGallery({ product, wished, onWish }) {
               >
                 <img src={src} alt={`thumb ${i + 1}`} className="w-full h-full object-contain" />
               </button>
-              <div className="hidden group-hover/thumb:block absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-[260px] h-[260px] bg-white border border-gray-200 rounded-xl shadow-2xl p-3 z-40 pointer-events-none">
+              <div className="hidden md:group-hover/thumb:block absolute left-full ml-3 top-1/2 -translate-y-1/2 w-[260px] h-[260px] bg-white border border-gray-200 rounded-xl shadow-2xl p-3 z-[9999] pointer-events-none">
                 <img src={src} alt="" className="w-full h-full object-contain" />
               </div>
             </div>
@@ -836,7 +836,7 @@ function ProductVariants({ product }) {
   const isSoldOut = (v) => isTracked(v) && v.qty <= 0;
 
   const onAdd = (v) => {
-    addToCart({ ...product, price: v.price, mrp: v.mrp }, 1, v.label);
+    addToCart({ ...product, price: v.price, mrp: v.mrp, stock: v.qty }, 1, v.label);
     openModal("cart");
   };
   const inc = (v) => {

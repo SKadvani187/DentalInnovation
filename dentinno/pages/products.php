@@ -1034,7 +1034,47 @@ function renderImgs(){
   const grid=document.getElementById('imgPreviewGrid');grid.innerHTML='';
   uploadedImages.forEach((url,i)=>{
     const d=document.createElement('div');d.className='img-thumb';
-    d.innerHTML=`<img src="${url}" loading="lazy"><button class="del-img" onclick="uploadedImages.splice(${i},1);renderImgs()"><i class="fa-solid fa-xmark"></i></button>`;
+    d.draggable=true;
+    d.innerHTML=`<img src="${url}" loading="lazy"><button class="del-img" type="button" onclick="uploadedImages.splice(${i},1);renderImgs()"><i class="fa-solid fa-xmark"></i></button>`;
+    
+    d.addEventListener('dragstart', e => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', i);
+      setTimeout(() => d.style.opacity = '0.5', 0);
+    });
+    d.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+    d.addEventListener('dragenter', e => {
+      e.preventDefault();
+      d.style.transform = 'scale(1.05)';
+      d.style.boxShadow = '0 0 0 2px var(--gold-primary)';
+    });
+    d.addEventListener('dragleave', e => {
+      d.style.transform = '';
+      d.style.boxShadow = '';
+    });
+    d.addEventListener('drop', e => {
+      e.preventDefault();
+      e.stopPropagation(); // prevent triggering file drop zone
+      d.style.transform = '';
+      d.style.boxShadow = '';
+      const dragIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+      if (!isNaN(dragIdx) && dragIdx !== i) {
+        const item = uploadedImages.splice(dragIdx, 1)[0];
+        uploadedImages.splice(i, 0, item);
+        renderImgs();
+      }
+    });
+    d.addEventListener('dragend', e => {
+      d.style.opacity = '1';
+      document.querySelectorAll('#imgPreviewGrid .img-thumb').forEach(el => {
+        el.style.transform = '';
+        el.style.boxShadow = '';
+      });
+    });
+
     grid.appendChild(d);
   });
   document.getElementById('prod_images_json').value=JSON.stringify(uploadedImages);
