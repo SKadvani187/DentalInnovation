@@ -14,7 +14,7 @@ export default function FeaturedCards() {
   const resolve = (pid) => allProducts.find((p) => p.id === pid) || findProductById(pid);
 
   return (
-    <section className="max-w-[1400px] mx-auto px-3 sm:px-6 py-6 sm:py-10">
+    <section className="mx-auto px-3 sm:px-6 py-6 sm:py-10">
       <div className="mb-6">
         <p className="text-[11px] sm:text-xs uppercase tracking-[0.18em] font-semibold text-brand-orange mb-1">
           Featured Products

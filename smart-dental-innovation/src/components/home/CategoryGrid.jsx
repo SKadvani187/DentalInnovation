@@ -8,6 +8,7 @@ export default function CategoryGrid({ items }) {
 
   // Use API-provided categories when given; show only those with images (home grid).
   const categories = items ? items.filter((c) => c.img) : staticTiles;
+  const isReqCategorySection = categories != null && categories.length > 0 ? true : false;
 
   const scroll = (dir) => {
     const el = scroller.current;
@@ -16,7 +17,8 @@ export default function CategoryGrid({ items }) {
   };
 
   return (
-    <section className="max-w-[1400px] mx-auto px-3 sm:px-6 py-6 sm:py-10">
+    isReqCategorySection ? 
+    (<section className="mx-auto px-3 sm:px-6 py-6 sm:py-10">
       <div className="relative">
         <div
           ref={scroller}
@@ -67,6 +69,6 @@ export default function CategoryGrid({ items }) {
           </>
         )}
       </div>
-    </section>
+    </section>) : null
   );
 }

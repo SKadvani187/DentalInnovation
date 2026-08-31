@@ -22,7 +22,7 @@ export default function Testimonials({ items }) {
 
   return (
     <section className="bg-brand-navy text-white py-12 sm:py-16 mt-10">
-      <div className="max-w-[1400px] mx-auto px-3 sm:px-6">
+      <div className="mx-auto px-3 sm:px-6">
         <div className="text-center mb-8">
           <p className="text-xs uppercase tracking-[0.22em] text-brand-orange font-semibold mb-2">Stay Connected</p>
           <h2 className="text-2xl sm:text-4xl font-bold mb-2">203k+ Dental Professionals Trust Us</h2>

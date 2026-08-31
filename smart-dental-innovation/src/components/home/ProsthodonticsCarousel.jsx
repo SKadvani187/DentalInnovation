@@ -166,7 +166,7 @@ export function ProsthodonticsCarousel() {
   };
 
   return (
-    <div className="w-full max-w-[1400px] mx-auto bg-white py-6 px-3 sm:px-6">
+    <div className="w-full mx-auto bg-white py-6 px-3 sm:px-6">
       
       {/* HEADER BAR SECTION */}
       <div className="flex items-center justify-between pb-3 mb-5 border-b border-gray-200">
