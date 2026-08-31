@@ -15,7 +15,7 @@ export default function PromoBannerGrid(props = {}) {
 
   return (
     <div className="w-full px-4 sm:px-8 md:px-12 py-4">
-      <div className="max-w-[1400px] mx-auto">
+      <div className="mx-auto">
 
         {/* DESKTOP VIEW GRID LAYOUT */}
         <div className="hidden sm:flex flex-row gap-5 w-full">

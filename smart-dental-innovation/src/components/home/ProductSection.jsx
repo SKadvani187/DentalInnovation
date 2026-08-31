@@ -18,7 +18,7 @@ export default function ProductSection({ title, eyebrow, products, accent = "nav
   if (!products || products.length === 0) return null;
 
   return (
-    <section className="max-w-[1400px] mx-auto px-3 sm:px-6 py-6 sm:py-10">
+    <section className="mx-auto px-3 sm:px-6 py-6 sm:py-10">
       <div className="flex items-end justify-between mb-4 sm:mb-6">
         <div>
           {eyebrow && (
@@ -245,7 +245,7 @@ export function PremiumCategories({products}){
   };
   return (
     <div className="px-2 sm:px-0">
-      <section className="max-w-[1400px] mx-auto px-3 sm:px-6 py-6 sm:py-10">
+      <section className="mx-auto px-3 sm:px-6 py-6 sm:py-10">
 
         {/* DESKTOP VIEW: Displays as a clean 3-column grid structure */}
         <div className="hidden sm:grid grid-cols-3 gap-6 w-full">
@@ -281,7 +281,7 @@ export function HomeBanner(props = {}){
   const go = (id) => navigate("product", { id, name: nameFor(id) });
   return(
     <div className="px-2 sm:px-0">
-      <section className="max-w-[1400px] mx-auto px-3 sm:px-6 py-6 sm:py-10">
+      <section className="mx-auto px-3 sm:px-6 py-6 sm:py-10">
 
         {/* DESKTOP VIEW: Split Layout (Visible on sm screens and up) */}
         <div className="hidden sm:flex flex-row gap-5 w-full px-3">
@@ -390,7 +390,7 @@ export function HomeBanner(props = {}){
 export function RFCauterySection2() {
   return (
     <div className="px-2 sm:px-0">
-      <section className="max-w-[1400px] mx-auto px-3 sm:px-6 py-6 sm:py-10">
+      <section className="mx-auto px-3 sm:px-6 py-6 sm:py-10">
         
         {/* Unified Responsive Container */}
         <div className="flex flex-col sm:flex-row gap-6 sm:gap-8 items-center w-full">

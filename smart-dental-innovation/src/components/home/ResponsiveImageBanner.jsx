@@ -14,7 +14,7 @@ export default function ResponsiveImageBanner() {
 
   return (
     <div className="w-full px-4 sm:px-8 md:px-12 py-4" style={{ fontFamily: "'Poppins', sans-serif" }}>
-      <div className="max-w-[1400px] mx-auto">
+      <div className="mx-auto">
         <div className="rounded-2xl bg-[#e8f3fb] px-4 sm:px-8 py-5">
           <div className="flex flex-wrap sm:flex-nowrap items-center justify-around gap-y-4">
             {badges.map((b, i) => (

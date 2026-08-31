@@ -18,7 +18,7 @@ export default function CategoryGrid({ items }) {
 
   return (
     isReqCategorySection ? 
-    (<section className="max-w-[1400px] mx-auto px-3 sm:px-6 py-6 sm:py-10">
+    (<section className="mx-auto px-3 sm:px-6 py-6 sm:py-10">
       <div className="relative">
         <div
           ref={scroller}
