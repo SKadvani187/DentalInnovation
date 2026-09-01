@@ -87,12 +87,20 @@ export default function ProductDetailPage() {
   const cartItem = items.find((i) => i.id === product.id && !i.variant);
   const qty = cartItem?.qty || 0;
   const outOfStock = product.inStock === false;
-  // A product sold in options is only ever bought THROUGH an option — the order API rejects a
-  // variant-less line for it — so the top card defers its Add button to the variants list below.
-  const productVariants = Array.isArray(product.variants)
+  // A product sold in two or more options is only ever bought THROUGH one of them, so the top card
+  // defers its Add button to the variants list below. A single option is not a choice: the list
+  // hides, the top Add works, and the order API auto-selects that option.
+  const productVariants = usableVariants(product);
+  const hasVariants = productVariants.length > 0;
+  // The one option of a single-option product, named on the title badge — but only when no picker
+  // is shown, since the picker already names it on its own card.
+  const allVariants = Array.isArray(product.variants)
     ? product.variants.filter((v) => v && typeof v === "object" && v.label)
     : [];
-  const hasVariants = productVariants.length > 0;
+  const soleVariant = !hasVariants && allVariants.length === 1 ? allVariants[0] : null;
+  // Which option's pictures the gallery is showing (null = the product's own images).
+  const [viewingVariant, setViewingVariant] = useState(null);
+  const galleryImages = productVariants.find((v) => v.label === viewingVariant)?.images || null;
 
   const [pincode, setPincode] = useState("");
   const [pinMsg, setPinMsg] = useState("");
@@ -283,7 +291,7 @@ export default function ProductDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* LEFT image gallery */}
         <div className="lg:col-span-4 lg:sticky lg:top-[110px] lg:self-start">
-          <ProductGallery key={product.id} product={product} wished={wished} onWish={() => toggle(product.id)} />
+          <ProductGallery key={product.id} product={product} images={galleryImages} wished={wished} onWish={() => toggle(product.id)} />
         </div>
 
         {/* CENTER details */}
@@ -292,12 +300,11 @@ export default function ProductDetailPage() {
             <div className="flex items-start gap-2 mb-2 flex-wrap">
               <h1 className="text-2xl font-bold text-brand-ink leading-snug min-w-0">
                 {product.name}
-                {/* "Pack : <variant>" badge (e.g. "Pack : Generic"), matching the reference. Only
-                    for a single-option product — with several options the badge would name one
-                    arbitrarily while the buyer picks from the Available Variants list below. */}
-                {productVariants.length === 1 && (
+                {/* Names the option on the title when no picker is shown — a single-option product
+                    still tells the buyer which one they are looking at. */}
+                {soleVariant && (
                   <span className="align-middle ml-2 inline-block bg-[#3684bf] text-white text-xs font-semibold px-2.5 py-1 rounded-md whitespace-nowrap">
-                    Pack : {productVariants[0].label}
+                    {soleVariant.label}
                   </span>
                 )}
               </h1>
@@ -429,7 +436,7 @@ export default function ProductDetailPage() {
           </div>
 
           {/* This product's own options, right under the main card — each adds its own price. */}
-          <ProductVariants product={product} />
+          <ProductVariants product={product} viewing={viewingVariant} onView={setViewingVariant} />
 
           <div className="border border-gray-200 rounded-xl p-4">
             <h3 className="font-bold text-brand-ink mb-3">Delivery Details</h3>
@@ -652,8 +659,10 @@ export default function ProductDetailPage() {
   );
 }
 
-function ProductGallery({ product, wished, onWish }) {
-  const images = (product.images?.length ? product.images : [product.image]) || [];
+function ProductGallery({ product, wished, onWish, images: imagesProp }) {
+  // `imagesProp` lets the variant list narrow the gallery to the option being viewed; without it
+  // the gallery shows the product's own images, as before.
+  const images = (imagesProp?.length ? imagesProp : product.images?.length ? product.images : [product.image]) || [];
   const [idx, setIdx] = useState(0);
   const [zoom, setZoom] = useState(null);
   const [hovering, setHovering] = useState(false);
@@ -663,7 +672,9 @@ function ProductGallery({ product, wished, onWish }) {
   const prev = () => { setIdx((i) => (i - 1 + images.length) % images.length); setZoom(null); setHovering(false); };
   const next = () => { setIdx((i) => (i + 1) % images.length); setZoom(null); setHovering(false); };
 
-  useEffect(() => { setIdx(0); }, [product.id]);
+  // Back to the first frame on a new product AND on a variant switch, so the gallery never opens
+  // on an index the new image set doesn't have.
+  useEffect(() => { setIdx(0); setZoom(null); }, [product.id, images.join("|")]);
 
   useEffect(() => {
     if (images.length <= 1) return;
@@ -822,18 +833,41 @@ function ProductGallery({ product, wished, onWish }) {
  * means the option isn't stock-tracked, so only a tracked 0 blocks the sale.
  * (Not to be confused with RelatedProducts below, which is same-category cross-sell.)
  */
-function ProductVariants({ product }) {
-  const { addToCart, items, updateQty, removeFromCart } = useCart();
-  const { openModal } = useUI();
-
-  const variants = Array.isArray(product.variants)
+/**
+ * The options worth showing a picker for.
+ *
+ * Two or more options is always a choice. A single option usually is not — most of the catalogue
+ * carries one "Generic" row that just restates the product's own price, and a one-row picker for
+ * that is noise. But a single option priced differently from the product IS the thing being sold,
+ * and hiding it would hide its price, so that one is shown.
+ */
+function usableVariants(product) {
+  const list = Array.isArray(product.variants)
     ? product.variants.filter((v) => v && typeof v === "object" && v.label)
     : [];
+  if (list.length > 1) return list;
+  if (list.length === 1) {
+    const v = list[0];
+    const pricedApart =
+      (Number(v.price) || 0) !== (Number(product.price) || 0) ||
+      (Number(v.mrp) || 0) !== (Number(product.mrp) || 0);
+    return pricedApart ? list : [];
+  }
+  return [];
+}
+
+function ProductVariants({ product, viewing, onView }) {
+  const { addToCart, items, updateQty, removeFromCart } = useCart();
+  const { openModal } = useUI();
+  const { productDefaults = {} } = useSettings();
+
+  const variants = usableVariants(product);
   if (variants.length === 0) return null;
 
   const getCartItem = (label) => items.find((i) => i.id === product.id && i.variant === label);
   const isTracked = (v) => v.qty !== null && v.qty !== undefined;
   const isSoldOut = (v) => isTracked(v) && v.qty <= 0;
+  const hasOwnImages = (v) => Array.isArray(v.images) && v.images.length > 0;
 
   const onAdd = (v) => {
     addToCart({ ...product, price: v.price, mrp: v.mrp, stock: v.qty }, 1, v.label);
@@ -857,76 +891,107 @@ function ProductVariants({ product }) {
 
   return (
     <div className="border border-gray-200 rounded-xl p-5">
-      <div className="flex items-baseline justify-between gap-2 mb-1">
+      <div className="flex items-baseline justify-between gap-2 mb-3">
         <h3 className="font-bold text-brand-ink">Available Variants</h3>
         <span className="text-xs text-brand-muted">
           {variants.length} option{variants.length > 1 ? "s" : ""}
           {low > 0 && <> · {low === high ? fmt(low) : `${fmt(low)} – ${fmt(high)}`}</>}
         </span>
       </div>
-      <p className="text-xs text-brand-muted mb-3">Pick the option you need — each has its own price.</p>
 
-      <ul className="divide-y divide-gray-100">
+      <div className="space-y-3">
         {variants.map((v) => {
           const ci = getCartItem(v.label);
           const qty = ci?.qty || 0;
           const soldOut = isSoldOut(v);
           const atLimit = isTracked(v) && qty >= v.qty;
+          const isViewing = viewing === v.label;
           return (
-            <li
+            <div
               key={v.label}
-              className={`flex items-center justify-between gap-3 py-3 ${soldOut ? "opacity-50" : ""}`}
+              className={`rounded-lg border p-3 transition ${
+                isViewing ? "border-[#3684bf] bg-blue-50/40" : "border-gray-200"
+              } ${soldOut ? "opacity-50" : ""}`}
             >
-              <div className="min-w-0">
-                <p className="font-semibold text-brand-ink text-sm">{v.label}</p>
-                <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                  <span className="text-sm font-bold text-brand-ink">{fmt(v.price)}</span>
-                  {Number(v.mrp) > Number(v.price) && (
-                    <span className="text-xs text-brand-muted line-through">
-                      ₹{Number(v.mrp).toLocaleString("en-IN")}
-                    </span>
-                  )}
-                  {v.discount > 0 && (
-                    <span className="text-xs font-bold text-green-600">{v.discount}% OFF</span>
-                  )}
-                </div>
-                {soldOut ? (
-                  <p className="text-xs font-semibold text-red-600 mt-0.5">Out of stock</p>
-                ) : isTracked(v) && v.qty <= 5 ? (
-                  <p className="text-xs font-semibold text-orange-600 mt-0.5">Only {v.qty} left</p>
-                ) : null}
+              <div className="flex items-start gap-2 flex-wrap">
+                <h4 className="font-bold text-brand-ink text-sm">{product.name}</h4>
+                <span className="inline-block bg-[#3684bf] text-white text-[11px] font-semibold px-2 py-0.5 rounded-md whitespace-nowrap">
+                  {v.label}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap mt-1">
+                <span className="text-sm font-bold text-brand-ink">{fmt(v.price)}</span>
+                {Number(v.mrp) > Number(v.price) && (
+                  <span className="text-xs text-brand-muted line-through">
+                    ₹{Number(v.mrp).toLocaleString("en-IN")}
+                  </span>
+                )}
+                {v.discount > 0 && (
+                  <span className="text-xs font-bold text-green-600">{v.discount}% off</span>
+                )}
               </div>
 
               {soldOut ? (
-                <span className="text-xs font-bold text-brand-muted uppercase tracking-wider px-4 py-1.5 shrink-0">
-                  Sold out
-                </span>
-              ) : qty > 0 ? (
-                <div className="inline-flex items-center border border-orange-500 rounded-lg overflow-hidden shrink-0">
-                  <button onClick={() => dec(v)} className="w-8 h-8 text-orange-500 text-lg font-semibold hover:bg-orange-50 transition">−</button>
-                  <span className="w-8 text-center font-semibold text-brand-ink text-sm">{qty}</span>
-                  <button
-                    onClick={() => inc(v)}
-                    disabled={atLimit}
-                    title={atLimit ? `Only ${v.qty} in stock` : undefined}
-                    className="w-8 h-8 text-orange-500 text-lg font-semibold hover:bg-orange-50 transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                  >+</button>
-                </div>
+                <p className="text-xs font-semibold text-red-600 mt-1">Out of stock</p>
+              ) : isTracked(v) && v.qty <= 5 ? (
+                <p className="text-xs font-semibold text-orange-600 mt-1">Only {v.qty} left</p>
               ) : (
-                <button
-                  onClick={() => onAdd(v)}
-                  type="button"
-                  title={`Add ${v.label} to cart`}
-                  className="shrink-0 text-orange-500 border border-orange-500 hover:bg-orange-50 font-medium uppercase text-sm tracking-wide transition"
-                  style={{ borderRadius: 8, paddingBlock: 4, paddingInline: 22, minWidth: 64 }}
-                >
-                  add
-                </button>
+                <p className="text-xs text-brand-muted mt-1">
+                  {productDefaults.variantDeliveryNote || "📦 Get it by 3–5 days"}
+                </p>
               )}
-            </li>
+
+              <div className="flex items-center justify-between gap-2 mt-2">
+                {soldOut ? (
+                  <span className="text-xs font-bold text-brand-muted uppercase tracking-wider">Sold out</span>
+                ) : qty > 0 ? (
+                  <div className="inline-flex items-center border border-orange-500 rounded-lg overflow-hidden">
+                    <button onClick={() => dec(v)} className="w-8 h-8 text-orange-500 text-lg font-semibold hover:bg-orange-50 transition">−</button>
+                    <span className="w-8 text-center font-semibold text-brand-ink text-sm">{qty}</span>
+                    <button
+                      onClick={() => inc(v)}
+                      disabled={atLimit}
+                      title={atLimit ? `Only ${v.qty} in stock` : undefined}
+                      className="w-8 h-8 text-orange-500 text-lg font-semibold hover:bg-orange-50 transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                    >+</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => onAdd(v)}
+                    type="button"
+                    title={`Add ${v.label} to cart`}
+                    className="text-orange-500 border border-orange-500 hover:bg-orange-50 font-medium uppercase text-sm tracking-wide transition"
+                    style={{ borderRadius: 8, paddingBlock: 4, paddingInline: 22, minWidth: 64 }}
+                  >
+                    add
+                  </button>
+                )}
+
+                {/* Only an option with its own pictures can change the gallery. */}
+                {hasOwnImages(v) && (
+                  <button
+                    type="button"
+                    onClick={() => onView(isViewing ? null : v.label)}
+                    className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${
+                      isViewing
+                        ? "bg-[#3684bf] text-white border-[#3684bf]"
+                        : "text-[#3684bf] border-gray-300 hover:border-[#3684bf]"
+                    }`}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <circle cx="8.5" cy="8.5" r="1.5" />
+                      <path d="M21 15l-5-5L5 21" />
+                    </svg>
+                    {isViewing ? "Viewing" : "View images"}
+                  </button>
+                )}
+              </div>
+            </div>
           );
         })}
-      </ul>
+      </div>
     </div>
   );
 }

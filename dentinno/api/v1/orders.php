@@ -197,10 +197,24 @@ foreach ($items as $it) {
             $vLabel = (isset($it['variant']) && $it['variant'] !== '') ? (string)$it['variant'] : null;
             $vIndex = null;
             if (hasVariants($prod['variants'])) {
-                if ($vLabel === null) jsonErr('Please choose an option for "' . $prod['name'] . '"', 422);
-                $found = findVariant($prod['variants'], $vLabel);
-                if (!$found) jsonErr('That option is no longer available for "' . $prod['name'] . '"', 409);
-                [$vIndex, $vRow] = $found;
+                $vList = json_decode($prod['variants'], true);
+                if ($vLabel === null && count($vList) === 1) {
+                    // One option is not a choice — the storefront shows no picker for it, so take
+                    // it here rather than rejecting a cart line that could only ever mean this one.
+                    $vIndex = 0;
+                    $vRow   = $vList[0];
+                    $vLabel = (string)($vRow['label'] ?? '');
+                } else {
+                    if ($vLabel === null) jsonErr('Please choose an option for "' . $prod['name'] . '"', 422);
+                    $found = findVariant($prod['variants'], $vLabel);
+                    if (!$found) jsonErr('That option is no longer available for "' . $prod['name'] . '"', 409);
+                    [$vIndex, $vRow] = $found;
+                }
+                // The chosen option sets the line price — that is the price the storefront showed
+                // for it. Taken from the DB row, never from the cart, so it can't be tampered with.
+                if (isset($vRow['price']) && (float)$vRow['price'] > 0) {
+                    $price = (float)$vRow['price'];
+                }
                 // qty null = this variant isn't stock-tracked; the product-level check still applies.
                 if (isset($vRow['qty']) && $vRow['qty'] !== null) {
                     $k = $pid . '|' . $vIndex;

@@ -119,19 +119,45 @@ function rbacCrudVerb(string $action, array $data = []): string {
 
 // ---- hard gates --------------------------------------------------------------
 
-function requireView(string $pageKey): void {
-    if (can($pageKey, 'view')) return;
+/** True when the caller expects JSON — an AJAX request must never be answered with an HTML page. */
+function rbacWantsJson(): bool {
+    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])
+        && strcasecmp($_SERVER['HTTP_X_REQUESTED_WITH'], 'XMLHttpRequest') === 0) return true;
+    return stripos($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') !== false;
+}
+
+/**
+ * Refuse the request. An AJAX caller gets JSON (so `res.json()` can read the reason); a browser
+ * navigation gets the 403 page. `sessionExpired` separates "your login timed out" — the common
+ * case, since admin sessions idle out after SESSION_LIFETIME — from a genuine permission denial,
+ * so the UI can tell the user to sign in again instead of failing silently.
+ */
+function rbacDeny(): void {
     http_response_code(403);
+    $expired = !isLoggedIn();
+    if (rbacWantsJson()) {
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success'        => false,
+            'sessionExpired' => $expired,
+            'message'        => $expired
+                ? 'Your session has expired. Reload the page and sign in again — your unsaved changes will be lost.'
+                : 'You do not have permission for this action.',
+        ]);
+        exit;
+    }
     rbacRender403();
     exit;
 }
 
+function requireView(string $pageKey): void {
+    if (can($pageKey, 'view')) return;
+    rbacDeny();
+}
+
 function requireAction(string $pageKey, string $action): void {
     if (can($pageKey, $action)) return;
-    http_response_code(403);
-    header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => 'You do not have permission for this action.']);
-    exit;
+    rbacDeny();
 }
 
 function rbacRender403(): void {

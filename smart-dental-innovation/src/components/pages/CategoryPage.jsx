@@ -283,7 +283,14 @@ function ProductCard({ product }) {
   const variants = Array.isArray(product.variants)
     ? product.variants.filter((v) => typeof v === "object")
     : [];
-  const hasVariants = variants.length >= 1;
+  // Two or more options is a choice. A single option is only worth a picker when it is priced
+  // apart from the product — otherwise it just restates the card's own price. Same rule as the
+  // product page's usableVariants().
+  const hasVariants =
+    variants.length > 1 ||
+    (variants.length === 1 &&
+      ((Number(variants[0].price) || 0) !== (Number(product.price) || 0) ||
+        (Number(variants[0].mrp) || 0) !== (Number(product.mrp) || 0)));
   const oos = product.inStock === false;
   const [variantsOpen, setVariantsOpen] = useState(false);
   const cardRef = useRef(null);

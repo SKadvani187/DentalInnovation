@@ -38,12 +38,25 @@ function isLoggedIn() {
     return isset($_SESSION['admin_id']) && !empty($_SESSION['admin_id']);
 }
 
-// Require login (redirect if not)
+// Require login. A browser navigation is redirected to the login page; an AJAX caller gets JSON.
+//
+// Redirecting an AJAX request is what made an idled-out session fail silently: fetch() follows the
+// 302, receives the login page, and res.json() throws "Unexpected token '<', \"<!DOCTYPE\"" — so the
+// admin's Save appeared to do nothing, with only a console error to show for it.
 function requireLogin() {
-    if (!isLoggedIn()) {
-        header('Location: ' . APP_URL . '/login.php');
+    if (isLoggedIn()) return;
+    if (function_exists('rbacWantsJson') && rbacWantsJson()) {
+        http_response_code(401);
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success'        => false,
+            'sessionExpired' => true,
+            'message'        => 'Your session has expired. Reload the page and sign in again — your unsaved changes will be lost.',
+        ]);
         exit;
     }
+    header('Location: ' . APP_URL . '/login.php');
+    exit;
 }
 
 // Login function
