@@ -38,22 +38,25 @@ mysql -u USER -p PROD_DB < prod_schema_check.sql
 ```
 
 - **No rows** → schema matches the reference; skip to Step 4.
-- **`*** MISSING TABLE/COLUMN ***` rows** → apply the matching `database_*.sql`
-  migration(s), then re-run the check until it's clean.
+- **`*** MISSING TABLE/COLUMN ***` rows** → run the migrations below, then re-run the
+  check until it's clean.
 
-To apply migrations, the ones using `IF NOT EXISTS` are safe to re-run:
+Migrations are applied by the runner, in version order — do **not** feed the `.sql`
+files to `mysql` by hand:
 
 ```bash
 cd /path/to/dentinno
-for f in database_*.sql; do
-  case "$f" in
-    database_purge_*.sql) continue ;;          # skip the purge scripts
-  esac
-  if grep -qiE "IF NOT EXISTS" "$f"; then
-    echo ">> $f"; mysql -u USER -p PROD_DB < "$f"
-  fi
-done
+php migrate.php --status     # see what this server is missing
+php migrate.php              # apply everything pending
 ```
+
+The first run on this server also converts `schema_migrations` from the old
+filename-keyed table to the version-keyed one. It reports
+`Converted N history rows.` and must NOT re-run migrations that are already
+applied — if it starts applying old migrations, stop and restore the Step 1 backup.
+
+`migrate.php` uses the `DB_NAME` from `includes/config.php` (env / `config.local.php`
+on production), so make sure that points at the production database before running it.
 
 Then make sure these specific recent ones are applied (re-running is harmless):
 `database_gst_invoice.sql` (hsn_code), `database_product_cost_price.sql`,
