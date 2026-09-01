@@ -442,14 +442,20 @@ pushNotification('order', 'New order ' . $orderNumber, $cust['name'] . ' placed 
 $o = $db->fetchOne("SELECT * FROM orders WHERE id=?", [$orderId]);
 $oi = $db->fetchAll("SELECT * FROM order_items WHERE order_id=?", [$orderId]);
 
-// Best-effort WhatsApp order-confirmation (never blocks the response).
+// The order is committed — answer the customer now. WhatsApp and the confirmation emails run
+// after the connection closes: each SMTP send costs several seconds against Gmail, and making a
+// buyer wait ~10s at "Place order" for messages they receive in their inbox anyway is the wrong
+// trade. A failure in either still only shows up in the log, exactly as before.
+jsonOutThenContinue(['success' => true, 'order' => mapOrder($o, $oi)], 201);
+
+// ---- after the response: best-effort notifications -------------------------
+
 try {
     require_once __DIR__ . '/../../includes/whatsapp_sender.php';
     if (!empty($cust['phone'])) waOrderPlaced($cust, $o, $oi);
 } catch (Throwable $e) { error_log('WA orderPlaced: ' . $e->getMessage()); }
 
-// Best-effort order-placed emails. COD only here — online orders are emailed once the payment
-// is captured (see payment_razorpay.php). Never blocks the response.
+// COD only here — online orders are emailed once the payment is captured (payment_razorpay.php):
 //   * admin notification, and
 //   * customer confirmation + PDF invoice (COD is confirmed at placement).
 try {
@@ -460,4 +466,4 @@ try {
     }
 } catch (Throwable $e) { error_log('orderMail placed: ' . $e->getMessage()); }
 
-jsonOut(['success' => true, 'order' => mapOrder($o, $oi)], 201);
+exit;
