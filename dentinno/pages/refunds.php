@@ -74,6 +74,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             "UPDATE refund_requests SET status='rejected', admin_note=?, actioned_by=?, actioned_at=NOW() WHERE id=?",
             [$note, $actedBy, $rid]
         );
+        logActivity('rejected', 'refund', $rid,
+                    'Order ' . ($rr['order_number'] ?? '#'.$rr['order_id']) . ' · ₹' . $rr['refund_amount'],
+                    auditDiff($rr, db()->fetchOne("SELECT * FROM refund_requests WHERE id=?", [$rid])));
         echo json_encode(['success' => true, 'message' => 'Refund rejected']); exit;
     }
 
@@ -190,6 +193,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         }
 
         $kind = $isFull ? 'Full refund' : 'Partial refund';
+        // Money left the business here — record who approved it, for how much, and how.
+        logActivity('refunded', 'refund', $rid,
+                    $kind . ' ₹' . number_format($amount, 2) . ' · order ' . ($rr['order_number'] ?? '#'.$orderId)
+                    . ($rzpRefId ? ' via gateway' : ' (manual)'),
+                    auditDiff($rr, db()->fetchOne(
+                        "SELECT rr.*, o.status AS order_status, o.payment_status AS order_payment_status
+                           FROM refund_requests rr JOIN orders o ON o.id = rr.order_id WHERE rr.id = ?", [$rid])));
         echo json_encode(['success' => true, 'message' => $kind . ' of ₹' . number_format($amount,2) . ($rzpRefId ? ' via gateway (' . $rzpRefId . ')' : ' (manual)')]); exit;
     }
 

@@ -348,13 +348,19 @@ function chartEmpty(id, msg){
   const c=document.getElementById(id);
   if(c&&c.parentElement) c.parentElement.innerHTML='<div style="text-align:center;padding:48px 0;color:var(--text-muted);"><i class="fa-solid fa-chart-simple" style="font-size:2rem;opacity:.25;display:block;margin-bottom:10px;"></i>'+msg+'</div>';
 }
-// Revenue Chart
 const revenueData = <?= json_encode($stats['revenue_chart']) ?>;
-if(!revenueData || !revenueData.length) chartEmpty('revenueChart','No paid revenue yet'); else initRevenueChart(revenueData);
+const orderData   = <?= json_encode($orderStatusData) ?>;
 
-// Order Status Doughnut (colours mapped to status, parallel to the labels)
-const orderData = <?= json_encode($orderStatusData) ?>;
-initOrderChart(orderData, <?= json_encode($orderStatusColors) ?>);
+// initRevenueChart / initOrderChart live in assets/js/app.js, which footer.php loads BELOW this
+// block — calling them here directly threw "initRevenueChart is not defined" and left the
+// dashboard charts blank. app.js is a classic script, so it has run by DOMContentLoaded.
+document.addEventListener('DOMContentLoaded', function () {
+    if (!revenueData || !revenueData.length) chartEmpty('revenueChart', 'No paid revenue yet');
+    else initRevenueChart(revenueData);
+
+    // Order Status Doughnut (colours mapped to status, parallel to the labels)
+    initOrderChart(orderData, <?= json_encode($orderStatusColors) ?>);
+});
 </script>
 
 <?php include __DIR__ . '/includes/footer.php'; ?>

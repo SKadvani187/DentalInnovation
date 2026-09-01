@@ -30,8 +30,20 @@ if (isset($_GET['export'])) {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="activity-log-' . date('Y-m-d') . '.csv"');
     $out = fopen('php://output', 'w');
-    fputcsv($out, ['When','Actor','Action','Entity','Entity ID','Summary']);
-    foreach ($rows as $r) { fputcsv($out, [$r['created_at'],$r['actor_name'],$r['action'],$r['entity_type'],$r['entity_id'],$r['summary']]); }
+    fputcsv($out, ['When','Actor','Action','Entity','Entity ID','Summary','Changes (field: old -> new)']);
+    // "field: old -> new; …" so the export is readable in Excel without unpacking JSON.
+    foreach ($rows as $r) {
+        $chg = $r['changes'] ? json_decode($r['changes'], true) : null;
+        $flat = '';
+        if (is_array($chg)) {
+            $parts = [];
+            foreach ($chg as $f => $v) {
+                $parts[] = $f . ': ' . ($v['old'] ?? '—') . ' -> ' . ($v['new'] ?? '—');
+            }
+            $flat = implode('; ', $parts);
+        }
+        fputcsv($out, [$r['created_at'],$r['actor_name'],$r['action'],$r['entity_type'],$r['entity_id'],$r['summary'],$flat]);
+    }
     fclose($out); exit;
 }
 
@@ -87,19 +99,49 @@ function alActionBadge(string $a): string {
 <div class="card fade-in">
     <div class="table-responsive">
         <table>
-            <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Entity</th><th>Summary</th></tr></thead>
+            <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Entity</th><th>Summary</th><th style="width:110px;">Changes</th></tr></thead>
             <tbody>
-                <?php foreach($rows as $r): ?>
+                <?php foreach($rows as $i => $r):
+                    $chg = $r['changes'] ? json_decode($r['changes'], true) : null;
+                    $chg = is_array($chg) ? $chg : null;
+                ?>
                 <tr>
                     <td class="text-muted" style="font-size:.78rem;white-space:nowrap;"><?= date('d M Y, h:i A', strtotime($r['created_at'])) ?></td>
                     <td style="font-size:.82rem;"><?= htmlspecialchars($r['actor_name'] ?: ('#'.(int)$r['actor_id'])) ?></td>
                     <td><span class="badge badge-<?= alActionBadge($r['action']) ?>"><?= htmlspecialchars(ucfirst($r['action'])) ?></span></td>
                     <td style="font-size:.82rem;"><?= htmlspecialchars(ucfirst($r['entity_type'])) ?><?= $r['entity_id']!==null ? ' <span class="text-muted">#'.htmlspecialchars($r['entity_id']).'</span>' : '' ?></td>
                     <td style="font-size:.82rem;max-width:320px;"><?= htmlspecialchars($r['summary'] ?? '—') ?></td>
+                    <td>
+                        <?php if($chg): ?>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="alToggle(<?= (int)$i ?>)" style="white-space:nowrap;">
+                            <i class="fa-solid fa-code-compare"></i> <?= count($chg) ?> field<?= count($chg)>1?'s':'' ?>
+                        </button>
+                        <?php else: ?><span class="text-muted" style="font-size:.78rem;">—</span><?php endif; ?>
+                    </td>
                 </tr>
+                <?php if($chg): ?>
+                <tr id="alChg<?= (int)$i ?>" style="display:none;">
+                    <td colspan="6" style="background:var(--bg-surface);">
+                        <table style="width:100%;font-size:.8rem;">
+                            <thead><tr>
+                                <th style="width:22%;">Field</th><th style="width:39%;">Old value</th><th style="width:39%;">New value</th>
+                            </tr></thead>
+                            <tbody>
+                            <?php foreach($chg as $field => $v): ?>
+                                <tr>
+                                    <td style="font-weight:600;"><?= htmlspecialchars((string)$field) ?></td>
+                                    <td style="color:var(--danger);word-break:break-word;"><?= $v['old'] === null ? '<span class="text-muted">—</span>' : nl2br(htmlspecialchars((string)$v['old'])) ?></td>
+                                    <td style="color:var(--success, #22c55e);word-break:break-word;"><?= $v['new'] === null ? '<span class="text-muted">—</span>' : nl2br(htmlspecialchars((string)$v['new'])) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </td>
+                </tr>
+                <?php endif; ?>
                 <?php endforeach; ?>
                 <?php if(empty($rows)): ?>
-                <tr><td colspan="5"><div class="empty-state"><i class="fa-solid fa-clock-rotate-left"></i><p><?= ($search||$entity||$action||$from||$to) ? 'No activity matches your filters' : 'No activity recorded yet' ?></p></div></td></tr>
+                <tr><td colspan="6"><div class="empty-state"><i class="fa-solid fa-clock-rotate-left"></i><p><?= ($search||$entity||$action||$from||$to) ? 'No activity matches your filters' : 'No activity recorded yet' ?></p></div></td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
@@ -136,6 +178,12 @@ function buildActQuery(extra){
     if(extra)Object.entries(extra).forEach(([k,v])=>p.set(k,v));
     return p.toString();
 }
+// Expand/collapse one row's field-level before/after.
+function alToggle(i){
+  const row = document.getElementById('alChg'+i);
+  if (row) row.style.display = (row.style.display === 'none' ? '' : 'none');
+}
+
 function applyFilters(){ window.location.href='activity.php?'+buildActQuery(); }
 function exportCsv(){ window.location.href='activity.php?'+buildActQuery({export:'csv'}); }
 function goPage(p){const q=new URLSearchParams(window.location.search);q.set('page',p);window.location.href='activity.php?'+q.toString();}

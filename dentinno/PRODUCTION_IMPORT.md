@@ -117,6 +117,29 @@ mysql -u USER -p PROD_DB < database_purge_test_data.sql
 
 See the comments in that file to also remove coupons or reset AUTO_INCREMENT.
 
+## 8b. (Optional) Drop pre-audit activity rows
+
+The audit trail records old → new values per field. Rows written **before** the
+`activity_log.changes` column existed have no diff and show `—` in the Changes
+column — they still say who/when/what, just not from-what-to-what.
+
+To start the trail clean, keeping only rows that carry a diff:
+
+```bash
+# Order matters: `changes` must exist first, so run Step 3's migrations BEFORE this.
+# Count first — never delete on faith.
+mysql -u USER -p PROD_DB -e \
+  "SELECT COUNT(*) total, SUM(changes IS NULL) will_delete, SUM(changes IS NOT NULL) will_keep
+     FROM activity_log;"
+
+# Only if that number looks right:
+mysql -u USER -p PROD_DB -e "DELETE FROM activity_log WHERE changes IS NULL;"
+```
+
+⚠️ This permanently removes audit history. It is **optional** — an append-only log
+that keeps everything is the safer default, and `—` is honest about why those rows
+carry no diff. The Step 1 backup is the only way back.
+
 ## 9. Verify the live site
 
 ```bash

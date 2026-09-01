@@ -16,11 +16,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     elseif ($action === 'status') {
         $allowed = ['new','contacted','quoted','closed'];
         $s = in_array($d['status'] ?? '', $allowed, true) ? $d['status'] : 'new';
-        db()->execute("UPDATE bulk_quotes SET status=?, is_read=1 WHERE id=?", [$s, (int)($d['id'] ?? 0)]);
+        $id = (int)($d['id'] ?? 0); $b = auditRow('bulk_quotes', $id);
+        db()->execute("UPDATE bulk_quotes SET status=?, is_read=1 WHERE id=?", [$s, $id]);
+        logActivity('status_changed', 'bulk_quote', $id, ($b['name'] ?? '') . ' · ' . ($b['product_name'] ?? ''),
+                    auditDiff($b, auditRow('bulk_quotes', $id)));
         echo json_encode(['success'=>true]);
     }
-    elseif ($action === 'delete')  { db()->execute("UPDATE bulk_quotes SET is_deleted=1 WHERE id=?", [(int)($d['id'] ?? 0)]); echo json_encode(['success'=>true]); }
-    elseif ($action === 'restore') { db()->execute("UPDATE bulk_quotes SET is_deleted=0 WHERE id=?", [(int)($d['id'] ?? 0)]); echo json_encode(['success'=>true]); }
+    elseif ($action === 'delete')  {
+        $id = (int)($d['id'] ?? 0); $b = auditRow('bulk_quotes', $id);
+        db()->execute("UPDATE bulk_quotes SET is_deleted=1 WHERE id=?", [$id]);
+        logActivity('deleted', 'bulk_quote', $id, ($b['name'] ?? '') . ' · ' . ($b['product_name'] ?? ''), auditDiff($b, null));
+        echo json_encode(['success'=>true]);
+    }
+    elseif ($action === 'restore') {
+        $id = (int)($d['id'] ?? 0); $b = auditRow('bulk_quotes', $id);
+        db()->execute("UPDATE bulk_quotes SET is_deleted=0 WHERE id=?", [$id]);
+        logActivity('restored', 'bulk_quote', $id, ($b['name'] ?? '') . ' · ' . ($b['product_name'] ?? ''),
+                    auditDiff($b, auditRow('bulk_quotes', $id)));
+        echo json_encode(['success'=>true]);
+    }
     else echo json_encode(['success'=>false]);
     } catch (Throwable $e) {
         echo json_encode(['success'=>false,'message'=>'Server error: ' . $e->getMessage()]);

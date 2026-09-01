@@ -110,6 +110,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 [$oid]
             ) > 0;
         }
+        $ordAfter = db()->fetchOne("SELECT order_number, status, payment_status FROM orders WHERE id=?", [$oid]);
+        logActivity('status_changed', 'order', $oid,
+                    ($ordAfter['order_number'] ?? '#'.$oid) . ': ' . $curStatus . ' → ' . $newStatus,
+                    auditDiff(['status' => $curStatus, 'payment_status' => $codPaid ? 'unpaid' : ($ordAfter['payment_status'] ?? null)],
+                              ['status' => $newStatus, 'payment_status' => $ordAfter['payment_status'] ?? null]));
+
         // Best-effort WhatsApp status update (only for customer-relevant transitions).
         if (in_array($newStatus, ['confirmed', 'shipped', 'out_for_delivery', 'delivered', 'returning', 'returned', 'cancelled', 'rejected'], true)) {
             notifyOrderStatusWA($oid, $newStatus);
@@ -137,12 +143,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         if ($ps === 'paid' && $cur && in_array($cur['status'], ['cancelled','rejected','returned','refunded'], true)) {
             echo json_encode(['success'=>false,'message'=>"Can't mark a {$cur['status']} order as paid."]); exit;
         }
+        $oid    = (int)$data['id'];
+        $before = db()->fetchOne("SELECT order_number, payment_status, payment_method FROM orders WHERE id=?", [$oid]);
         db()->execute("UPDATE orders SET payment_status = ?, payment_method = ? WHERE id = ?",
             [$ps, $data['payment_method'], $data['id']]);
+        $after  = db()->fetchOne("SELECT order_number, payment_status, payment_method FROM orders WHERE id=?", [$oid]);
+        logActivity('payment_changed', 'order', $oid, $before['order_number'] ?? ('#'.$oid), auditDiff($before, $after));
         echo json_encode(['success' => true, 'message' => 'Payment updated']);
     } elseif ($action === 'update_tracking') {
+        $oid    = (int)$data['id'];
+        $before = db()->fetchOne("SELECT order_number, tracking_number, courier_name FROM orders WHERE id=?", [$oid]);
         db()->execute("UPDATE orders SET tracking_number = ?, courier_name = ? WHERE id = ?",
             [$data['tracking_number'], $data['courier_name'], $data['id']]);
+        $after  = db()->fetchOne("SELECT order_number, tracking_number, courier_name FROM orders WHERE id=?", [$oid]);
+        logActivity('tracking_updated', 'order', $oid, $before['order_number'] ?? ('#'.$oid), auditDiff($before, $after));
         // Best-effort WhatsApp shipping update with the new tracking details.
         notifyOrderStatusWA((int)$data['id'], null);
         echo json_encode(['success' => true, 'message' => 'Tracking updated']);
@@ -155,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         if (!array_key_exists($newStatus, $ORDER_TRANSITIONS)) { echo json_encode(['success'=>false,'message'=>'Invalid status']); exit; }
         $updated = 0; $skipped = 0;
         foreach ($ids as $oid) {
-            $cur = db()->fetchOne("SELECT status, payment_method, payment_status FROM orders WHERE id=?", [$oid]);
+            $cur = db()->fetchOne("SELECT order_number, status, payment_method, payment_status FROM orders WHERE id=?", [$oid]);
             if (!$cur) { $skipped++; continue; }
             if ($newStatus === $cur['status']) { continue; } // no-op
             if (!in_array($newStatus, $ORDER_TRANSITIONS[$cur['status']] ?? [], true)) { $skipped++; continue; }
@@ -181,6 +195,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                     db()->execute("UPDATE orders SET status = ? $extraStr WHERE id = ?", [$newStatus, $oid]);
                 }
                 logOrderStatus($oid, $newStatus, 'bulk update');
+                logActivity('status_changed', 'order', $oid,
+                            ($cur['order_number'] ?? '#'.$oid) . ': ' . $cur['status'] . ' → ' . $newStatus . ' (bulk)',
+                            auditDiff(['status' => $cur['status']], ['status' => $newStatus]));
                 notifyOrderStatusWA($oid, $newStatus);
                 $updated++;
             } catch (Throwable $e) {

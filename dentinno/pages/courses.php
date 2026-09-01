@@ -35,20 +35,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $outcomes_json = !empty($d['outcomes'])     ? json_encode(array_values(array_filter(array_map('trim', explode("\n", $d['outcomes']))))) : null;
         $reqs_json     = !empty($d['requirements']) ? json_encode(array_values(array_filter(array_map('trim', explode("\n", $d['requirements']))))) : null;
         if (!empty($d['id'])) {
+            $b = auditRow('courses', (int)$d['id']);
             db()->execute("UPDATE courses SET title=?,description=?,full_description=?,course_type=?,category=?,level=?,status=?,duration_hours=?,total_lessons=?,price=?,discount_price=?,is_free=?,instructor_name=?,instructor_bio=?,certificate_offered=?,max_students=?,tags=?,requirements=?,outcomes=? WHERE id=?",
                 [$title,$desc,$fullDesc,$courseType,$category,$level,$status,$duration,$lessons,$price,$discount,$is_free,$instr,$instrBio,$cert,$maxStud,$tags_json,$reqs_json,$outcomes_json,(int)$d['id']]);
+            logActivity('updated', 'course', (int)$d['id'], $title, auditDiff($b, auditRow('courses', (int)$d['id'])));
         } else {
             $slug = generateSlug($title) . '-' . time();
-            db()->insert("INSERT INTO courses (title,slug,description,full_description,course_type,category,level,status,duration_hours,total_lessons,price,discount_price,is_free,instructor_name,instructor_bio,certificate_offered,max_students,tags,requirements,outcomes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            $newId = db()->insert("INSERT INTO courses (title,slug,description,full_description,course_type,category,level,status,duration_hours,total_lessons,price,discount_price,is_free,instructor_name,instructor_bio,certificate_offered,max_students,tags,requirements,outcomes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 [$title,$slug,$desc,$fullDesc,$courseType,$category,$level,$status,$duration,$lessons,$price,$discount,$is_free,$instr,$instrBio,$cert,$maxStud,$tags_json,$reqs_json,$outcomes_json]);
+            logActivity('created', 'course', (int)$newId, $title, auditDiff(null, auditRow('courses', (int)$newId)));
         }
         echo json_encode(['success'=>true,'message'=>'Course saved']);
     } elseif ($action === 'delete') {
         // Soft-delete: keep the course + its enrollments (paid student data) so it can be restored.
-        db()->execute("UPDATE courses SET is_deleted=1 WHERE id=?",[(int)($data['id'] ?? 0)]);
+        $id = (int)($data['id'] ?? 0); $b = auditRow('courses', $id);
+        db()->execute("UPDATE courses SET is_deleted=1 WHERE id=?",[$id]);
+        logActivity('deleted', 'course', $id, $b['title'] ?? null, auditDiff($b, null));
         echo json_encode(['success'=>true,'message'=>'Course deleted']);
     } elseif ($action === 'restore') {
-        db()->execute("UPDATE courses SET is_deleted=0 WHERE id=?",[(int)($data['id'] ?? 0)]);
+        $id = (int)($data['id'] ?? 0); $b = auditRow('courses', $id);
+        db()->execute("UPDATE courses SET is_deleted=0 WHERE id=?",[$id]);
+        logActivity('restored', 'course', $id, $b['title'] ?? null, auditDiff($b, auditRow('courses', $id)));
         echo json_encode(['success'=>true,'message'=>'Course restored']);
     } elseif ($action === 'toggle_status') {
         // Read the CURRENT status from the DB (never trust the client's claim of it).
@@ -57,6 +64,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         if (!$cur) { echo json_encode(['success'=>false,'message'=>'Course not found']); exit; }
         $new = $cur['status'] === 'published' ? 'draft' : 'published';
         db()->execute("UPDATE courses SET status=? WHERE id=?",[$new,$cid]);
+        logActivity('status_changed', 'course', $cid, auditRow('courses', $cid)['title'] ?? null,
+                    auditDiff(['status' => $cur['status']], ['status' => $new]));
         echo json_encode(['success'=>true,'message'=>'Status updated to '.$new]);
     } elseif ($action === 'get_enrollments') {
         $enrollments = db()->fetchAll("SELECT * FROM course_enrollments WHERE course_id=? ORDER BY enrollment_date DESC",[(int)($data['course_id'] ?? 0)]);

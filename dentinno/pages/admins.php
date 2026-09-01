@@ -32,11 +32,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     $role       = (string)($roleRow['slug'] ?? 'staff');   // kept in admin_users.role for display/back-compat
 
     // Append-only audit of admin-account changes. Wrapped so a logging failure never blocks the action.
-    $audit = function(string $act, ?int $targetId, ?string $targetEmail, string $details) {
+    // Written twice on purpose: admin_audit_log drives the panel on this page, and the global
+    // activity log keeps admin-account changes in the same timeline as everything else — the field
+    // diff there never carries the password hash (auditDiff drops it).
+    $audit = function(string $act, ?int $targetId, ?string $targetEmail, string $details, ?array $before = null, ?array $after = null) {
         try {
             db()->insert("INSERT INTO admin_audit_log (actor_id,actor_name,action,target_id,target_email,details) VALUES (?,?,?,?,?,?)",
                 [(int)($_SESSION['admin_id'] ?? 0) ?: null, $_SESSION['admin_name'] ?? null, $act, $targetId, $targetEmail, $details]);
         } catch (Throwable $e) { /* audit must never break the operation */ }
+        logActivity($act, 'admin_user', $targetId, ($targetEmail ?? '') . ' — ' . $details, auditDiff($before, $after));
     };
 
     if ($action === 'save') {
@@ -78,7 +82,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             if ($target['role']  !== $role)  $changes[] = "role {$target['role']}→{$role}";
             if ((int)$target['is_active'] !== $isActive) $changes[] = $isActive ? 'activated' : 'deactivated';
             if (!empty($data['password'])) $changes[] = 'password reset';
-            $audit('updated', $targetId, $email, $changes ? implode(', ', $changes) : 'no changes');
+            $audit('updated', $targetId, $email, $changes ? implode(', ', $changes) : 'no changes',
+                   $target, auditRow('admin_users', $targetId));
             echo json_encode(['success'=>true,'message'=>'Admin updated']);
         } else {
             if (empty($data['password'])) { echo json_encode(['success'=>false,'message'=>'Password is required']); exit; }
@@ -86,7 +91,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             if ($exists) { echo json_encode(['success'=>false,'message'=>'Email already exists']); exit; }
             $newId = (int) db()->insert("INSERT INTO admin_users (name,email,password,role,is_active) VALUES (?,?,?,?,?)",
                 [$name,$email,password_hash($data['password'],PASSWORD_DEFAULT),$role,$isActive]);
-            $audit('created', $newId, $email, "role: $role" . ($isActive ? '' : ' (inactive)'));
+            $audit('created', $newId, $email, "role: $role" . ($isActive ? '' : ' (inactive)'),
+                   null, auditRow('admin_users', $newId));
             echo json_encode(['success'=>true,'message'=>'Admin user created']);
         }
     } elseif ($action === 'delete') {
@@ -99,8 +105,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $others = (int)(db()->fetchOne("SELECT COUNT(*) c FROM admin_users WHERE role='super_admin' AND is_active=1 AND id<>?", [$id])['c'] ?? 0);
             if ($others < 1) { echo json_encode(['success'=>false,'message'=>'Cannot delete the last active super admin']); exit; }
         }
+        // Hard delete — snapshot the full row (minus the password hash) before it goes.
+        $fullTarget = auditRow('admin_users', $id);
         db()->execute("DELETE FROM admin_users WHERE id=?",[$id]);
-        $audit('deleted', $id, $target['email'] ?? null, 'role: ' . ($target['role'] ?? '?'));
+        $audit('deleted', $id, $target['email'] ?? null, 'role: ' . ($target['role'] ?? '?'), $fullTarget, null);
         echo json_encode(['success'=>true,'message'=>'Admin deleted']);
     } else {
         echo json_encode(['success'=>false,'message'=>'Unknown action']);

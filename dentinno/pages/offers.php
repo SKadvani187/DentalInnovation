@@ -145,6 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $pdo = db()->getConnection();
         $pdo->beginTransaction();
         try {
+            $auditBefore = !empty($d['id']) ? auditRow('offers', (int)$d['id']) : null;
             if (!empty($d['id'])) {
                 $offerId = (int)$d['id'];
                 db()->execute(
@@ -175,16 +176,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $pdo->rollBack();
             throw $e;   // bubble to the outer handler -> JSON error
         }
+        logActivity($auditBefore ? 'updated' : 'created', 'offer', $offerId, $title,
+                    auditDiff($auditBefore, auditRow('offers', $offerId)));
         echo json_encode(['success'=>true,'message'=>$msg,'you_save'=>$youSave,'total_mrp'=>$totalMrp]);
     } elseif ($action === 'delete') {
         // Soft-delete: keep the row + its gift rows so an accidental delete can be restored.
-        db()->execute("UPDATE offers SET is_deleted=1, is_active=0 WHERE id=?", [(int)($d['id'] ?? 0)]);
+        $id = (int)($d['id'] ?? 0); $b = auditRow('offers', $id);
+        db()->execute("UPDATE offers SET is_deleted=1, is_active=0 WHERE id=?", [$id]);
+        logActivity('deleted', 'offer', $id, $b['title'] ?? null, auditDiff($b, null));
         echo json_encode(['success'=>true,'message'=>'Offer deleted']);
     } elseif ($action === 'restore') {
-        db()->execute("UPDATE offers SET is_deleted=0 WHERE id=?", [(int)($d['id'] ?? 0)]);
+        $id = (int)($d['id'] ?? 0); $b = auditRow('offers', $id);
+        db()->execute("UPDATE offers SET is_deleted=0 WHERE id=?", [$id]);
+        logActivity('restored', 'offer', $id, $b['title'] ?? null, auditDiff($b, auditRow('offers', $id)));
         echo json_encode(['success'=>true,'message'=>'Offer restored']);
     } elseif ($action === 'toggle') {
-        db()->execute("UPDATE offers SET is_active = NOT is_active WHERE id=? AND is_deleted=0", [(int)($d['id'] ?? 0)]);
+        $id = (int)($d['id'] ?? 0); $b = auditRow('offers', $id);
+        db()->execute("UPDATE offers SET is_active = NOT is_active WHERE id=? AND is_deleted=0", [$id]);
+        logActivity('toggled', 'offer', $id, $b['title'] ?? null, auditDiff($b, auditRow('offers', $id)));
         echo json_encode(['success'=>true,'message'=>'Status updated']);
     } elseif ($action === 'bulk') {
         $ids = array_values(array_filter(array_map('intval', (array)($d['ids'] ?? []))));

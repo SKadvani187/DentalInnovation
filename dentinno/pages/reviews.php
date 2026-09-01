@@ -12,31 +12,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
     requireAction('reviews', rbacCrudVerb($action, $data));
+    // Review moderation is publicly visible content — who approved or hid what is auditable.
+    $revLabel = fn(?array $r) => $r ? (($r['reviewer_name'] ?? 'Review') . ' · ' . ($r['rating'] ?? '?') . '★') : null;
+
     if ($action === 'approve') {
         $approved = !empty($data['approved']) ? 1 : 0;   // coerce to a strict 0/1
-        db()->execute("UPDATE product_reviews SET is_approved=? WHERE id=?", [$approved, (int)($data['id'] ?? 0)]);
+        $id = (int)($data['id'] ?? 0); $b = auditRow('product_reviews', $id);
+        db()->execute("UPDATE product_reviews SET is_approved=? WHERE id=?", [$approved, $id]);
+        logActivity($approved ? 'approved' : 'hidden', 'review', $id, $revLabel($b), auditDiff($b, auditRow('product_reviews', $id)));
         echo json_encode(['success' => true, 'message' => $approved ? 'Review approved' : 'Review hidden']);
     } elseif ($action === 'verify') {
-        db()->execute("UPDATE product_reviews SET is_verified=1 WHERE id=?", [(int)($data['id'] ?? 0)]);
+        $id = (int)($data['id'] ?? 0); $b = auditRow('product_reviews', $id);
+        db()->execute("UPDATE product_reviews SET is_verified=1 WHERE id=?", [$id]);
+        logActivity('verified', 'review', $id, $revLabel($b), auditDiff($b, auditRow('product_reviews', $id)));
         echo json_encode(['success' => true, 'message' => 'Marked as verified purchase']);
     } elseif ($action === 'delete') {
         // Soft-delete: keep the row so an accidental delete can be restored.
-        db()->execute("UPDATE product_reviews SET is_deleted=1 WHERE id=?", [(int)($data['id'] ?? 0)]);
+        $id = (int)($data['id'] ?? 0); $b = auditRow('product_reviews', $id);
+        db()->execute("UPDATE product_reviews SET is_deleted=1 WHERE id=?", [$id]);
+        logActivity('deleted', 'review', $id, $revLabel($b), auditDiff($b, null));
         echo json_encode(['success' => true, 'message' => 'Review deleted']);
     } elseif ($action === 'restore') {
-        db()->execute("UPDATE product_reviews SET is_deleted=0 WHERE id=?", [(int)($data['id'] ?? 0)]);
+        $id = (int)($data['id'] ?? 0); $b = auditRow('product_reviews', $id);
+        db()->execute("UPDATE product_reviews SET is_deleted=0 WHERE id=?", [$id]);
+        logActivity('restored', 'review', $id, $revLabel($b), auditDiff($b, auditRow('product_reviews', $id)));
         echo json_encode(['success' => true, 'message' => 'Review restored']);
     } elseif ($action === 'bulk_approve') {
         $ids = array_values(array_filter(array_map('intval', (array)($data['ids'] ?? []))));
         if (!$ids) { echo json_encode(['success'=>false,'message'=>'No reviews selected']); exit; }
         $ph  = implode(',', array_fill(0, count($ids), '?'));
         db()->execute("UPDATE product_reviews SET is_approved=1 WHERE id IN ($ph) AND is_deleted=0", $ids);
+        logActivity('approved', 'review', null, count($ids) . ' reviews (bulk)',
+                    auditDiff(['review_ids' => implode(',', $ids), 'is_approved' => 'mixed'],
+                              ['review_ids' => implode(',', $ids), 'is_approved' => '1']));
         echo json_encode(['success' => true, 'message' => count($ids) . ' reviews approved']);
     } elseif ($action === 'bulk_delete') {
         $ids = array_values(array_filter(array_map('intval', (array)($data['ids'] ?? []))));
         if (!$ids) { echo json_encode(['success'=>false,'message'=>'No reviews selected']); exit; }
         $ph  = implode(',', array_fill(0, count($ids), '?'));
         db()->execute("UPDATE product_reviews SET is_deleted=1 WHERE id IN ($ph)", $ids);
+        logActivity('deleted', 'review', null, count($ids) . ' reviews (bulk)',
+                    auditDiff(['review_ids' => implode(',', $ids), 'is_deleted' => '0'],
+                              ['review_ids' => implode(',', $ids), 'is_deleted' => '1']));
         echo json_encode(['success' => true, 'message' => count($ids) . ' reviews deleted']);
     } elseif ($action === 'bulk_restore') {
         $ids = array_values(array_filter(array_map('intval', (array)($data['ids'] ?? []))));

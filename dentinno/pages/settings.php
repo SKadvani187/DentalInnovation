@@ -70,9 +70,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         if ($encoded !== false && strlen($encoded) > 262144) {
             echo json_encode(['success'=>false,'message'=>'Setting value too large (max 256 KB)']); exit;
         }
+        // Settings are one JSON blob per key, so the diff is on that blob (truncated by auditValue).
+        // Blobs holding SMTP/gateway secrets are recorded as "changed" without their contents.
+        $prev = db()->fetchOne("SELECT svalue FROM site_settings WHERE skey=?", [$key]);
         db()->query("INSERT INTO site_settings (skey, svalue) VALUES (?,?) ON DUPLICATE KEY UPDATE svalue=VALUES(svalue)",
             [$key, $encoded]);
-        logActivity('updated', 'setting', $key, 'CMS / config: ' . $key);
+        $secretKey = (bool)preg_match('/mail|smtp|razorpay|payment|whatsapp|otp|key|secret|token/i', $key);
+        $changes   = $secretKey
+            ? json_encode(['svalue' => ['old' => '(hidden — contains credentials)', 'new' => '(hidden — contains credentials)']])
+            : auditDiff(['svalue' => $prev['svalue'] ?? null], ['svalue' => $encoded]);
+        logActivity('updated', 'setting', $key, 'CMS / config: ' . $key, $changes);
         echo json_encode(['success'=>true,'message'=>'Saved']);
     } elseif (($d['action'] ?? '') === 'send_test_order_mail') {
         // Order email config holds SMTP secrets -> super admin only.

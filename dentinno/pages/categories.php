@@ -40,18 +40,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $isActive  = isset($data['is_active']) ? (int)$data['is_active'] : 1;
         $desc      = $data['description'] ?? null;
         if (!empty($data['id'])) {
+            $before = db()->fetchOne("SELECT * FROM categories WHERE id=?", [$selfId]);
             db()->execute("UPDATE categories SET name=?,slug=?,meta_title=?,meta_description=?,description=?,parent_id=?,image=?,sort_order=?,is_active=? WHERE id=?",
                 [$name,$slug,$metaTitle,$metaDesc,$desc,$parentId,$image,$sortOrder,$isActive,$selfId]);
-            logActivity('updated', 'category', (int)$selfId, $name);
+            $after = db()->fetchOne("SELECT * FROM categories WHERE id=?", [$selfId]);
+            logActivity('updated', 'category', (int)$selfId, $name, auditDiff($before, $after));
             echo json_encode(['success'=>true,'message'=>'Category updated']);
         } else {
-            db()->insert("INSERT INTO categories (name,slug,meta_title,meta_description,description,parent_id,image,sort_order,is_active) VALUES (?,?,?,?,?,?,?,?,?)",
+            $newId = db()->insert("INSERT INTO categories (name,slug,meta_title,meta_description,description,parent_id,image,sort_order,is_active) VALUES (?,?,?,?,?,?,?,?,?)",
                 [$name,$slug,$metaTitle,$metaDesc,$desc,$parentId,$image,$sortOrder,$isActive]);
-            logActivity('created', 'category', null, $name);
+            $after = db()->fetchOne("SELECT * FROM categories WHERE id=?", [(int)$newId]);
+            logActivity('created', 'category', (int)$newId, $name, auditDiff(null, $after));
             echo json_encode(['success'=>true,'message'=>'Category added']);
         }
     } elseif ($action === 'toggle') {
-        db()->execute("UPDATE categories SET is_active = NOT is_active WHERE id=?", [(int)($data['id'] ?? 0)]);
+        $cid    = (int)($data['id'] ?? 0);
+        $before = db()->fetchOne("SELECT id,name,is_active FROM categories WHERE id=?", [$cid]);
+        db()->execute("UPDATE categories SET is_active = NOT is_active WHERE id=?", [$cid]);
+        $after  = db()->fetchOne("SELECT id,name,is_active FROM categories WHERE id=?", [$cid]);
+        logActivity('toggled', 'category', $cid, $before['name'] ?? null, auditDiff($before, $after));
         echo json_encode(['success'=>true,'message'=>'Status updated']);
     } elseif ($action === 'bulk') {
         $ids = array_values(array_filter(array_map('intval', (array)($data['ids'] ?? []))));
@@ -78,7 +85,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $sCnt = (int)(db()->fetchOne("SELECT COUNT(*) as c FROM categories WHERE parent_id=?", [$id])['c'] ?? 0);
         if ($pCnt > 0)      { echo json_encode(['success'=>false,'message'=>"Cannot delete — $pCnt product(s) use this category. Reassign them first."]); }
         elseif ($sCnt > 0)  { echo json_encode(['success'=>false,'message'=>"Cannot delete — $sCnt sub-categor(ies) belong to this one. Move or delete them first."]); }
-        else { db()->execute("DELETE FROM categories WHERE id=?", [$id]); logActivity('deleted', 'category', $id); echo json_encode(['success'=>true,'message'=>'Category deleted']); }
+        else {
+            // Hard delete — the audit keeps the full row, since nothing else will.
+            $before = db()->fetchOne("SELECT * FROM categories WHERE id=?", [$id]);
+            db()->execute("DELETE FROM categories WHERE id=?", [$id]);
+            logActivity('deleted', 'category', $id, $before['name'] ?? null, auditDiff($before, null));
+            echo json_encode(['success'=>true,'message'=>'Category deleted']);
+        }
     }
     } catch (Throwable $e) {
         echo json_encode(['success'=>false, 'message'=>'Save failed: ' . $e->getMessage()]);

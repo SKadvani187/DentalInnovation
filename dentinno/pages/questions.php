@@ -16,18 +16,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $ans = trim((string)($d['answer'] ?? ''));
         if ($ans === '') { echo json_encode(['success'=>false,'message'=>'Answer cannot be empty']); exit; }
         // Answering also approves + publishes the question.
-        db()->execute("UPDATE product_questions SET answer=?, is_answered=1, is_approved=1, answered_at=NOW() WHERE id=?", [$ans, (int)($d['id'] ?? 0)]);
+        $id = (int)($d['id'] ?? 0); $b = auditRow('product_questions', $id);
+        db()->execute("UPDATE product_questions SET answer=?, is_answered=1, is_approved=1, answered_at=NOW() WHERE id=?", [$ans, $id]);
+        logActivity('answered', 'question', $id, $b['question'] ?? null, auditDiff($b, auditRow('product_questions', $id)));
         echo json_encode(['success'=>true,'message'=>'Answer published']);
     } elseif ($action === 'approve') {
         $approved = !empty($d['approved']) ? 1 : 0;   // coerce to a strict 0/1
-        db()->execute("UPDATE product_questions SET is_approved=? WHERE id=?", [$approved, (int)($d['id'] ?? 0)]);
+        $id = (int)($d['id'] ?? 0); $b = auditRow('product_questions', $id);
+        db()->execute("UPDATE product_questions SET is_approved=? WHERE id=?", [$approved, $id]);
+        logActivity($approved ? 'approved' : 'hidden', 'question', $id, $b['question'] ?? null, auditDiff($b, auditRow('product_questions', $id)));
         echo json_encode(['success'=>true,'message'=>$approved ? 'Published' : 'Hidden']);
     } elseif ($action === 'delete') {
         // Soft-delete: keep the row so an accidental delete can be restored.
-        db()->execute("UPDATE product_questions SET is_deleted=1 WHERE id=?", [(int)($d['id'] ?? 0)]);
+        $id = (int)($d['id'] ?? 0); $b = auditRow('product_questions', $id);
+        db()->execute("UPDATE product_questions SET is_deleted=1 WHERE id=?", [$id]);
+        logActivity('deleted', 'question', $id, $b['question'] ?? null, auditDiff($b, null));
         echo json_encode(['success'=>true,'message'=>'Question deleted']);
     } elseif ($action === 'restore') {
-        db()->execute("UPDATE product_questions SET is_deleted=0 WHERE id=?", [(int)($d['id'] ?? 0)]);
+        $id = (int)($d['id'] ?? 0); $b = auditRow('product_questions', $id);
+        db()->execute("UPDATE product_questions SET is_deleted=0 WHERE id=?", [$id]);
+        logActivity('restored', 'question', $id, $b['question'] ?? null, auditDiff($b, auditRow('product_questions', $id)));
         echo json_encode(['success'=>true,'message'=>'Question restored']);
     }
     } catch (Throwable $e) {

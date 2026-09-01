@@ -39,16 +39,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
 
     if ($action === 'delete') {
         // Soft-delete: keep the row so order history / invoices stay intact; hide it everywhere.
-        db()->execute("UPDATE products SET is_deleted = 1, is_active = 0 WHERE id = ?", [(int)($data['id'] ?? 0)]);
-        logActivity('deleted', 'product', (int)($data['id'] ?? 0));
+        // The audit keeps the whole row as it was — a deleted product's details are otherwise
+        // only recoverable from a DB backup.
+        $pid    = (int)($data['id'] ?? 0);
+        $before = db()->fetchOne("SELECT * FROM products WHERE id = ?", [$pid]);
+        db()->execute("UPDATE products SET is_deleted = 1, is_active = 0 WHERE id = ?", [$pid]);
+        logActivity('deleted', 'product', $pid, $before['name'] ?? null, auditDiff($before, null));
         echo json_encode(['success' => true, 'message' => 'Product deleted']);
     } elseif ($action === 'restore') {
-        db()->execute("UPDATE products SET is_deleted = 0 WHERE id = ?", [(int)($data['id'] ?? 0)]);
-        logActivity('restored', 'product', (int)($data['id'] ?? 0));
+        $pid    = (int)($data['id'] ?? 0);
+        $before = db()->fetchOne("SELECT id,name,is_deleted FROM products WHERE id = ?", [$pid]);
+        db()->execute("UPDATE products SET is_deleted = 0 WHERE id = ?", [$pid]);
+        $after  = db()->fetchOne("SELECT id,name,is_deleted FROM products WHERE id = ?", [$pid]);
+        logActivity('restored', 'product', $pid, $before['name'] ?? null, auditDiff($before, $after));
         echo json_encode(['success' => true, 'message' => 'Product restored']);
     } elseif ($action === 'toggle') {
+        $pid    = (int)($data['id'] ?? 0);
+        $before = db()->fetchOne("SELECT id,name,is_active FROM products WHERE id = ?", [$pid]);
         db()->execute("UPDATE products SET is_active = NOT is_active WHERE id = ?", [$data['id']]);
-        logActivity('toggled', 'product', (int)($data['id'] ?? 0));
+        $after  = db()->fetchOne("SELECT id,name,is_active FROM products WHERE id = ?", [$pid]);
+        logActivity('toggled', 'product', $pid, $before['name'] ?? null, auditDiff($before, $after));
         echo json_encode(['success' => true, 'message' => 'Status updated']);
     } elseif ($action === 'adjust_stock') {
         // Manual stock adjustment with a reason — logged to the inventory ledger.
@@ -185,9 +195,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         if ($variantQtySum !== null) $stock = $variantQtySum;
         $minStock  = max(0, (int)($d['min_stock_alert'] ?? 5));   // low-stock alert threshold
 
+        $beforeRow = null;   // the row as it was, for the audit diff (null on create)
         if (!empty($d['id'])) {
-            // Capture old stock so a stock change via the edit form is recorded in the ledger.
-            $oldStock = (int)(db()->fetchOne("SELECT stock FROM products WHERE id=?", [(int)$d['id']])['stock'] ?? $stock);
+            // Snapshot the whole row first: it feeds both the inventory ledger (old stock) and the
+            // audit trail's before/after.
+            $beforeRow = db()->fetchOne("SELECT * FROM products WHERE id=?", [(int)$d['id']]);
+            $oldStock  = (int)($beforeRow['stock'] ?? $stock);
             db()->execute("UPDATE products SET name=?,slug=?,meta_title=?,meta_description=?,category_id=?,price=?,discount_price=?,discount_percent=?,stock=?,min_stock_alert=?,short_description=?,full_description=?,features=?,packing_info=?,key_specifications=?,directions_for_use=?,additional_information=?,warranty_info=?,key_features=?,warranty_no=?,direction_of_use=?,catalogue_url=?,images=?,hover_image=?,variants=?,bulk_offers=?,weight_kg=?,shipping_method_id=?,is_active=?,is_featured=?,is_new=? WHERE id=?",
                 [$name,$slug,$metaTitle,$metaDesc,($d['category_id'] ?? '')?:null,$price,$disc_price,$disc_pct,$stock,$minStock,($d['short_description']??null),($d['full_description']??null),$features,($d['packing_info']??null),$key_specs,($d['directions_for_use']??null),($d['additional_information']??null),($d['warranty_info']??null),($d['key_features'] ?? '')?:null,($d['warranty_no'] ?? '')?:null,($d['direction_of_use'] ?? '')?:null,($d['catalogue_url'] ?? '')?:null,$images_json,$hover_image,$variants,$bulkOffers,($d['weight_kg'] ?? '')?:null,(!empty($d['shipping_method_id'])?(int)$d['shipping_method_id']:null),$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0,$d['id']]);
             $pid = $d['id'];
@@ -211,7 +224,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $hsn = (isset($d['hsn_code']) && trim((string)$d['hsn_code']) !== '') ? clip(trim((string)$d['hsn_code']), 12) : null;
             // $sku is resolved above (admin value, else the existing one, else generated on create).
             db()->execute("UPDATE products SET cost_price=?, hsn_code=?, sku=COALESCE(?, sku) WHERE id=?", [$costPrice, $hsn, $sku, (int)$pid]);
-            logActivity(!empty($d['id']) ? 'updated' : 'created', 'product', (int)$pid, $name.' · ₹'.$price);
+            // Diff against the pre-save snapshot. Read AFTER the cost/hsn/sku update above so the
+            // audit reflects the finished row, not a half-saved one.
+            $afterRow = db()->fetchOne("SELECT * FROM products WHERE id=?", [(int)$pid]);
+            logActivity(!empty($d['id']) ? 'updated' : 'created', 'product', (int)$pid,
+                        $name.' · ₹'.$price, auditDiff($beforeRow, $afterRow));
         }
         if (isset($d['faqs']) && $pid) {
             db()->execute("DELETE FROM product_faqs WHERE product_id = ?", [$pid]);

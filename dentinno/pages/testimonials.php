@@ -51,24 +51,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $pName   = ($d['product_name'] ?? '') ?: null;
         $active  = !empty($d['is_active']) ? 1 : 0;
         if (!empty($d['id'])) {
+            $b = auditRow('testimonials', (int)$d['id']);
             db()->execute(
                 "UPDATE testimonials SET name=?,avatar=?,product_image=?,product_name=?,rating=?,text=?,is_active=? WHERE id=?",
                 [$name,$avatar,$pImage,$pName,$rating,$text,$active,(int)$d['id']]
             );
+            logActivity('updated', 'testimonial', (int)$d['id'], $name, auditDiff($b, auditRow('testimonials', (int)$d['id'])));
             echo json_encode(['success'=>true,'message'=>'Testimonial updated']);
         } else {
             $slug = 't-' . substr((string)time(), -6);
-            db()->insert(
+            $newId = db()->insert(
                 "INSERT INTO testimonials (slug,name,avatar,product_image,product_name,rating,text,is_active) VALUES (?,?,?,?,?,?,?,?)",
                 [$slug,$name,$avatar,$pImage,$pName,$rating,$text,$active]
             );
+            logActivity('created', 'testimonial', (int)$newId, $name, auditDiff(null, auditRow('testimonials', (int)$newId)));
             echo json_encode(['success'=>true,'message'=>'Testimonial added']);
         }
     } elseif ($action === 'toggle') {
-        db()->execute("UPDATE testimonials SET is_active = NOT is_active WHERE id=?", [(int)($d['id'] ?? 0)]);
+        $id = (int)($d['id'] ?? 0); $b = auditRow('testimonials', $id);
+        db()->execute("UPDATE testimonials SET is_active = NOT is_active WHERE id=?", [$id]);
+        logActivity('toggled', 'testimonial', $id, $b['name'] ?? null, auditDiff($b, auditRow('testimonials', $id)));
         echo json_encode(['success'=>true,'message'=>'Status updated']);
     } elseif ($action === 'delete') {
-        db()->execute("DELETE FROM testimonials WHERE id=?", [(int)($d['id'] ?? 0)]);
+        // Hard delete — the audit keeps the row, since nothing else will.
+        $id = (int)($d['id'] ?? 0); $b = auditRow('testimonials', $id);
+        db()->execute("DELETE FROM testimonials WHERE id=?", [$id]);
+        logActivity('deleted', 'testimonial', $id, $b['name'] ?? null, auditDiff($b, null));
         echo json_encode(['success'=>true,'message'=>'Testimonial deleted']);
     }
     } catch (Throwable $e) {

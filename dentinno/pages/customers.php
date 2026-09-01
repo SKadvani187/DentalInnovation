@@ -63,24 +63,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             (($d['customer_type'] ?? '') !== '' ? clip($d['customer_type'], 30) : null),
             (($d['notes'] ?? '') !== '' ? clip($d['notes'], 5000) : null),
         ];
+        // auditDiff drops password / api_token by default; the customer's own contact details are
+        // the point of the trail, so they stay.
         if ($cid > 0) {
+            $before = db()->fetchOne("SELECT * FROM customers WHERE id=?", [$cid]);
             db()->execute("UPDATE customers SET name=?,email=?,phone=?,city=?,state=?,address=?,pincode=?,clinic_name=?,customer_type=?,notes=? WHERE id=?",
                 array_merge($vals, [$cid]));
-            logActivity('updated', 'customer', $cid, (string)($d['name'] ?? ''));
+            $after = db()->fetchOne("SELECT * FROM customers WHERE id=?", [$cid]);
+            logActivity('updated', 'customer', $cid, (string)($d['name'] ?? ''), auditDiff($before, $after));
             echo json_encode(['success'=>true,'message'=>'Customer updated']);
         } else {
-            db()->insert("INSERT INTO customers (name,email,phone,city,state,address,pincode,clinic_name,customer_type,notes) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            $newId = db()->insert("INSERT INTO customers (name,email,phone,city,state,address,pincode,clinic_name,customer_type,notes) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 $vals);
-            logActivity('created', 'customer', null, (string)($d['name'] ?? ''));
+            $after = db()->fetchOne("SELECT * FROM customers WHERE id=?", [(int)$newId]);
+            logActivity('created', 'customer', (int)$newId, (string)($d['name'] ?? ''), auditDiff(null, $after));
             echo json_encode(['success'=>true,'message'=>'Customer added']);
         }
     } elseif ($action === 'delete') {
         // Soft-delete: keep the row so order history stays intact; block storefront access.
-        db()->execute("UPDATE customers SET is_deleted=1, is_active=0 WHERE id=?", [(int)($data['id'] ?? 0)]);
-        logActivity('deleted', 'customer', (int)($data['id'] ?? 0));
+        $id     = (int)($data['id'] ?? 0);
+        $before = db()->fetchOne("SELECT * FROM customers WHERE id=?", [$id]);
+        db()->execute("UPDATE customers SET is_deleted=1, is_active=0 WHERE id=?", [$id]);
+        logActivity('deleted', 'customer', $id, $before['name'] ?? null, auditDiff($before, null));
         echo json_encode(['success'=>true,'message'=>'Customer deleted']);
     } elseif ($action === 'restore') {
-        db()->execute("UPDATE customers SET is_deleted=0, is_active=1 WHERE id=?", [(int)($data['id'] ?? 0)]);
+        $id     = (int)($data['id'] ?? 0);
+        $before = db()->fetchOne("SELECT id,name,is_deleted,is_active FROM customers WHERE id=?", [$id]);
+        db()->execute("UPDATE customers SET is_deleted=0, is_active=1 WHERE id=?", [$id]);
+        $after  = db()->fetchOne("SELECT id,name,is_deleted,is_active FROM customers WHERE id=?", [$id]);
+        logActivity('restored', 'customer', $id, $before['name'] ?? null, auditDiff($before, $after));
         echo json_encode(['success'=>true,'message'=>'Customer restored']);
     } elseif ($action === 'anonymize') {
         // GDPR right-to-erasure: scrub all PII but KEEP the row + order history (legal/accounting).

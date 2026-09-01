@@ -22,12 +22,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $base = max(0, (float)($d['base_cost'] ?? 0));
         $active = !empty($d['is_active']) ? 1 : 0;
         if (!empty($d['id'])) {
+            $b = auditRow('shipping_methods', (int)$d['id']);
             db()->execute("UPDATE shipping_methods SET name=?,description=?,type=?,base_cost=?,is_active=? WHERE id=?",
                 [$name,$desc,$type,$base,$active,(int)$d['id']]);
+            logActivity('updated', 'shipping_method', (int)$d['id'], $name, auditDiff($b, auditRow('shipping_methods', (int)$d['id'])));
             echo json_encode(['success'=>true,'message'=>'Shipping method updated']);
         } else {
-            db()->insert("INSERT INTO shipping_methods (name,description,type,base_cost,is_active) VALUES (?,?,?,?,?)",
+            $newId = db()->insert("INSERT INTO shipping_methods (name,description,type,base_cost,is_active) VALUES (?,?,?,?,?)",
                 [$name,$desc,$type,$base,$active]);
+            logActivity('created', 'shipping_method', (int)$newId, $name, auditDiff(null, auditRow('shipping_methods', (int)$newId)));
             echo json_encode(['success'=>true,'message'=>'Shipping method created']);
         }
     } elseif ($action === 'delete_method') {
@@ -38,10 +41,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             echo json_encode(['success'=>false,'needsConfirm'=>true,'ruleCount'=>$ruleCount,
                 'message'=>"This method has $ruleCount shipping rule(s) that will be deleted with it."]); exit;
         }
+        // Its rules cascade away with it — note how many, since they leave no other trace.
+        $b = auditRow('shipping_methods', $mid);
         db()->execute("DELETE FROM shipping_methods WHERE id=?",[$mid]);
+        logActivity('deleted', 'shipping_method', $mid, $b['name'] ?? null,
+                    auditDiff(($b ?? []) + ['cascaded_rules' => $ruleCount], null));
         echo json_encode(['success'=>true,'message'=>'Method deleted']);
     } elseif ($action === 'toggle_method') {
-        db()->execute("UPDATE shipping_methods SET is_active=NOT is_active WHERE id=?",[(int)($data['id'] ?? 0)]);
+        $id = (int)($data['id'] ?? 0); $b = auditRow('shipping_methods', $id);
+        db()->execute("UPDATE shipping_methods SET is_active=NOT is_active WHERE id=?",[$id]);
+        logActivity('toggled', 'shipping_method', $id, $b['name'] ?? null, auditDiff($b, auditRow('shipping_methods', $id)));
         echo json_encode(['success'=>true]);
     } elseif ($action === 'save_zone') {
         $d = $data;
@@ -55,13 +64,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         ))));
         $active = isset($d['is_active']) ? (!empty($d['is_active']) ? 1 : 0) : 1;
         if (!empty($d['id'])) {
+            $b = auditRow('shipping_zones', (int)$d['id']);
             db()->execute("UPDATE shipping_zones SET name=?,states=?,pincodes=?,is_active=? WHERE id=?",[$name,$states_json,$pincodes_json,$active,(int)$d['id']]);
+            logActivity('updated', 'shipping_zone', (int)$d['id'], $name, auditDiff($b, auditRow('shipping_zones', (int)$d['id'])));
         } else {
-            db()->insert("INSERT INTO shipping_zones (name,states,pincodes,is_active) VALUES (?,?,?,?)",[$name,$states_json,$pincodes_json,1]);
+            $newId = db()->insert("INSERT INTO shipping_zones (name,states,pincodes,is_active) VALUES (?,?,?,?)",[$name,$states_json,$pincodes_json,1]);
+            logActivity('created', 'shipping_zone', (int)$newId, $name, auditDiff(null, auditRow('shipping_zones', (int)$newId)));
         }
         echo json_encode(['success'=>true,'message'=>'Zone saved']);
     } elseif ($action === 'delete_zone') {
-        db()->execute("DELETE FROM shipping_zones WHERE id=?",[(int)($data['id'] ?? 0)]);
+        $id = (int)($data['id'] ?? 0); $b = auditRow('shipping_zones', $id);
+        db()->execute("DELETE FROM shipping_zones WHERE id=?",[$id]);
+        logActivity('deleted', 'shipping_zone', $id, $b['name'] ?? null, auditDiff($b, null));
         echo json_encode(['success'=>true]);
     } elseif ($action === 'save_rule') {
         $d = $data;
@@ -76,16 +90,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $isFree   = !empty($d['is_free']) ? 1 : 0;
         $cost     = $isFree ? 0 : max(0, (float)($d['cost'] ?? 0));
         $active   = isset($d['is_active']) ? (!empty($d['is_active']) ? 1 : 0) : 1;
+        $ruleLabel = $ruleType . ' rule · ' . ($isFree ? 'free' : '₹' . $cost);
         if (!empty($d['id'])) {
+            $b = auditRow('shipping_rules', (int)$d['id']);
             db()->execute("UPDATE shipping_rules SET method_id=?,zone_id=?,rule_type=?,min_value=?,max_value=?,product_class=?,cost=?,is_free=?,is_active=? WHERE id=?",
                 [$methodId,$zoneId,$ruleType,$minV,$maxV,$pclass,$cost,$isFree,$active,(int)$d['id']]);
+            logActivity('updated', 'shipping_rule', (int)$d['id'], $ruleLabel, auditDiff($b, auditRow('shipping_rules', (int)$d['id'])));
         } else {
-            db()->insert("INSERT INTO shipping_rules (method_id,zone_id,rule_type,min_value,max_value,product_class,cost,is_free,is_active) VALUES (?,?,?,?,?,?,?,?,?)",
+            $newId = db()->insert("INSERT INTO shipping_rules (method_id,zone_id,rule_type,min_value,max_value,product_class,cost,is_free,is_active) VALUES (?,?,?,?,?,?,?,?,?)",
                 [$methodId,$zoneId,$ruleType,$minV,$maxV,$pclass,$cost,$isFree,1]);
+            logActivity('created', 'shipping_rule', (int)$newId, $ruleLabel, auditDiff(null, auditRow('shipping_rules', (int)$newId)));
         }
         echo json_encode(['success'=>true,'message'=>'Rule saved']);
     } elseif ($action === 'delete_rule') {
-        db()->execute("DELETE FROM shipping_rules WHERE id=?",[(int)($data['id'] ?? 0)]);
+        $id = (int)($data['id'] ?? 0); $b = auditRow('shipping_rules', $id);
+        db()->execute("DELETE FROM shipping_rules WHERE id=?",[$id]);
+        logActivity('deleted', 'shipping_rule', $id,
+                    ($b['rule_type'] ?? '') . ' rule · ' . (!empty($b['is_free']) ? 'free' : '₹' . ($b['cost'] ?? '?')),
+                    auditDiff($b, null));
         echo json_encode(['success'=>true]);
     } elseif ($action === 'save_pincode') {
         $d = $data;
