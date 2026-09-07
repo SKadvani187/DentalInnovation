@@ -76,12 +76,13 @@ export const slugify = (s) =>
     .replace(/[^a-z0-9]+/g, "-") // any run of non-alphanumerics -> single dash
     .replace(/^-+|-+$/g, "");    // trim leading/trailing dashes
 
-// Resolve a URL slug (name-based, e.g. "radio-frequency...") back to an item in a list,
-// matching the slugified name first, then falling back to the raw code/id. Used by the
-// product / event / Q&A pages so both new name-URLs and old code-URLs resolve.
+// Resolve a URL slug back to an item in a list. The record's own slug (`id`) is tried FIRST
+// because it is unique; slugify(name) is only a fallback for links built before the list loaded,
+// and it can match several records ("… Pro" and "… Pro +" slugify identically), in which case it
+// would silently return whichever happens to come first.
 export const matchBySlug = (list, slug) =>
-  (Array.isArray(list) ? list : []).find((x) => x && slugify(x.name) === slug) ||
   (Array.isArray(list) ? list : []).find((x) => x && String(x.id) === String(slug)) ||
+  (Array.isArray(list) ? list : []).find((x) => x && slugify(x.name) === slug) ||
   null;
 
 // Build a query string from a plain object, skipping null/undefined/empty values.
@@ -102,10 +103,14 @@ export function to(name, params = null) {
   const base = BASE_PATH[name];
   if (!base) return "/";
 
-  // Prefer a readable name-slug in the URL; fall back to the raw code/id when no name is
-  // available (e.g. admin banner links before the product list has loaded). Both forms
-  // resolve at the destination via matchBySlug().
-  const nameOrCode = () => (p.name ? slugify(p.name) : p.id != null ? seg(p.id) : null);
+  // Prefer the record's own slug (the API sends it as `id`): it is generated from the name, so
+  // it is just as readable, AND it is unique — the DB guarantees it.
+  //
+  // slugify(name) is NOT unique: "Matrix Master Ring Pro" and "Matrix Master Ring Pro +" both
+  // collapse to "matrix-master-ring-pro", so the two cards linked to the same URL and the "+"
+  // one opened its namesake. Only fall back to the name when no id is available (e.g. an admin
+  // banner link built before the list has loaded); matchBySlug() still resolves that form.
+  const nameOrCode = () => (p.id != null && p.id !== "" ? seg(p.id) : p.name ? slugify(p.name) : null);
 
   switch (name) {
     case "product": {
