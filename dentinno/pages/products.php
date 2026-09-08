@@ -10,6 +10,27 @@ requireView('products');   // RBAC: block direct access if the role can't view t
  * but stripping dangerous markup at the write boundary blocks stored XSS even if a
  * future consumer renders the field unsanitized. Returns null for empty input.
  */
+/**
+ * Normalise any YouTube link to its embed form, so the storefront can drop it straight into an
+ * iframe. Admins paste whatever the browser gave them — watch?v=, youtu.be/, /shorts/, or an
+ * already-embed URL — and all four carry the same 11-character video id.
+ * Returns null for blank input or anything that isn't recognisably YouTube.
+ */
+function normalizeYoutubeUrl($url): ?string {
+    $url = trim((string)$url);
+    if ($url === '') return null;
+    $patterns = [
+        '~youtube\.com/watch\?(?:.*&)?v=([A-Za-z0-9_-]{11})~i',
+        '~youtu\.be/([A-Za-z0-9_-]{11})~i',
+        '~youtube\.com/embed/([A-Za-z0-9_-]{11})~i',
+        '~youtube\.com/shorts/([A-Za-z0-9_-]{11})~i',
+    ];
+    foreach ($patterns as $re) {
+        if (preg_match($re, $url, $m)) return 'https://www.youtube.com/embed/' . $m[1];
+    }
+    return null;   // not a YouTube link -> store nothing rather than a URL that can't embed
+}
+
 function sanitizeRichHtml($html) {
     if ($html === null) return null;
     $html = (string)$html;
@@ -166,6 +187,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             if ($dupes) { echo json_encode(['success'=>false,'message'=>'Two variants share the SKU "' . $dupes[0] . '". Give each option its own code, or leave it blank.']); exit; }
         }
 
+        // Product video. Reject a non-YouTube link instead of dropping it silently — the admin
+        // would otherwise save, see the field empty on reload, and not know why.
+        $youtubeRaw = trim((string)($d['youtube_video_url'] ?? ''));
+        $youtubeUrl = normalizeYoutubeUrl($youtubeRaw);
+        if ($youtubeRaw !== '' && $youtubeUrl === null) {
+            echo json_encode(['success'=>false,'message'=>'That does not look like a YouTube link. Use a watch, youtu.be, shorts or embed URL.']); exit;
+        }
+
         // Slug: admin-editable, falls back to the name; guaranteed unique (UNIQUE column).
         $selfId   = (int)($d['id'] ?? 0);
 
@@ -223,7 +252,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $costPrice = (isset($d['cost_price']) && is_numeric($d['cost_price']) && $d['cost_price'] !== '') ? max(0,(float)$d['cost_price']) : null;
             $hsn = (isset($d['hsn_code']) && trim((string)$d['hsn_code']) !== '') ? clip(trim((string)$d['hsn_code']), 12) : null;
             // $sku is resolved above (admin value, else the existing one, else generated on create).
-            db()->execute("UPDATE products SET cost_price=?, hsn_code=?, sku=COALESCE(?, sku) WHERE id=?", [$costPrice, $hsn, $sku, (int)$pid]);
+            db()->execute("UPDATE products SET cost_price=?, hsn_code=?, sku=COALESCE(?, sku), youtube_video_url=? WHERE id=?",
+                          [$costPrice, $hsn, $sku, $youtubeUrl, (int)$pid]);
             // Diff against the pre-save snapshot. Read AFTER the cost/hsn/sku update above so the
             // audit reflects the finished row, not a half-saved one.
             $afterRow = db()->fetchOne("SELECT * FROM products WHERE id=?", [(int)$pid]);
@@ -758,6 +788,12 @@ include __DIR__ . '/../includes/header.php';
               <button type="button" class="btn btn-ghost btn-sm" id="catalogue_clear" style="display:none;" onclick="clearCatalogue()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
             </div>
             <input type="file" id="catalogueInput" accept="application/pdf" style="display:none" onchange="uploadCatalogue(this.files[0])">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Product Video <small class="text-muted">(YouTube link — appears as the last thumbnail in the product gallery)</small></label>
+            <input type="url" class="form-control" id="prod_youtube_url" maxlength="500"
+                   placeholder="https://www.youtube.com/watch?v=… or https://youtu.be/…">
+            <small class="text-muted" style="font-size:.75rem;">Paste any YouTube link — watch, share (youtu.be) or embed. Leave blank for no video.</small>
           </div>
           <div class="form-group" style="border-top:1px solid var(--border-color);padding-top:14px;margin-top:6px;">
             <label class="form-label" style="margin-bottom:10px;">Key Specifications <small class="text-muted">(key : value rows — shown in the product Specifications accordion)</small></label>
@@ -1324,6 +1360,7 @@ function openProductModal(p=null){
   document.getElementById('prod_warranty_no').value=p?.warranty_no||'';
   document.getElementById('prod_direction_of_use').value=p?.direction_of_use||'';
   setCatalogueUI(p?.catalogue_url||'');
+  document.getElementById('prod_youtube_url').value=p?.youtube_video_url||'';
   // SEO fields
   document.getElementById('prod_slug').value=p?.slug||'';
   document.getElementById('prod_meta_title').value=p?.meta_title||'';
@@ -1440,6 +1477,7 @@ async function saveProduct(){
     warranty_no:document.getElementById('prod_warranty_no').value,
     direction_of_use:document.getElementById('prod_direction_of_use').value,
     catalogue_url:document.getElementById('prod_catalogue_url').value,
+    youtube_video_url:document.getElementById('prod_youtube_url').value,
     cost_price:document.getElementById('prod_cost').value,
     hsn_code:document.getElementById('prod_hsn').value,
     sku:document.getElementById('prod_sku').value,

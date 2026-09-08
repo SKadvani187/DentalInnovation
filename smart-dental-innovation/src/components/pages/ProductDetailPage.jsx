@@ -667,23 +667,27 @@ function ProductGallery({ product, wished, onWish, images: imagesProp }) {
   const [zoom, setZoom] = useState(null);
   const [hovering, setHovering] = useState(false);
   const [panelRect, setPanelRect] = useState(null);
+  // The product video plays IN the gallery, like the reference catalogue — not in a new tab.
+  const [playingVideo, setPlayingVideo] = useState(false);
 
   const current = images[idx] || product.image;
   const prev = () => { setIdx((i) => (i - 1 + images.length) % images.length); setZoom(null); setHovering(false); };
   const next = () => { setIdx((i) => (i + 1) % images.length); setZoom(null); setHovering(false); };
 
   // Back to the first frame on a new product AND on a variant switch, so the gallery never opens
-  // on an index the new image set doesn't have.
-  useEffect(() => { setIdx(0); setZoom(null); }, [product.id, images.join("|")]);
+  // on an index the new image set doesn't have. A switch also stops the video: it belongs to the
+  // product, and leaving it playing over another option's images reads as that option's video.
+  useEffect(() => { setIdx(0); setZoom(null); setPlayingVideo(false); }, [product.id, images.join("|")]);
 
   useEffect(() => {
+    if (playingVideo) return;      // don't rotate images out from under a playing video
     if (images.length <= 1) return;
     if (hovering) return;
     const t = setInterval(() => {
       setIdx((i) => (i + 1) % images.length);
     }, 3000);
     return () => clearInterval(t);
-  }, [images.length, hovering, product.id]);
+  }, [images.length, hovering, product.id, playingVideo]);
 
   const onMove = (e) => {
     if (!hovering) return;
@@ -718,7 +722,26 @@ function ProductGallery({ product, wished, onWish, images: imagesProp }) {
           </svg>
         </button>
 
-        {images.length > 1 && (
+        {playingVideo && product.videoUrl && (
+          <div className="absolute inset-0 z-30 bg-black rounded-xl overflow-hidden">
+            <iframe
+              src={`${product.videoUrl}?autoplay=1&rel=0`}
+              title={`${product.name} video`}
+              className="w-full h-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+            <button
+              onClick={() => setPlayingVideo(false)}
+              aria-label="Close video"
+              className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/90 hover:bg-white shadow flex items-center justify-center"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2.4"><path d="M6 6l12 12M18 6L6 18" /></svg>
+            </button>
+          </div>
+        )}
+
+        {images.length > 1 && !playingVideo && (
           <>
             <button
               onClick={prev}
@@ -805,8 +828,8 @@ function ProductGallery({ product, wished, onWish, images: imagesProp }) {
           ))}
           {product.videoUrl && (
             <button
-              onClick={() => window.open(product.videoUrl, "_blank")}
-              className="relative w-full aspect-square bg-black rounded-md overflow-hidden border-2 border-gray-200 hover:border-[#3684bf]"
+              onClick={() => setPlayingVideo(true)}
+              className={`relative w-full aspect-square bg-black rounded-md overflow-hidden border-2 transition ${playingVideo ? "border-[#3684bf]" : "border-gray-200 hover:border-[#3684bf]"}`}
               aria-label="Play video"
             >
               {product.videoThumb && (
