@@ -28,6 +28,33 @@ function jsonOut($data, int $code = 200): void {
     echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     exit;
 }
+
+/**
+ * Send the JSON response NOW, close the client connection, and keep the script running.
+ *
+ * For work the caller must not wait on — order confirmation email (a Gmail SMTP handshake costs
+ * ~5s per message) and WhatsApp. Those used to run before the response, so placing an order took
+ * ~10s while the customer stared at a spinner.
+ *
+ * Returns so the caller can continue; the caller must exit when done.
+ */
+function jsonOutThenContinue($data, int $code = 200): void {
+    ignore_user_abort(true);          // finish the follow-up work even though the client is gone
+    set_time_limit(120);
+    $body = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    http_response_code($code);
+    header('Content-Type: application/json');
+    header('Content-Length: ' . strlen($body));
+    header('Connection: close');
+    echo $body;
+    // php-fpm can hand the connection back explicitly; mod_php needs the buffers flushed instead.
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    } else {
+        while (ob_get_level() > 0) { @ob_end_flush(); }
+        @flush();
+    }
+}
 function jsonErr(string $msg, int $code = 400): void {
     jsonOut(['success' => false, 'error' => $msg], $code);
 }

@@ -41,20 +41,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         if (empty($d['end_date']))   { $d['end_date'] = $d['start_date']; }
         if (!empty($d['contact_email']) && !filter_var($d['contact_email'], FILTER_VALIDATE_EMAIL)) { echo json_encode(['success'=>false,'message'=>'Enter a valid contact email']); exit; }
         if (!empty($d['id'])) {
+            $b = auditRow('events', (int)$d['id']);
             db()->execute("UPDATE events SET title=?,description=?,event_type=?,status=?,start_date=?,end_date=?,venue=?,city=?,state=?,is_online=?,online_link=?,max_attendees=?,registration_fee=?,is_free=?,organizer=?,contact_email=?,contact_phone=?,tags=? WHERE id=?",
                 [$title,$desc,$eventType,$status,$start,$end,$venue,$city,$state,$is_online,$link,$maxAtt,$fee,$is_free,$organizer,$email,$phone,$tags_json,(int)$d['id']]);
+            logActivity('updated', 'event', (int)$d['id'], $title, auditDiff($b, auditRow('events', (int)$d['id'])));
         } else {
             $slug = generateSlug($title) . '-' . time();
-            db()->insert("INSERT INTO events (title,slug,description,event_type,status,start_date,end_date,venue,city,state,is_online,online_link,max_attendees,registration_fee,is_free,organizer,contact_email,contact_phone,tags) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            $newId = db()->insert("INSERT INTO events (title,slug,description,event_type,status,start_date,end_date,venue,city,state,is_online,online_link,max_attendees,registration_fee,is_free,organizer,contact_email,contact_phone,tags) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 [$title,$slug,$desc,$eventType,$status,$start,$end,$venue,$city,$state,$is_online,$link,$maxAtt,$fee,$is_free,$organizer,$email,$phone,$tags_json]);
+            logActivity('created', 'event', (int)$newId, $title, auditDiff(null, auditRow('events', (int)$newId)));
         }
         echo json_encode(['success'=>true,'message'=>'Event saved']);
     } elseif ($action === 'delete') {
         // Soft-delete: keep the event + its registrations (paid attendee data) so it can be restored.
-        db()->execute("UPDATE events SET is_deleted=1 WHERE id=?",[(int)($data['id'] ?? 0)]);
+        $id = (int)($data['id'] ?? 0); $b = auditRow('events', $id);
+        db()->execute("UPDATE events SET is_deleted=1 WHERE id=?",[$id]);
+        logActivity('deleted', 'event', $id, $b['title'] ?? null, auditDiff($b, null));
         echo json_encode(['success'=>true,'message'=>'Event deleted']);
     } elseif ($action === 'restore') {
-        db()->execute("UPDATE events SET is_deleted=0 WHERE id=?",[(int)($data['id'] ?? 0)]);
+        $id = (int)($data['id'] ?? 0); $b = auditRow('events', $id);
+        db()->execute("UPDATE events SET is_deleted=0 WHERE id=?",[$id]);
+        logActivity('restored', 'event', $id, $b['title'] ?? null, auditDiff($b, auditRow('events', $id)));
         echo json_encode(['success'=>true,'message'=>'Event restored']);
     } elseif ($action === 'bulk') {
         $ids = array_values(array_filter(array_map('intval', (array)($data['ids'] ?? []))));

@@ -140,6 +140,9 @@ foreach ($nav as $group => $navPages):
                         <span>Notifications</span>
                         <a href="#" onclick="markAllNotifs(event)">Mark all read</a>
                     </div>
+                    <!-- Only the list scrolls, so the header (and "Mark all read") stays reachable
+                         however many notifications there are. -->
+                    <div class="notif-list">
                     <?php foreach($navBadges['notifications'] as $notif): ?>
                     <div class="notif-item notif-<?= $notif['type'] ?>" data-nid="<?= (int)$notif['id'] ?>" onclick="markNotif(this)" style="cursor:pointer;">
                         <div class="notif-icon">
@@ -158,6 +161,7 @@ foreach ($nav as $group => $navPages):
                     <?php if(empty($navBadges['notifications'])): ?>
                     <div class="notif-empty">No new notifications</div>
                     <?php endif; ?>
+                    </div>
                 </div>
             </div>
             <script>

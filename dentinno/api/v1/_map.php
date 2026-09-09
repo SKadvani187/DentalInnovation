@@ -51,6 +51,13 @@ function mapProduct(array $r): array {
         'warrantyNo'  => $r['warranty_no'] ?? null,
         'directionOfUse' => $r['direction_of_use'] ?? null,
         'catalogueUrl' => $r['catalogue_url'] ?? null,
+        // Product video. Stored already normalised to an embed URL, so the gallery can iframe it
+        // directly; the poster comes free from YouTube's own thumbnail host, keyed on the video id.
+        'videoUrl'   => $r['youtube_video_url'] ?? null,
+        'videoThumb' => (function ($u) {
+            return (is_string($u) && preg_match('~/embed/([A-Za-z0-9_-]{11})~', $u, $m))
+                ? 'https://img.youtube.com/vi/' . $m[1] . '/hqdefault.jpg' : null;
+        })($r['youtube_video_url'] ?? null),
         'variants'    => jcol($r['variants'] ?? null, []),
         'bulkOffers'  => jcol($r['bulk_offers'] ?? null, []),   // per-product quantity tiers (override global)
         'highlights'  => $highlights,

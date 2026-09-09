@@ -19,6 +19,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     $in    = is_array($d['perms'] ?? null) ? $d['perms'] : [];
     $pages = db()->fetchAll("SELECT * FROM page_registry WHERE is_super_only=0");   // configurable pages only
 
+    // One grant string per page ("orders:view/edit"), so the audit diff reads as a permission
+    // matrix rather than a wall of 0/1 columns. Captured before AND after the write.
+    $permSnapshot = function (int $rid): array {
+        $rows = db()->fetchAll(
+            "SELECT p.page_key, rp.can_view, rp.can_create, rp.can_edit, rp.can_delete
+               FROM page_registry p LEFT JOIN role_permissions rp ON rp.page_id = p.id AND rp.role_id = ?
+              WHERE p.is_super_only = 0 ORDER BY p.page_key", [$rid]);
+        $out = [];
+        foreach ($rows as $r) {
+            $v = array_keys(array_filter(['view'=>$r['can_view'],'create'=>$r['can_create'],'edit'=>$r['can_edit'],'delete'=>$r['can_delete']]));
+            $out[$r['page_key']] = $v ? implode('/', $v) : 'no access';
+        }
+        return $out;
+    };
+    $permsBefore = $permSnapshot($roleId);
+
     $pdo = db()->getConnection();
     $pdo->beginTransaction();
     try {
@@ -44,6 +60,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         echo json_encode(['success'=>false,'message'=>(defined('APP_DEBUG') && APP_DEBUG) ? $e->getMessage() : 'Server error. Please try again.']);
         exit;
     }
+    logActivity('updated', 'permissions', $roleId, 'Role: ' . $role['name'],
+                auditDiff($permsBefore, $permSnapshot($roleId)));
     rbacBumpVersion();   // active sessions of this role pick up the change on their next request
     echo json_encode(['success'=>true,'message'=>'Permissions saved for ' . $role['name']]);
     exit;

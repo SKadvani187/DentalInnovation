@@ -315,14 +315,30 @@ input, select, textarea, button { font-family: inherit; }
     z-index: 200;
     display: none;
     overflow: hidden;
+    /* Never grow past the viewport: the panel hangs from the top bar, so cap it at what is left
+       below and let .notif-list scroll. Without this a long list ran off-screen with no way to
+       reach the items at the bottom. */
+    max-height: calc(100vh - 90px);
 }
-.notif-dropdown.open { display: block; }
+.notif-dropdown.open { display: flex; flex-direction: column; }
 .notif-header {
     display: flex; justify-content: space-between; align-items: center;
     padding: 14px 16px;
     border-bottom: 1px solid var(--border-color);
     font-weight: 600; font-size: 0.9rem;
+    flex: 0 0 auto;                 /* header stays put while the list scrolls */
 }
+.notif-list {
+    overflow-y: auto;
+    overscroll-behavior: contain;   /* stop the page scrolling once the list hits its end */
+    flex: 1 1 auto;
+    min-height: 0;                  /* required for a flex child to actually scroll */
+}
+.notif-list::-webkit-scrollbar { width: 8px; }
+.notif-list::-webkit-scrollbar-thumb {
+    background: var(--border-color); border-radius: 4px;
+}
+.notif-list::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 .notif-header a { color: var(--gold-primary); font-size: 0.78rem; font-weight: 500; }
 
 .notif-item {

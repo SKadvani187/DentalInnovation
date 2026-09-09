@@ -43,20 +43,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         if ($dupe) { echo json_encode(['success'=>false,'message'=>'A coupon with this code already exists.']); exit; }
 
         if (!empty($d['id'])) {
+            $before = db()->fetchOne("SELECT * FROM coupons WHERE id=?", [(int)$d['id']]);
             db()->execute("UPDATE coupons SET code=?,type=?,value=?,min_order=?,max_discount=?,uses_limit=?,per_user_limit=?,is_active=?,start_date=?,expires_at=? WHERE id=?",
                 [$code,$d['type'],$d['value'],($d['min_order'] ?? 0),(($d['max_discount'] ?? '')?:null),(($d['uses_limit'] ?? '')?:null),$perUser,($d['is_active'] ?? 1),$startDate,$expires,$d['id']]);
-            logActivity('updated', 'coupon', (int)$d['id'], $code.' · '.$d['type'].' '.$d['value']);
+            $after = db()->fetchOne("SELECT * FROM coupons WHERE id=?", [(int)$d['id']]);
+            logActivity('updated', 'coupon', (int)$d['id'], $code.' · '.$d['type'].' '.$d['value'], auditDiff($before, $after));
             echo json_encode(['success'=>true,'message'=>'Coupon updated']);
         } else {
-            db()->insert("INSERT INTO coupons (code,type,value,min_order,max_discount,uses_limit,per_user_limit,is_active,start_date,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            $newId = db()->insert("INSERT INTO coupons (code,type,value,min_order,max_discount,uses_limit,per_user_limit,is_active,start_date,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 [$code,$d['type'],$d['value'],($d['min_order'] ?? 0),(($d['max_discount'] ?? '')?:null),(($d['uses_limit'] ?? '')?:null),$perUser,($d['is_active'] ?? 1),$startDate,$expires]);
-            logActivity('created', 'coupon', null, $code.' · '.$d['type'].' '.$d['value']);
+            $after = db()->fetchOne("SELECT * FROM coupons WHERE id=?", [(int)$newId]);
+            logActivity('created', 'coupon', (int)$newId, $code.' · '.$d['type'].' '.$d['value'], auditDiff(null, $after));
             echo json_encode(['success'=>true,'message'=>'Coupon created']);
         }
     } elseif ($action === 'delete') {
         // Soft-delete: keep the row so order history / redemptions / analytics stay intact.
-        db()->execute("UPDATE coupons SET is_deleted=1, is_active=0 WHERE id=?", [(int)($data['id'] ?? 0)]);
-        logActivity('deleted', 'coupon', (int)($data['id'] ?? 0));
+        $cid    = (int)($data['id'] ?? 0);
+        $before = db()->fetchOne("SELECT * FROM coupons WHERE id=?", [$cid]);
+        db()->execute("UPDATE coupons SET is_deleted=1, is_active=0 WHERE id=?", [$cid]);
+        logActivity('deleted', 'coupon', $cid, $before['code'] ?? null, auditDiff($before, null));
         echo json_encode(['success'=>true,'message'=>'Coupon deleted']);
     } elseif ($action === 'restore') {
         db()->execute("UPDATE coupons SET is_deleted=0 WHERE id=?", [(int)($data['id'] ?? 0)]);

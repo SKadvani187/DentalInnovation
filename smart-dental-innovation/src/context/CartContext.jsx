@@ -14,6 +14,35 @@ function capToStock(qty, stock) {
   return (typeof stock === "number" && stock > 0) ? Math.min(qty, stock) : qty;
 }
 
+/**
+ * A product sold in several options can only be ordered AS one of them — the order API rejects a
+ * variant-less line for it. Plenty of entry points add straight from a product card (category
+ * grid, "You May Also Like", wishlist, search) where no option was ever chosen, and that line then
+ * looks fine in the cart and fails at the payment step with "Please choose an option".
+ *
+ * So default to the first option that is actually in stock and adopt its price — the same option
+ * the product page pre-selects. A single-option product needs nothing: the order API resolves that
+ * one on its own.
+ */
+function withDefaultVariant(product, variant) {
+  if (variant) return { product, variant };
+  const list = Array.isArray(product?.variants)
+    ? product.variants.filter((v) => v && typeof v === "object" && v.label)
+    : [];
+  if (list.length < 2) return { product, variant };
+  const inStock = list.filter((v) => v.qty === null || v.qty === undefined || v.qty > 0);
+  const pick = inStock[0] || list[0];
+  return {
+    product: {
+      ...product,
+      price: pick.price ?? product.price,
+      mrp: pick.mrp ?? product.mrp,
+      stock: pick.qty ?? product.stock,
+    },
+    variant: pick.label,
+  };
+}
+
 export function CartProvider({ children }) {
   const [items, setItems] = useLocalStorage("sdi:cart", []);
   const { token } = useAuth();
@@ -137,7 +166,44 @@ export function CartProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productSlugs]);
 
-  const addToCart = useCallback((product, qty = 1, variant = null) => {
+  // Repair carts saved before an option became required. A stored line with no variant, for a
+  // product sold in several options, can no longer be ordered — it would only fail at the payment
+  // step. Give it the same default the cart now applies on add, so an old cart (local or synced
+  // from the server on login) still checks out.
+  const variantsRepaired = useRef(false);
+  useEffect(() => {
+    if (variantsRepaired.current) return;
+    const suspect = items.some((i) => (i.type || "product") === "product" && !i.variant);
+    if (!suspect) return;
+    variantsRepaired.current = true;
+    // No abort flag here on purpose: under StrictMode the effect mounts twice, and cancelling the
+    // first run's fetch would drop the only repair — the ref guard already blocks the second run
+    // from starting another. The update below is idempotent, so a late arrival is harmless.
+    api.products()
+      .then((rows) => {
+        const bySlug = new Map((Array.isArray(rows) ? rows : []).map((p) => [p.id, p]));
+        setItems((prev) => {
+          let changed = false;
+          const next = prev.map((i) => {
+            if ((i.type || "product") !== "product" || i.variant) return i;
+            const p = bySlug.get(i.id);
+            if (!p) return i;
+            const { product, variant } = withDefaultVariant(p, null);
+            if (!variant) return i;
+            changed = true;
+            return { ...i, key: `${i.id}::${variant}`, variant,
+                     price: product.price, mrp: product.mrp, stock: product.stock,
+                     qty: capToStock(i.qty, product.stock) };
+          });
+          return changed ? next : prev;
+        });
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items.length]);
+
+  const addToCart = useCallback((productIn, qty = 1, variantIn = null) => {
+    const { product, variant } = withDefaultVariant(productIn, variantIn);
     setItems((prev) => {
       // Offer/gift lines are keyed by type+offer so they never merge with a normal line
       // for the same product, or with the same product across two different offers.

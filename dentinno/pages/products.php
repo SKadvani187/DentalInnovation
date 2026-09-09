@@ -10,6 +10,27 @@ requireView('products');   // RBAC: block direct access if the role can't view t
  * but stripping dangerous markup at the write boundary blocks stored XSS even if a
  * future consumer renders the field unsanitized. Returns null for empty input.
  */
+/**
+ * Normalise any YouTube link to its embed form, so the storefront can drop it straight into an
+ * iframe. Admins paste whatever the browser gave them — watch?v=, youtu.be/, /shorts/, or an
+ * already-embed URL — and all four carry the same 11-character video id.
+ * Returns null for blank input or anything that isn't recognisably YouTube.
+ */
+function normalizeYoutubeUrl($url): ?string {
+    $url = trim((string)$url);
+    if ($url === '') return null;
+    $patterns = [
+        '~youtube\.com/watch\?(?:.*&)?v=([A-Za-z0-9_-]{11})~i',
+        '~youtu\.be/([A-Za-z0-9_-]{11})~i',
+        '~youtube\.com/embed/([A-Za-z0-9_-]{11})~i',
+        '~youtube\.com/shorts/([A-Za-z0-9_-]{11})~i',
+    ];
+    foreach ($patterns as $re) {
+        if (preg_match($re, $url, $m)) return 'https://www.youtube.com/embed/' . $m[1];
+    }
+    return null;   // not a YouTube link -> store nothing rather than a URL that can't embed
+}
+
 function sanitizeRichHtml($html) {
     if ($html === null) return null;
     $html = (string)$html;
@@ -39,16 +60,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
 
     if ($action === 'delete') {
         // Soft-delete: keep the row so order history / invoices stay intact; hide it everywhere.
-        db()->execute("UPDATE products SET is_deleted = 1, is_active = 0 WHERE id = ?", [(int)($data['id'] ?? 0)]);
-        logActivity('deleted', 'product', (int)($data['id'] ?? 0));
+        // The audit keeps the whole row as it was — a deleted product's details are otherwise
+        // only recoverable from a DB backup.
+        $pid    = (int)($data['id'] ?? 0);
+        $before = db()->fetchOne("SELECT * FROM products WHERE id = ?", [$pid]);
+        db()->execute("UPDATE products SET is_deleted = 1, is_active = 0 WHERE id = ?", [$pid]);
+        logActivity('deleted', 'product', $pid, $before['name'] ?? null, auditDiff($before, null));
         echo json_encode(['success' => true, 'message' => 'Product deleted']);
     } elseif ($action === 'restore') {
-        db()->execute("UPDATE products SET is_deleted = 0 WHERE id = ?", [(int)($data['id'] ?? 0)]);
-        logActivity('restored', 'product', (int)($data['id'] ?? 0));
+        $pid    = (int)($data['id'] ?? 0);
+        $before = db()->fetchOne("SELECT id,name,is_deleted FROM products WHERE id = ?", [$pid]);
+        db()->execute("UPDATE products SET is_deleted = 0 WHERE id = ?", [$pid]);
+        $after  = db()->fetchOne("SELECT id,name,is_deleted FROM products WHERE id = ?", [$pid]);
+        logActivity('restored', 'product', $pid, $before['name'] ?? null, auditDiff($before, $after));
         echo json_encode(['success' => true, 'message' => 'Product restored']);
     } elseif ($action === 'toggle') {
+        $pid    = (int)($data['id'] ?? 0);
+        $before = db()->fetchOne("SELECT id,name,is_active FROM products WHERE id = ?", [$pid]);
         db()->execute("UPDATE products SET is_active = NOT is_active WHERE id = ?", [$data['id']]);
-        logActivity('toggled', 'product', (int)($data['id'] ?? 0));
+        $after  = db()->fetchOne("SELECT id,name,is_active FROM products WHERE id = ?", [$pid]);
+        logActivity('toggled', 'product', $pid, $before['name'] ?? null, auditDiff($before, $after));
         echo json_encode(['success' => true, 'message' => 'Status updated']);
     } elseif ($action === 'adjust_stock') {
         // Manual stock adjustment with a reason — logged to the inventory ledger.
@@ -106,7 +137,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 if ($vl === '' || $vp <= 0) continue;
                 if ($vm < $vp) $vm = $vp;
                 $vq = (isset($v['qty']) && $v['qty'] !== '' && $v['qty'] !== null) ? max(0, (int)$v['qty']) : null;
-                $clean[$vl] = ['label'=>$vl, 'price'=>$vp, 'mrp'=>$vm, 'discount'=> $vm > 0 ? (int)round((($vm - $vp) / $vm) * 100) : 0, 'qty'=>$vq];
+                $vsku = trim((string)($v['sku'] ?? ''));
+                // Per-variant images are a SUBSET of this product's own images — anything else
+                // would let a stale/foreign URL into the gallery.
+                $vimg = [];
+                if (!empty($v['images']) && is_array($v['images']) && !empty($d['images']) && is_array($d['images'])) {
+                    $vimg = array_values(array_intersect($v['images'], $d['images']));
+                }
+                $clean[$vl] = [
+                    'label'    => $vl,
+                    'price'    => $vp,
+                    'mrp'      => $vm,
+                    'discount' => $vm > 0 ? (int)round((($vm - $vp) / $vm) * 100) : 0,
+                    'qty'      => $vq,
+                    'sku'      => $vsku !== '' ? clip($vsku, 60) : null,
+                    'images'   => $vimg,
+                ];
             }
             $clean = array_values($clean);
             $variants = $clean ? json_encode($clean) : null;
@@ -133,8 +179,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $bulkOffers = $clean ? json_encode(array_values($clean)) : null;
         }
 
+        // Variant SKUs must not collide inside one product — two options sharing a stock code
+        // makes a purchase order or a physical count ambiguous.
+        if ($variants !== null) {
+            $vskus = array_filter(array_column(json_decode($variants, true), 'sku'), fn($s) => $s !== null && $s !== '');
+            $dupes = array_keys(array_filter(array_count_values(array_map('strtoupper', $vskus)), fn($n) => $n > 1));
+            if ($dupes) { echo json_encode(['success'=>false,'message'=>'Two variants share the SKU "' . $dupes[0] . '". Give each option its own code, or leave it blank.']); exit; }
+        }
+
+        // Product video. Reject a non-YouTube link instead of dropping it silently — the admin
+        // would otherwise save, see the field empty on reload, and not know why.
+        $youtubeRaw = trim((string)($d['youtube_video_url'] ?? ''));
+        $youtubeUrl = normalizeYoutubeUrl($youtubeRaw);
+        if ($youtubeRaw !== '' && $youtubeUrl === null) {
+            echo json_encode(['success'=>false,'message'=>'That does not look like a YouTube link. Use a watch, youtu.be, shorts or embed URL.']); exit;
+        }
+
         // Slug: admin-editable, falls back to the name; guaranteed unique (UNIQUE column).
         $selfId   = (int)($d['id'] ?? 0);
+
+        // SKU: admin-editable. Blank keeps the existing one on edit, or generates one on create.
+        // The column is UNIQUE, so check here to answer with a readable message instead of letting
+        // a raw duplicate-key error reach the UI.
+        $sku = trim((string)($d['sku'] ?? ''));
+        if ($sku !== '') {
+            $sku = clip(preg_replace('/\s+/', ' ', $sku), 100);
+            if (db()->fetchOne("SELECT id FROM products WHERE sku=? AND id<>?", [$sku, $selfId])) {
+                echo json_encode(['success'=>false,'message'=>'SKU "' . $sku . '" is already used by another product.']); exit;
+            }
+        } else {
+            $sku = $selfId
+                ? (db()->fetchOne("SELECT sku FROM products WHERE id=?", [$selfId])['sku'] ?? null)
+                : null;   // create: generated below, once the name is final
+        }
         $slug     = generateSlug(trim((string)($d['slug'] ?? '')) !== '' ? $d['slug'] : $name) ?: 'product';
         $slugBase = $slug; $n = 1;
         while (db()->fetchOne("SELECT id FROM products WHERE slug=? AND id<>?", [$slug, $selfId])) { $slug = $slugBase . '-' . (++$n); }
@@ -147,9 +224,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         if ($variantQtySum !== null) $stock = $variantQtySum;
         $minStock  = max(0, (int)($d['min_stock_alert'] ?? 5));   // low-stock alert threshold
 
+        $beforeRow = null;   // the row as it was, for the audit diff (null on create)
         if (!empty($d['id'])) {
-            // Capture old stock so a stock change via the edit form is recorded in the ledger.
-            $oldStock = (int)(db()->fetchOne("SELECT stock FROM products WHERE id=?", [(int)$d['id']])['stock'] ?? $stock);
+            // Snapshot the whole row first: it feeds both the inventory ledger (old stock) and the
+            // audit trail's before/after.
+            $beforeRow = db()->fetchOne("SELECT * FROM products WHERE id=?", [(int)$d['id']]);
+            $oldStock  = (int)($beforeRow['stock'] ?? $stock);
             db()->execute("UPDATE products SET name=?,slug=?,meta_title=?,meta_description=?,category_id=?,price=?,discount_price=?,discount_percent=?,stock=?,min_stock_alert=?,short_description=?,full_description=?,features=?,packing_info=?,key_specifications=?,directions_for_use=?,additional_information=?,warranty_info=?,key_features=?,warranty_no=?,direction_of_use=?,catalogue_url=?,images=?,hover_image=?,variants=?,bulk_offers=?,weight_kg=?,shipping_method_id=?,is_active=?,is_featured=?,is_new=? WHERE id=?",
                 [$name,$slug,$metaTitle,$metaDesc,($d['category_id'] ?? '')?:null,$price,$disc_price,$disc_pct,$stock,$minStock,($d['short_description']??null),($d['full_description']??null),$features,($d['packing_info']??null),$key_specs,($d['directions_for_use']??null),($d['additional_information']??null),($d['warranty_info']??null),($d['key_features'] ?? '')?:null,($d['warranty_no'] ?? '')?:null,($d['direction_of_use'] ?? '')?:null,($d['catalogue_url'] ?? '')?:null,$images_json,$hover_image,$variants,$bulkOffers,($d['weight_kg'] ?? '')?:null,(!empty($d['shipping_method_id'])?(int)$d['shipping_method_id']:null),$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0,$d['id']]);
             $pid = $d['id'];
@@ -158,7 +238,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             }
             $saveMsg = 'Product updated';
         } else {
-            $sku  = 'SKU-' . strtoupper(substr(md5($name . microtime()), 0, 6));
+            // Fall back to a generated code only when the admin left the field blank.
+            $sku = $sku ?: 'SKU-' . strtoupper(substr(md5($name . microtime()), 0, 6));
             $pid = db()->insert("INSERT INTO products (name,slug,meta_title,meta_description,sku,category_id,price,discount_price,discount_percent,stock,min_stock_alert,short_description,full_description,features,packing_info,key_specifications,directions_for_use,additional_information,warranty_info,key_features,warranty_no,direction_of_use,catalogue_url,images,hover_image,variants,bulk_offers,weight_kg,shipping_method_id,is_active,is_featured,is_new) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 [$name,$slug,$metaTitle,$metaDesc,$sku,($d['category_id'] ?? '')?:null,$price,$disc_price,$disc_pct,$stock,$minStock,($d['short_description']??null),($d['full_description']??null),$features,($d['packing_info']??null),$key_specs,($d['directions_for_use']??null),($d['additional_information']??null),($d['warranty_info']??null),($d['key_features'] ?? '')?:null,($d['warranty_no'] ?? '')?:null,($d['direction_of_use'] ?? '')?:null,($d['catalogue_url'] ?? '')?:null,$images_json,$hover_image,$variants,$bulkOffers,($d['weight_kg'] ?? '')?:null,(!empty($d['shipping_method_id'])?(int)$d['shipping_method_id']:null),$d['is_active']??1,$d['is_featured']??0,$d['is_new']??0]);
             if ((int)$stock !== 0) {
@@ -170,8 +251,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         if (!empty($pid)) {
             $costPrice = (isset($d['cost_price']) && is_numeric($d['cost_price']) && $d['cost_price'] !== '') ? max(0,(float)$d['cost_price']) : null;
             $hsn = (isset($d['hsn_code']) && trim((string)$d['hsn_code']) !== '') ? clip(trim((string)$d['hsn_code']), 12) : null;
-            db()->execute("UPDATE products SET cost_price=?, hsn_code=? WHERE id=?", [$costPrice, $hsn, (int)$pid]);
-            logActivity(!empty($d['id']) ? 'updated' : 'created', 'product', (int)$pid, $name.' · ₹'.$price);
+            // $sku is resolved above (admin value, else the existing one, else generated on create).
+            db()->execute("UPDATE products SET cost_price=?, hsn_code=?, sku=COALESCE(?, sku), youtube_video_url=? WHERE id=?",
+                          [$costPrice, $hsn, $sku, $youtubeUrl, (int)$pid]);
+            // Diff against the pre-save snapshot. Read AFTER the cost/hsn/sku update above so the
+            // audit reflects the finished row, not a half-saved one.
+            $afterRow = db()->fetchOne("SELECT * FROM products WHERE id=?", [(int)$pid]);
+            logActivity(!empty($d['id']) ? 'updated' : 'created', 'product', (int)$pid,
+                        $name.' · ₹'.$price, auditDiff($beforeRow, $afterRow));
         }
         if (isset($d['faqs']) && $pid) {
             db()->execute("DELETE FROM product_faqs WHERE product_id = ?", [$pid]);
@@ -622,6 +709,7 @@ include __DIR__ . '/../includes/header.php';
             <div class="form-group"><label class="form-label">Price (₹) *</label><input type="number" class="form-control" id="prod_price" placeholder="0"></div>
             <div class="form-group"><label class="form-label">Cost Price (₹) <small class="text-muted">(for margin)</small></label><input type="number" class="form-control" id="prod_cost" placeholder="Optional"></div>
             <div class="form-group"><label class="form-label">HSN Code <small class="text-muted">(for GST tax invoice)</small></label><input type="text" class="form-control" id="prod_hsn" maxlength="12" placeholder="e.g. 9018"></div>
+            <div class="form-group"><label class="form-label">SKU <small class="text-muted">(stock code — must be unique; auto-generated if blank)</small></label><input type="text" class="form-control" id="prod_sku" maxlength="100" placeholder="e.g. TM-2448"></div>
             <div class="form-group"><label class="form-label">Discount Price (₹)</label><input type="number" class="form-control" id="prod_discount" placeholder="Optional"></div>
             <div class="form-group"><label class="form-label">Stock Qty * <small class="text-muted">(auto-set to the variant total when every variant has a QTY)</small></label><input type="number" class="form-control" id="prod_stock" placeholder="0"></div>
           </div>
@@ -654,9 +742,11 @@ include __DIR__ . '/../includes/header.php';
             <strong>QTY</strong> is that variant's own stock. Fill it on <em>every</em> variant to track stock per option —
             orders then deduct from the chosen variant, an out-of-stock variant can't be ordered, and the
             Basic tab's Stock Qty is auto-set to the total. Leave QTY blank to keep using the single product-level stock.
+            <strong>IMG</strong> picks which of the product's images belong to that option, so the storefront gallery
+            can switch when a buyer views it. Leave it empty to show all the product images.
           </p>
           <div style="display:flex;gap:8px;font-size:.72rem;color:var(--text-muted);padding:0 6px 4px;font-weight:600;">
-            <span style="flex:2;">LABEL</span><span style="flex:1;">MRP (₹)</span><span style="flex:1;">PRICE (₹)</span><span style="flex:1;">QTY</span><span style="width:34px;"></span>
+            <span style="flex:2;">LABEL</span><span style="flex:1;">MRP (₹)</span><span style="flex:1;">PRICE (₹)</span><span style="width:70px;">QTY</span><span style="flex:1;">SKU</span><span style="width:74px;">IMG</span><span style="width:34px;"></span>
           </div>
           <div id="variants_container"></div>
           <button type="button" class="btn btn-ghost btn-sm" onclick="addVariantRow()" style="margin-top:8px;"><i class="fa-solid fa-plus"></i> Add Variant</button>
@@ -698,6 +788,12 @@ include __DIR__ . '/../includes/header.php';
               <button type="button" class="btn btn-ghost btn-sm" id="catalogue_clear" style="display:none;" onclick="clearCatalogue()"><i class="fa-solid fa-xmark" style="color:var(--danger);"></i></button>
             </div>
             <input type="file" id="catalogueInput" accept="application/pdf" style="display:none" onchange="uploadCatalogue(this.files[0])">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Product Video <small class="text-muted">(YouTube link — appears as the last thumbnail in the product gallery)</small></label>
+            <input type="url" class="form-control" id="prod_youtube_url" maxlength="500"
+                   placeholder="https://www.youtube.com/watch?v=… or https://youtu.be/…">
+            <small class="text-muted" style="font-size:.75rem;">Paste any YouTube link — watch, share (youtu.be) or embed. Leave blank for no video.</small>
           </div>
           <div class="form-group" style="border-top:1px solid var(--border-color);padding-top:14px;margin-top:6px;">
             <label class="form-label" style="margin-bottom:10px;">Key Specifications <small class="text-muted">(key : value rows — shown in the product Specifications accordion)</small></label>
@@ -818,6 +914,21 @@ include __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
+// Safety net for the AJAX calls on this page. When an admin session idles out (SESSION_LIFETIME),
+// a request can come back as an HTML page instead of JSON; res.json() then rejects with
+// "Unexpected token '<'" and — for the calls that don't catch — the action fails with nothing on
+// screen. Turn that into a message the admin can act on.
+window.addEventListener('unhandledrejection', (e) => {
+  const msg = String(e.reason && e.reason.message || e.reason || '');
+  if (!/Unexpected token|not valid JSON/i.test(msg)) return;
+  e.preventDefault();
+  if (typeof showToast === 'function') {
+    showToast('Session expired — reload the page and sign in again. Your last action did NOT go through.', 'danger');
+  } else {
+    alert('Session expired. Reload the page and sign in again — your last action did not go through.');
+  }
+});
+
 function switchTab(name,btn){
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -954,18 +1065,68 @@ function addSpecRow(k='',v=''){
   document.getElementById('specs_container').appendChild(d);
 }
 
-// Variant rows -> saved into the `variants` column as [{label,mrp,price,discount,qty}].
-// qty is the variant's own stock; blank/null means "not tracked" (falls back to products.stock).
-function addVariantRow(label='', mrp='', price='', qty=''){
+// Variant rows -> saved into the `variants` column as
+//   [{label, mrp, price, discount, qty, sku, images}]
+// qty  = that variant's own stock; blank/null means "not tracked" (falls back to products.stock).
+// images = a subset of the product's own uploaded images, so the storefront gallery can switch
+//          to the option a buyer is viewing. Empty = show all the product images.
+function addVariantRow(label='', mrp='', price='', qty='', sku='', images=[]){
   const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   const d=document.createElement('div');d.className='variant-row';
-  d.style.cssText='display:flex;gap:8px;margin-bottom:8px;align-items:center;';
-  d.innerHTML=`<input type="text" class="form-control" placeholder="e.g. Generic / 4 mm" value="${esc(label)}" data-var-label style="flex:2;">
-    <input type="number" min="0" step="0.01" class="form-control" placeholder="MRP" value="${esc(mrp)}" data-var-mrp style="flex:1;">
-    <input type="number" min="0" step="0.01" class="form-control" placeholder="Price" value="${esc(price)}" data-var-price style="flex:1;">
-    <input type="number" min="0" step="1" class="form-control" placeholder="Qty" value="${esc(qty)}" data-var-qty style="flex:1;" title="This variant's own stock. Leave blank to use the product-level stock.">
-    <button type="button" class="btn btn-ghost btn-sm btn-icon" onclick="this.closest('.variant-row').remove()"><i class="fa-solid fa-minus" style="color:var(--danger);"></i></button>`;
+  d.style.cssText='margin-bottom:8px;';
+  d.dataset.varImages=JSON.stringify(Array.isArray(images)?images:[]);
+  d.innerHTML=`<div style="display:flex;gap:8px;align-items:center;">
+      <input type="text" class="form-control" placeholder="e.g. 24 x 48 mm" value="${esc(label)}" data-var-label style="flex:2;">
+      <input type="number" min="0" step="0.01" class="form-control" placeholder="MRP" value="${esc(mrp)}" data-var-mrp style="flex:1;">
+      <input type="number" min="0" step="0.01" class="form-control" placeholder="Price" value="${esc(price)}" data-var-price style="flex:1;">
+      <input type="number" min="0" step="1" class="form-control" placeholder="Qty" value="${esc(qty)}" data-var-qty style="width:70px;" title="This variant's own stock. Leave blank to use the product-level stock.">
+      <input type="text" class="form-control" placeholder="SKU" value="${esc(sku)}" data-var-sku style="flex:1;" maxlength="60" title="Optional per-variant SKU.">
+      <button type="button" class="btn btn-ghost btn-sm" data-var-imgbtn onclick="toggleVariantImages(this)" style="width:74px;white-space:nowrap;" title="Pick which product images belong to this option"><i class="fa-solid fa-images"></i> <span data-var-imgcount></span></button>
+      <button type="button" class="btn btn-ghost btn-sm btn-icon" onclick="this.closest('.variant-row').remove()"><i class="fa-solid fa-minus" style="color:var(--danger);"></i></button>
+    </div>
+    <div data-var-imgpicker style="display:none;padding:8px 6px 2px;"></div>`;
   document.getElementById('variants_container').appendChild(d);
+  updateVariantImgCount(d);
+}
+
+/** Show/hide the per-variant image picker, built from the product's own uploaded images. */
+function toggleVariantImages(btn){
+  const row=btn.closest('.variant-row');
+  const box=row.querySelector('[data-var-imgpicker]');
+  if(box.style.display!=='none'){ box.style.display='none'; return; }
+  if(!uploadedImages.length){
+    box.innerHTML='<span class="text-muted" style="font-size:.78rem;">Upload images on the Images tab first — variants pick from those.</span>';
+  }else{
+    const picked=JSON.parse(row.dataset.varImages||'[]');
+    box.innerHTML='<div style="display:flex;gap:6px;flex-wrap:wrap;">'+uploadedImages.map(url=>{
+      const on=picked.includes(url);
+      return `<label style="position:relative;cursor:pointer;border:2px solid ${on?'var(--gold-primary)':'transparent'};border-radius:6px;overflow:hidden;line-height:0;" title="${url.split('/').pop()}">
+        <input type="checkbox" ${on?'checked':''} value="${url}" onchange="pickVariantImage(this)" style="position:absolute;top:3px;left:3px;z-index:1;accent-color:var(--gold-primary);">
+        <img src="${url}" loading="lazy" style="width:64px;height:64px;object-fit:cover;opacity:${on?1:.55};">
+      </label>`;
+    }).join('')+'</div>';
+  }
+  box.style.display='block';
+}
+
+/** Toggle one image on this variant and re-render the picker so the highlight follows. */
+function pickVariantImage(cb){
+  const row=cb.closest('.variant-row');
+  const picked=JSON.parse(row.dataset.varImages||'[]');
+  const url=cb.value;
+  const i=picked.indexOf(url);
+  if(cb.checked){ if(i<0) picked.push(url); } else if(i>=0) picked.splice(i,1);
+  row.dataset.varImages=JSON.stringify(picked);
+  updateVariantImgCount(row);
+  const btn=row.querySelector('[data-var-imgbtn]');
+  row.querySelector('[data-var-imgpicker]').style.display='none';
+  toggleVariantImages(btn);
+}
+
+function updateVariantImgCount(row){
+  const n=(JSON.parse(row.dataset.varImages||'[]')).length;
+  const el=row.querySelector('[data-var-imgcount]');
+  if(el) el.textContent = n ? n : 'all';
 }
 
 // Quantity-offer rows -> sent as [{minQty, price}]; server stores [{minQty,rate,label}].
@@ -1034,7 +1195,47 @@ function renderImgs(){
   const grid=document.getElementById('imgPreviewGrid');grid.innerHTML='';
   uploadedImages.forEach((url,i)=>{
     const d=document.createElement('div');d.className='img-thumb';
-    d.innerHTML=`<img src="${url}" loading="lazy"><button class="del-img" onclick="uploadedImages.splice(${i},1);renderImgs()"><i class="fa-solid fa-xmark"></i></button>`;
+    d.draggable=true;
+    d.innerHTML=`<img src="${url}" loading="lazy"><button class="del-img" type="button" onclick="uploadedImages.splice(${i},1);renderImgs()"><i class="fa-solid fa-xmark"></i></button>`;
+    
+    d.addEventListener('dragstart', e => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', i);
+      setTimeout(() => d.style.opacity = '0.5', 0);
+    });
+    d.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+    d.addEventListener('dragenter', e => {
+      e.preventDefault();
+      d.style.transform = 'scale(1.05)';
+      d.style.boxShadow = '0 0 0 2px var(--gold-primary)';
+    });
+    d.addEventListener('dragleave', e => {
+      d.style.transform = '';
+      d.style.boxShadow = '';
+    });
+    d.addEventListener('drop', e => {
+      e.preventDefault();
+      e.stopPropagation(); // prevent triggering file drop zone
+      d.style.transform = '';
+      d.style.boxShadow = '';
+      const dragIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+      if (!isNaN(dragIdx) && dragIdx !== i) {
+        const item = uploadedImages.splice(dragIdx, 1)[0];
+        uploadedImages.splice(i, 0, item);
+        renderImgs();
+      }
+    });
+    d.addEventListener('dragend', e => {
+      d.style.opacity = '1';
+      document.querySelectorAll('#imgPreviewGrid .img-thumb').forEach(el => {
+        el.style.transform = '';
+        el.style.boxShadow = '';
+      });
+    });
+
     grid.appendChild(d);
   });
   document.getElementById('prod_images_json').value=JSON.stringify(uploadedImages);
@@ -1129,6 +1330,7 @@ function openProductModal(p=null){
   document.getElementById('prod_price').value=p?.price||'';
   document.getElementById('prod_cost').value=p?.cost_price||'';
   document.getElementById('prod_hsn').value=p?.hsn_code||'';
+  document.getElementById('prod_sku').value=p?.sku||'';
   document.getElementById('prod_discount').value=p?.discount_price||'';
   document.getElementById('prod_stock').value=p?.stock||'';
   document.getElementById('prod_min_stock').value=p?.min_stock_alert??'';
@@ -1158,6 +1360,7 @@ function openProductModal(p=null){
   document.getElementById('prod_warranty_no').value=p?.warranty_no||'';
   document.getElementById('prod_direction_of_use').value=p?.direction_of_use||'';
   setCatalogueUI(p?.catalogue_url||'');
+  document.getElementById('prod_youtube_url').value=p?.youtube_video_url||'';
   // SEO fields
   document.getElementById('prod_slug').value=p?.slug||'';
   document.getElementById('prod_meta_title').value=p?.meta_title||'';
@@ -1166,7 +1369,7 @@ function openProductModal(p=null){
   document.getElementById('variants_container').innerHTML='';
   try{
     const vs=p?.variants?(typeof p.variants==='string'?JSON.parse(p.variants):p.variants):[];
-    if(Array.isArray(vs)) vs.forEach(v=>addVariantRow(v.label||'', v.mrp||'', v.price||'', (v.qty===null||v.qty===undefined)?'':v.qty));
+    if(Array.isArray(vs)) vs.forEach(v=>addVariantRow(v.label||'', v.mrp||'', v.price||'', (v.qty===null||v.qty===undefined)?'':v.qty, v.sku||'', Array.isArray(v.images)?v.images:[]));
   }catch(e){}
   // Quantity offers: stored as {minQty,rate}; show as per-unit price = sell × (1 − rate).
   document.getElementById('bulkoffers_container').innerHTML='';
@@ -1234,8 +1437,8 @@ async function saveProduct(){
     const x=row.querySelector('[data-hl-text]').value.trim();
     if(t||x)features.push({title:t,text:x});
   });
-  // Variants -> [{label, mrp, price, qty}] (server computes discount, validates, stores JSON).
-  // qty '' is sent as null = "stock not tracked for this variant".
+  // Variants -> [{label, mrp, price, qty, sku, images}] (server computes discount, validates,
+  // stores JSON). qty '' is sent as null = "stock not tracked for this variant".
   const variants=[];
   document.querySelectorAll('#variants_container .variant-row').forEach(row=>{
     const label=row.querySelector('[data-var-label]').value.trim();
@@ -1243,7 +1446,9 @@ async function saveProduct(){
     const price=parseFloat(row.querySelector('[data-var-price]').value)||0;
     const qtyRaw=row.querySelector('[data-var-qty]').value.trim();
     const qty=qtyRaw===''?null:Math.max(0,parseInt(qtyRaw,10)||0);
-    if(label && price>0) variants.push({label, mrp: mrp||price, price, qty});
+    const sku=row.querySelector('[data-var-sku]').value.trim();
+    let images=[];try{images=JSON.parse(row.dataset.varImages||'[]');}catch(e){}
+    if(label && price>0) variants.push({label, mrp: mrp||price, price, qty, sku, images});
   });
   // Quantity offers -> [{minQty, price}] (server derives the rate from price vs selling price)
   const bulk_offers=[];
@@ -1272,8 +1477,10 @@ async function saveProduct(){
     warranty_no:document.getElementById('prod_warranty_no').value,
     direction_of_use:document.getElementById('prod_direction_of_use').value,
     catalogue_url:document.getElementById('prod_catalogue_url').value,
+    youtube_video_url:document.getElementById('prod_youtube_url').value,
     cost_price:document.getElementById('prod_cost').value,
     hsn_code:document.getElementById('prod_hsn').value,
+    sku:document.getElementById('prod_sku').value,
     discount_price:document.getElementById('prod_discount').value,
     weight_kg:document.getElementById('prod_weight').value,
     shipping_method_id:document.getElementById('prod_ship_method').value,
@@ -1282,7 +1489,18 @@ async function saveProduct(){
     is_new:document.getElementById('prod_new').value,
     images,faqs,fbt:fbtIds,gifts:giftIds};
   const res=await fetch('products.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(payload)});
-  const result=await res.json();
+  // A response that isn't JSON means the request never reached the save handler — an expired
+  // session or a request too large for post_max_size. Say so instead of throwing a parse error
+  // and leaving the admin thinking the product was saved.
+  let result;
+  try { result = await res.json(); }
+  catch(e){
+    showToast(res.status===403||res.status===401
+      ? 'Session expired — reload the page and sign in again.'
+      : 'Save failed (server returned '+res.status+'). Nothing was saved.','danger');
+    return;
+  }
+  if(result.sessionExpired){ showToast(result.message,'danger'); return; }
   if(result.success){showToast(result.message,'success');closeModal('productModal');setTimeout(()=>location.reload(),800);}
   else showToast(result.message||'Save failed','danger');
 }

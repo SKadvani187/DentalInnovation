@@ -38,22 +38,25 @@ mysql -u USER -p PROD_DB < prod_schema_check.sql
 ```
 
 - **No rows** → schema matches the reference; skip to Step 4.
-- **`*** MISSING TABLE/COLUMN ***` rows** → apply the matching `database_*.sql`
-  migration(s), then re-run the check until it's clean.
+- **`*** MISSING TABLE/COLUMN ***` rows** → run the migrations below, then re-run the
+  check until it's clean.
 
-To apply migrations, the ones using `IF NOT EXISTS` are safe to re-run:
+Migrations are applied by the runner, in version order — do **not** feed the `.sql`
+files to `mysql` by hand:
 
 ```bash
 cd /path/to/dentinno
-for f in database_*.sql; do
-  case "$f" in
-    database_purge_*.sql) continue ;;          # skip the purge scripts
-  esac
-  if grep -qiE "IF NOT EXISTS" "$f"; then
-    echo ">> $f"; mysql -u USER -p PROD_DB < "$f"
-  fi
-done
+php migrate.php --status     # see what this server is missing
+php migrate.php              # apply everything pending
 ```
+
+The first run on this server also converts `schema_migrations` from the old
+filename-keyed table to the version-keyed one. It reports
+`Converted N history rows.` and must NOT re-run migrations that are already
+applied — if it starts applying old migrations, stop and restore the Step 1 backup.
+
+`migrate.php` uses the `DB_NAME` from `includes/config.php` (env / `config.local.php`
+on production), so make sure that points at the production database before running it.
 
 Then make sure these specific recent ones are applied (re-running is harmless):
 `database_gst_invoice.sql` (hsn_code), `database_product_cost_price.sql`,
@@ -113,6 +116,29 @@ mysql -u USER -p PROD_DB < database_purge_test_data.sql
 ```
 
 See the comments in that file to also remove coupons or reset AUTO_INCREMENT.
+
+## 8b. (Optional) Drop pre-audit activity rows
+
+The audit trail records old → new values per field. Rows written **before** the
+`activity_log.changes` column existed have no diff and show `—` in the Changes
+column — they still say who/when/what, just not from-what-to-what.
+
+To start the trail clean, keeping only rows that carry a diff:
+
+```bash
+# Order matters: `changes` must exist first, so run Step 3's migrations BEFORE this.
+# Count first — never delete on faith.
+mysql -u USER -p PROD_DB -e \
+  "SELECT COUNT(*) total, SUM(changes IS NULL) will_delete, SUM(changes IS NOT NULL) will_keep
+     FROM activity_log;"
+
+# Only if that number looks right:
+mysql -u USER -p PROD_DB -e "DELETE FROM activity_log WHERE changes IS NULL;"
+```
+
+⚠️ This permanently removes audit history. It is **optional** — an append-only log
+that keeps everything is the safer default, and `—` is honest about why those rows
+carry no diff. The Step 1 backup is the only way back.
 
 ## 9. Verify the live site
 

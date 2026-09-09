@@ -131,6 +131,7 @@ export default function CheckoutDrawer() {
       const order = await api.placeOrder(buildPayload("cod"));
       setOrderId(order.orderId);
       clearCart();
+      window.dispatchEvent(new Event("sdi:reload-api"));
       setView("done");
     } catch (err) {
       console.error("[checkout] order failed:", err.message);
@@ -173,6 +174,7 @@ export default function CheckoutDrawer() {
           } finally {
             setOrderId(order.orderId);
             clearCart();
+            window.dispatchEvent(new Event("sdi:reload-api"));
             setView("done");
             setPlacing(false);
           }

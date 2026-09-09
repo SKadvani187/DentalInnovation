@@ -13,7 +13,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     $action = $d['action'] ?? '';
     requireAction('messages', rbacCrudVerb($action, $d));
     if ($action === 'read')   { db()->execute("UPDATE contact_messages SET is_read=1 WHERE id=?", [$d['id']]); echo json_encode(['success'=>true]); }
-    elseif ($action === 'delete') { db()->execute("DELETE FROM contact_messages WHERE id=?", [$d['id']]); echo json_encode(['success'=>true]); }
+    elseif ($action === 'delete') {
+        // Hard delete — a customer enquiry vanishes for good, so the audit keeps it.
+        $id = (int)($d['id'] ?? 0); $b = auditRow('contact_messages', $id);
+        db()->execute("DELETE FROM contact_messages WHERE id=?", [$id]);
+        logActivity('deleted', 'message', $id, ($b['name'] ?? '') . ' · ' . ($b['department'] ?? ''), auditDiff($b, null));
+        echo json_encode(['success'=>true]);
+    }
     else echo json_encode(['success'=>false]);
     } catch (Throwable $e) {
         echo json_encode(['success'=>false,'message'=>'Server error: ' . $e->getMessage()]);

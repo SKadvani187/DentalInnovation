@@ -32,7 +32,8 @@ dentinno/
 ├── index.php                  ← Dashboard
 ├── login.php                  ← Login page
 ├── logout.php                 ← Logout
-├── database.sql               ← Database schema
+├── migrations/                ← Schema history: <version>_<name>.sql, run by migrate.php
+├── migrate.php                ← Migration runner
 └── .htaccess                  ← Security config
 ```
 
@@ -49,10 +50,32 @@ dentinno/
 
 ### Step 2: Database Setup
 1. Open phpMyAdmin → `http://localhost/phpmyadmin`
-2. Create new database: `dentinno_crm`
-3. Click on `dentinno_crm` database
-4. Click **Import** tab
-5. Choose `database.sql` file → Click **Go**
+2. Create an empty database: `dentinno_crm` (collation `utf8mb4_unicode_ci`)
+3. From the `dentinno/` folder, run the migrations:
+   ```bash
+   php migrate.php
+   ```
+   That applies the base schema and every migration in `migrations/`, in version order.
+   Nothing to import by hand.
+
+**Working with migrations**
+
+```bash
+php migrate.php                  # apply everything pending
+php migrate.php --status         # what's applied / pending / changed since it ran
+php migrate.php --new add_thing  # create the next migration (stamps its version)
+```
+
+Migrations live in `migrations/` and are named `<version>_<name>.sql`, where the version is a
+UTC `YYYYMMDDHHMMSS` stamp. They run in ascending version order, and `schema_migrations` records
+the **version**, not the filename. Always create new ones with `--new` — never hand-name a file,
+and never change the version of a migration that has already shipped.
+
+Two rules for the SQL inside:
+- **No `USE` / `CREATE DATABASE`.** Migrations run inside whatever `DB_NAME` the runner connected
+  with (production overrides it via env). The runner rejects a file that carries one.
+- **Keep it idempotent** (`IF NOT EXISTS`, `INSERT IGNORE`). MySQL auto-commits DDL, so a file
+  that fails halfway cannot be rolled back — it has to be safe to run again.
 
 ### Step 3: Configure
 Edit `includes/config.php`:

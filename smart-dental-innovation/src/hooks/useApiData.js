@@ -7,15 +7,19 @@ function useCollection(fetcher, staticData = []) {
   const [data, setData] = useState(staticData);
   const [loading, setLoading] = useState(true);
   const [source, setSource] = useState("static");
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const handleReload = () => setTick((t) => t + 1);
+    window.addEventListener("sdi:reload-api", handleReload);
+    return () => window.removeEventListener("sdi:reload-api", handleReload);
+  }, []);
 
   useEffect(() => {
     let alive = true;
     fetcher()
       .then((rows) => {
         if (!alive) return;
-        // API responded = authoritative. Use its result even when EMPTY, so deleting all
-        // rows in admin actually clears them on the storefront (no stale static fallback).
-        // Static data is only a fallback for when the API itself fails (offline) — see catch.
         if (Array.isArray(rows)) {
           setData(rows);
           setSource("api");
@@ -24,7 +28,7 @@ function useCollection(fetcher, staticData = []) {
       .catch((err) => console.warn("[api] fallback to static:", err.message))
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
-  }, []);
+  }, [tick]);
 
   return { data, loading, source };
 }

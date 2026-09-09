@@ -238,15 +238,22 @@ if ($action === 'verify') {
         jsonErr('Failed to record payment: ' . $t->getMessage(), 500);
     }
 
-    // Best-effort WhatsApp payment confirmation. Fires once: this point is only reached
-    // on the real unpaid->paid transition (the idempotency guard above returns early otherwise).
     $ord = $db->fetchOne("SELECT * FROM orders WHERE id=?", [$o['id']]);
+
+    // The payment is captured and recorded — confirm it to the customer now. The notifications
+    // below cost several seconds each (Gmail SMTP), and leaving a buyer on a spinner right after
+    // their money moved is the worst possible place to spend them.
+    jsonOutThenContinue(['success' => true, 'orderId' => $o['order_number'], 'paymentStatus' => 'paid']);
+
+    // ---- after the response ------------------------------------------------
+
+    // Fires once: this point is only reached on the real unpaid->paid transition (the idempotency
+    // guard above returns early otherwise).
     try {
         require_once __DIR__ . '/../../includes/whatsapp_sender.php';
         if (!empty($cust['phone']) && $ord) waPaymentSuccess($cust, $ord);
     } catch (Throwable $e) { error_log('WA payVerify: ' . $e->getMessage()); }
 
-    // Best-effort order emails — fire once, on the real paid transition:
     //   * admin "order placed (paid)" notification, and
     //   * customer confirmation + PDF invoice.
     try {
@@ -258,7 +265,7 @@ if ($action === 'verify') {
         }
     } catch (Throwable $e) { error_log('orderMail paid: ' . $e->getMessage()); }
 
-    jsonOut(['success' => true, 'orderId' => $o['order_number'], 'paymentStatus' => 'paid']);
+    exit;
 }
 
 // Notify the admin that an online payment was cancelled / failed for an order. The storefront
@@ -275,11 +282,15 @@ if ($action === 'failed') {
             "UPDATE orders SET payment_failed_at = NOW() WHERE id = ? AND payment_status <> 'paid'",
             [$o['id']]
         );
+        // Answer first: the customer is being sent back to retry, and the admin notice below is a
+        // multi-second SMTP send they should not sit through.
+        jsonOutThenContinue(['success' => true]);
         try {
             require_once __DIR__ . '/../../includes/order_mailer.php';
             $items = $db->fetchAll("SELECT * FROM order_items WHERE order_id=?", [$o['id']]);
             sendOrderAdminMail($o, $items, $cust, 'failed');
         } catch (Throwable $e) { error_log('orderMail failed: ' . $e->getMessage()); }
+        exit;
     }
     jsonOut(['success' => true]);
 }

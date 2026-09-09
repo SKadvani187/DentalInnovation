@@ -31,7 +31,16 @@ export default function ProductDetailModal() {
   if (!selectedProduct) return null;
   const p = selectedProduct;
   const wished = has(p.id);
-  const variants = Array.isArray(p.variants) ? p.variants.filter((v) => typeof v === "object") : [];
+  // Only offer a picker for a real choice: several options, or a single one priced apart from the
+  // product (hiding that would hide its price). Same rule as the product page's usableVariants().
+  const allVariants = Array.isArray(p.variants) ? p.variants.filter((v) => typeof v === "object") : [];
+  const variants =
+    allVariants.length > 1 ||
+    (allVariants.length === 1 &&
+      ((Number(allVariants[0].price) || 0) !== (Number(p.price) || 0) ||
+        (Number(allVariants[0].mrp) || 0) !== (Number(p.mrp) || 0)))
+      ? allVariants
+      : [];
   // Price reflects the selected variant when one exists.
   const activePrice = variant?.price ?? p.price;
   const activeMrp = variant?.mrp ?? p.mrp;

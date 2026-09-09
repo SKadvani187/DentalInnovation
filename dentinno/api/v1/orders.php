@@ -197,10 +197,24 @@ foreach ($items as $it) {
             $vLabel = (isset($it['variant']) && $it['variant'] !== '') ? (string)$it['variant'] : null;
             $vIndex = null;
             if (hasVariants($prod['variants'])) {
-                if ($vLabel === null) jsonErr('Please choose an option for "' . $prod['name'] . '"', 422);
-                $found = findVariant($prod['variants'], $vLabel);
-                if (!$found) jsonErr('That option is no longer available for "' . $prod['name'] . '"', 409);
-                [$vIndex, $vRow] = $found;
+                $vList = json_decode($prod['variants'], true);
+                if ($vLabel === null && count($vList) === 1) {
+                    // One option is not a choice — the storefront shows no picker for it, so take
+                    // it here rather than rejecting a cart line that could only ever mean this one.
+                    $vIndex = 0;
+                    $vRow   = $vList[0];
+                    $vLabel = (string)($vRow['label'] ?? '');
+                } else {
+                    if ($vLabel === null) jsonErr('Please choose an option for "' . $prod['name'] . '"', 422);
+                    $found = findVariant($prod['variants'], $vLabel);
+                    if (!$found) jsonErr('That option is no longer available for "' . $prod['name'] . '"', 409);
+                    [$vIndex, $vRow] = $found;
+                }
+                // The chosen option sets the line price — that is the price the storefront showed
+                // for it. Taken from the DB row, never from the cart, so it can't be tampered with.
+                if (isset($vRow['price']) && (float)$vRow['price'] > 0) {
+                    $price = (float)$vRow['price'];
+                }
                 // qty null = this variant isn't stock-tracked; the product-level check still applies.
                 if (isset($vRow['qty']) && $vRow['qty'] !== null) {
                     $k = $pid . '|' . $vIndex;
@@ -428,14 +442,20 @@ pushNotification('order', 'New order ' . $orderNumber, $cust['name'] . ' placed 
 $o = $db->fetchOne("SELECT * FROM orders WHERE id=?", [$orderId]);
 $oi = $db->fetchAll("SELECT * FROM order_items WHERE order_id=?", [$orderId]);
 
-// Best-effort WhatsApp order-confirmation (never blocks the response).
+// The order is committed — answer the customer now. WhatsApp and the confirmation emails run
+// after the connection closes: each SMTP send costs several seconds against Gmail, and making a
+// buyer wait ~10s at "Place order" for messages they receive in their inbox anyway is the wrong
+// trade. A failure in either still only shows up in the log, exactly as before.
+jsonOutThenContinue(['success' => true, 'order' => mapOrder($o, $oi)], 201);
+
+// ---- after the response: best-effort notifications -------------------------
+
 try {
     require_once __DIR__ . '/../../includes/whatsapp_sender.php';
     if (!empty($cust['phone'])) waOrderPlaced($cust, $o, $oi);
 } catch (Throwable $e) { error_log('WA orderPlaced: ' . $e->getMessage()); }
 
-// Best-effort order-placed emails. COD only here — online orders are emailed once the payment
-// is captured (see payment_razorpay.php). Never blocks the response.
+// COD only here — online orders are emailed once the payment is captured (payment_razorpay.php):
 //   * admin notification, and
 //   * customer confirmation + PDF invoice (COD is confirmed at placement).
 try {
@@ -446,4 +466,4 @@ try {
     }
 } catch (Throwable $e) { error_log('orderMail placed: ' . $e->getMessage()); }
 
-jsonOut(['success' => true, 'order' => mapOrder($o, $oi)], 201);
+exit;

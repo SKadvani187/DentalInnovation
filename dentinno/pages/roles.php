@@ -26,6 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             if (!$role) { echo json_encode(['success'=>false,'message'=>'Role not found']); exit; }
             if ($role['is_super']) { echo json_encode(['success'=>false,'message'=>'The super admin role cannot be edited.']); exit; }
             db()->execute("UPDATE roles SET name=?, description=?, is_active=? WHERE id=?", [$name, $desc, $active, (int)$d['id']]);
+            $after = db()->fetchOne("SELECT * FROM roles WHERE id=?", [(int)$d['id']]);
+            logActivity('updated', 'role', (int)$d['id'], $name, auditDiff($role, $after));
             rbacBumpVersion();
             echo json_encode(['success'=>true,'message'=>'Role updated']);
         } else {
@@ -42,6 +44,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                     [$newId, (int)$d['clone_from']]
                 );
             }
+            $after = db()->fetchOne("SELECT * FROM roles WHERE id=?", [(int)$newId]);
+            logActivity('created', 'role', (int)$newId,
+                        $name . (!empty($d['clone_from']) ? ' (cloned from role #'.(int)$d['clone_from'].')' : ''),
+                        auditDiff(null, $after));
             rbacBumpVersion();
             echo json_encode(['success'=>true,'message'=>'Role created','id'=>$newId]);
         }
@@ -52,7 +58,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         if ($role['is_super'] || $role['is_system']) { echo json_encode(['success'=>false,'message'=>'Built-in roles cannot be deleted.']); exit; }
         $users = (int)(db()->fetchOne("SELECT COUNT(*) c FROM admin_users WHERE role_id=?", [$id])['c'] ?? 0);
         if ($users > 0) { echo json_encode(['success'=>false,'message'=>"This role is assigned to $users user(s). Reassign them first."]); exit; }
+        // Hard delete, and role_permissions cascades with it — record the role AND the permission
+        // matrix it carried, since neither survives anywhere else.
+        $perms = db()->fetchAll(
+            "SELECT p.page_key, rp.can_view, rp.can_create, rp.can_edit, rp.can_delete
+               FROM role_permissions rp JOIN page_registry p ON p.id = rp.page_id
+              WHERE rp.role_id = ? ORDER BY p.page_key", [$id]);
+        $grants = [];
+        foreach ($perms as $p) {
+            $v = array_keys(array_filter(['view'=>$p['can_view'],'create'=>$p['can_create'],'edit'=>$p['can_edit'],'delete'=>$p['can_delete']]));
+            if ($v) $grants[] = $p['page_key'] . ':' . implode('/', $v);
+        }
+        $snapshot = $role + ['granted_permissions' => implode(', ', $grants)];
         db()->execute("DELETE FROM roles WHERE id=?", [$id]);   // cascades role_permissions
+        logActivity('deleted', 'role', $id, $role['name'] ?? null, auditDiff($snapshot, null));
         rbacBumpVersion();
         echo json_encode(['success'=>true,'message'=>'Role deleted']);
     } else {

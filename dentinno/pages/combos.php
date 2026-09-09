@@ -141,27 +141,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $slugBase = $slug; $n = 1;
         while (db()->fetchOne("SELECT id FROM combos WHERE slug=? AND id<>?", [$slug, $selfId])) { $slug = $slugBase . '-' . (++$n); }
         if (!empty($d['id'])) {
+            $b = auditRow('combos', (int)$d['id']);
             db()->execute(
                 "UPDATE combos SET slug=?,name=?,description=?,meta_title=?,meta_description=?,mrp=?,price=?,discount_percent=?,image=?,images=?,items=?,stock=?,in_stock=?,is_active=?,sku=?,short_description=?,full_description=?,features=?,key_specifications_html=?,directions_for_use=?,packing_info=?,warranty_info=?,key_features=?,hover_image=? WHERE id=?",
                 [$slug,$name,$fullDesc,$metaTitle,$metaDesc,$mrp,$price,$disc,($d['image'] ?? null)?:null,$images_json,$items_json,$stock,$inStock,$d['is_active']??1,$sku,$shortDesc,$fullDesc,$featuresJson,$keySpecHtml,$directions,$packing,$warranty,$keyFeatures,$hoverImage,$d['id']]
             );
+            logActivity('updated', 'combo', (int)$d['id'], $name.' · ₹'.$price, auditDiff($b, auditRow('combos', (int)$d['id'])));
             echo json_encode(['success'=>true,'message'=>'Combo updated']);
         } else {
-            db()->insert(
+            $newId = db()->insert(
                 "INSERT INTO combos (slug,name,description,meta_title,meta_description,mrp,price,discount_percent,image,images,items,stock,in_stock,is_active,sku,short_description,full_description,features,key_specifications_html,directions_for_use,packing_info,warranty_info,key_features,hover_image) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 [$slug,$name,$fullDesc,$metaTitle,$metaDesc,$mrp,$price,$disc,($d['image'] ?? null)?:null,$images_json,$items_json,$stock,$inStock,$d['is_active']??1,$sku,$shortDesc,$fullDesc,$featuresJson,$keySpecHtml,$directions,$packing,$warranty,$keyFeatures,$hoverImage]
             );
+            logActivity('created', 'combo', (int)$newId, $name.' · ₹'.$price, auditDiff(null, auditRow('combos', (int)$newId)));
             echo json_encode(['success'=>true,'message'=>'Combo added']);
         }
     } elseif ($action === 'delete') {
         // Soft-delete: keep the row so order history referencing the combo stays intact.
-        db()->execute("UPDATE combos SET is_deleted=1, is_active=0 WHERE id=?", [(int)($d['id'] ?? 0)]);
+        $id = (int)($d['id'] ?? 0); $b = auditRow('combos', $id);
+        db()->execute("UPDATE combos SET is_deleted=1, is_active=0 WHERE id=?", [$id]);
+        logActivity('deleted', 'combo', $id, $b['name'] ?? null, auditDiff($b, null));
         echo json_encode(['success'=>true,'message'=>'Combo deleted']);
     } elseif ($action === 'restore') {
-        db()->execute("UPDATE combos SET is_deleted=0 WHERE id=?", [(int)($d['id'] ?? 0)]);
+        $id = (int)($d['id'] ?? 0); $b = auditRow('combos', $id);
+        db()->execute("UPDATE combos SET is_deleted=0 WHERE id=?", [$id]);
+        logActivity('restored', 'combo', $id, $b['name'] ?? null, auditDiff($b, auditRow('combos', $id)));
         echo json_encode(['success'=>true,'message'=>'Combo restored']);
     } elseif ($action === 'toggle') {
-        db()->execute("UPDATE combos SET is_active = NOT is_active WHERE id=? AND is_deleted=0", [(int)($d['id'] ?? 0)]);
+        $id = (int)($d['id'] ?? 0); $b = auditRow('combos', $id);
+        db()->execute("UPDATE combos SET is_active = NOT is_active WHERE id=? AND is_deleted=0", [$id]);
+        logActivity('toggled', 'combo', $id, $b['name'] ?? null, auditDiff($b, auditRow('combos', $id)));
         echo json_encode(['success'=>true,'message'=>'Status updated']);
     } elseif ($action === 'bulk') {
         $ids = array_values(array_filter(array_map('intval', (array)($d['ids'] ?? []))));
