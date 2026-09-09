@@ -21,15 +21,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $desc = (string)($d['description'] ?? '');
         $base = max(0, (float)($d['base_cost'] ?? 0));
         $active = !empty($d['is_active']) ? 1 : 0;
+        // Availability limits. Blank stays NULL ("no limit") — a 0 would read as a real floor.
+        $lim = function ($k) use ($d) {
+            $v = $d[$k] ?? null;
+            return ($v === null || $v === '' ) ? null : max(0, (float)$v);
+        };
+        $minW = $lim('min_weight_kg');   $maxW = $lim('max_weight_kg');
+        $minV = $lim('min_order_value'); $maxV = $lim('max_order_value');
+        $days = $lim('delivery_days');   // NULL = inherit the destination pincode's transit time
+        $days = $days === null ? null : (int)$days;
+        if ($minW !== null && $maxW !== null && $minW > $maxW) {
+            echo json_encode(['success'=>false,'message'=>'Min weight cannot be greater than max weight.']); exit;
+        }
+        if ($minV !== null && $maxV !== null && $minV > $maxV) {
+            echo json_encode(['success'=>false,'message'=>'Min order value cannot be greater than max order value.']); exit;
+        }
+
         if (!empty($d['id'])) {
             $b = auditRow('shipping_methods', (int)$d['id']);
-            db()->execute("UPDATE shipping_methods SET name=?,description=?,type=?,base_cost=?,is_active=? WHERE id=?",
-                [$name,$desc,$type,$base,$active,(int)$d['id']]);
+            db()->execute("UPDATE shipping_methods SET name=?,description=?,type=?,base_cost=?,delivery_days=?,min_weight_kg=?,max_weight_kg=?,min_order_value=?,max_order_value=?,is_active=? WHERE id=?",
+                [$name,$desc,$type,$base,$days,$minW,$maxW,$minV,$maxV,$active,(int)$d['id']]);
             logActivity('updated', 'shipping_method', (int)$d['id'], $name, auditDiff($b, auditRow('shipping_methods', (int)$d['id'])));
             echo json_encode(['success'=>true,'message'=>'Shipping method updated']);
         } else {
-            $newId = db()->insert("INSERT INTO shipping_methods (name,description,type,base_cost,is_active) VALUES (?,?,?,?,?)",
-                [$name,$desc,$type,$base,$active]);
+            $newId = db()->insert("INSERT INTO shipping_methods (name,description,type,base_cost,delivery_days,min_weight_kg,max_weight_kg,min_order_value,max_order_value,is_active) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                [$name,$desc,$type,$base,$days,$minW,$maxW,$minV,$maxV,$active]);
             logActivity('created', 'shipping_method', (int)$newId, $name, auditDiff(null, auditRow('shipping_methods', (int)$newId)));
             echo json_encode(['success'=>true,'message'=>'Shipping method created']);
         }
@@ -116,17 +132,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $days = max(0, (int)($d['delivery_days'] ?? 5));
         $cod  = !empty($d['cod_available']) ? 1 : 0;
         $act  = isset($d['is_active']) ? (!empty($d['is_active']) ? 1 : 0) : 1;
+        // Audited like methods/zones/rules: this table decides the delivery promise AND whether
+        // COD is offered, so "who turned COD on for 38xxxx, and when" has to be answerable.
+        $pinLabel = $pfx . ($d['label'] ? ' · ' . $d['label'] : '');
         if (!empty($d['id'])) {
+            $b = auditRow('delivery_pincodes', (int)$d['id']);
             db()->execute("UPDATE delivery_pincodes SET pincode_prefix=?,label=?,delivery_days=?,cod_available=?,is_active=? WHERE id=?",
                 [$pfx,$d['label']??null,$days,$cod,$act,(int)$d['id']]);
+            logActivity('updated', 'delivery_pincode', (int)$d['id'], $pinLabel,
+                auditDiff($b, auditRow('delivery_pincodes', (int)$d['id'])));
         } else {
             db()->execute("INSERT INTO delivery_pincodes (pincode_prefix,label,delivery_days,cod_available,is_active) VALUES (?,?,?,?,1)
                 ON DUPLICATE KEY UPDATE label=VALUES(label),delivery_days=VALUES(delivery_days),cod_available=VALUES(cod_available),is_active=1",
                 [$pfx,$d['label']??null,$days,$cod]);
+            // ON DUPLICATE KEY means this may have been an update to an existing prefix; resolve
+            // the row by prefix rather than trusting lastInsertId, which is 0 on the update path.
+            $row = db()->fetchOne("SELECT * FROM delivery_pincodes WHERE pincode_prefix=?", [$pfx]);
+            logActivity('created', 'delivery_pincode', (int)($row['id'] ?? 0), $pinLabel, auditDiff(null, $row));
         }
         echo json_encode(['success'=>true,'message'=>'Pincode saved']);
     } elseif ($action === 'delete_pincode') {
-        db()->execute("DELETE FROM delivery_pincodes WHERE id=?",[(int)($data['id'] ?? 0)]);
+        $pid = (int)($data['id'] ?? 0);
+        $b = auditRow('delivery_pincodes', $pid);
+        db()->execute("DELETE FROM delivery_pincodes WHERE id=?", [$pid]);
+        logActivity('deleted', 'delivery_pincode', $pid,
+            trim(($b['pincode_prefix'] ?? '') . ($b['label'] ? ' · ' . $b['label'] : '')) ?: null,
+            auditDiff($b, null));
         echo json_encode(['success'=>true,'message'=>'Pincode deleted']);
     } elseif ($action === 'calc') {
         // Shipping Cost Calculator — runs the SAME engine the storefront cart/checkout use,
@@ -206,6 +237,7 @@ include __DIR__ . '/../includes/header.php';
   <button class="ship-tab" onclick="showShipTab('rules',this)"><i class="fa-solid fa-sliders" style="margin-right:6px;"></i>Rules</button>
   <button class="ship-tab" onclick="showShipTab('zones',this)"><i class="fa-solid fa-map-location-dot" style="margin-right:6px;"></i>Zones</button>
   <button class="ship-tab" onclick="showShipTab('pincodes',this)"><i class="fa-solid fa-location-dot" style="margin-right:6px;"></i>Pincode ETA</button>
+  <button class="ship-tab" onclick="showShipTab('cod',this)"><i class="fa-solid fa-money-bill-wave" style="margin-right:6px;"></i>COD Fee</button>
   <button class="ship-tab" onclick="showShipTab('calculator',this)"><i class="fa-solid fa-calculator" style="margin-right:6px;"></i>Calculator</button>
 </div>
 
@@ -236,6 +268,20 @@ include __DIR__ . '/../includes/header.php';
         <span style="color:var(--gold-primary);font-weight:700;">Base: <?= $m['base_cost'] > 0 ? formatCurrency($m['base_cost']) : 'Calculated' ?></span>
         <span class="badge badge-<?= $m['is_active']?'success':'secondary' ?>"><?= $m['is_active']?'Active':'Inactive' ?></span>
       </div>
+      <?php
+      // Surface any availability limit on the card — an order outside it is never offered this
+      // method, which is otherwise invisible until someone wonders why a quote is missing.
+      $lims = [];
+      if ($m['min_weight_kg'] !== null)   $lims[] = '≥ ' . rtrim(rtrim((string)$m['min_weight_kg'], '0'), '.') . ' kg';
+      if ($m['max_weight_kg'] !== null)   $lims[] = '≤ ' . rtrim(rtrim((string)$m['max_weight_kg'], '0'), '.') . ' kg';
+      if ($m['min_order_value'] !== null) $lims[] = '≥ ' . formatCurrency($m['min_order_value']);
+      if ($m['max_order_value'] !== null) $lims[] = '≤ ' . formatCurrency($m['max_order_value']);
+      ?>
+      <?php if ($lims): ?>
+      <div class="text-muted" style="font-size:.75rem;margin-top:8px;border-top:1px dashed var(--border-color);padding-top:8px;">
+        <i class="fa-solid fa-filter" style="margin-right:4px;"></i>Only for orders <?= htmlspecialchars(implode(' · ', $lims)) ?>
+      </div>
+      <?php endif; ?>
     </div>
     <?php endforeach; ?>
     <?php if(empty($methods)): ?><div class="card" style="padding:24px;text-align:center;color:var(--text-muted);">No shipping methods yet. <a href="#" onclick="openMethodModal()" style="color:var(--gold-primary);">Add one</a></div><?php endif; ?>
@@ -364,6 +410,60 @@ include __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
+<!-- COD FEE -->
+<?php
+// Cash-on-delivery handling fee. Stored as one JSON blob in site_settings so it travels with the
+// rest of the storefront config; the engine reads it in api/v1/_pricing.php :: codFeeFor().
+$codRow = db()->fetchOne("SELECT svalue FROM site_settings WHERE skey='codConfig'");
+$codCfg = $codRow ? (json_decode($codRow['svalue'] ?? 'null', true) ?: []) : [];
+$codOn        = !empty($codCfg['enabled']);
+// Master COD switch. Absent = on, so installs predating this control keep accepting COD.
+$codAvailable = !array_key_exists('available', $codCfg) || !empty($codCfg['available']);
+$codAmount    = (float)($codCfg['fee'] ?? 0);
+$codFreeAbove = (float)($codCfg['freeAbove'] ?? 0);
+?>
+<div id="ship-cod" class="ship-section fade-in">
+  <h3 style="font-family:'Playfair Display',serif;margin-bottom:6px;">Cash on Delivery</h3>
+  <p class="text-muted" style="font-size:.85rem;margin-bottom:20px;max-width:640px;">
+    Whether you accept COD at all, and the handling charge added to COD orders — it covers the
+    collection cost and COD's higher return rate. Online payments never pay it.
+  </p>
+  <div class="card" style="padding:22px;max-width:520px;">
+    <div class="form-group">
+      <label class="form-label">Accept COD orders</label>
+      <select class="form-control" id="cod_available">
+        <option value="1" <?= $codAvailable ? 'selected' : '' ?>>On — offer COD where the pincode allows it</option>
+        <option value="0" <?= $codAvailable ? '' : 'selected' ?>>Off — prepaid only, everywhere</option>
+      </select>
+      <small class="text-muted" style="font-size:.75rem;">
+        Master switch. With this on, COD still shows only for pincodes marked COD-enabled under
+        Pincode ETA. Turning it off blocks COD on every pincode at once.
+      </small>
+    </div>
+    <div class="form-group">
+      <label class="form-label">COD handling fee</label>
+      <select class="form-control" id="cod_enabled">
+        <option value="0" <?= $codOn ? '' : 'selected' ?>>Off — no COD fee</option>
+        <option value="1" <?= $codOn ? 'selected' : '' ?>>On — charge the fee below</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Fee (₹)</label>
+      <input type="number" step="0.01" min="0" class="form-control" id="cod_fee"
+             value="<?= $codAmount > 0 ? htmlspecialchars((string)$codAmount) : '' ?>" placeholder="e.g. 50">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Waive above (₹) <small class="text-muted">(blank = never waived)</small></label>
+      <input type="number" step="0.01" min="0" class="form-control" id="cod_free_above"
+             value="<?= $codFreeAbove > 0 ? htmlspecialchars((string)$codFreeAbove) : '' ?>" placeholder="e.g. 5000">
+      <small class="text-muted" style="font-size:.75rem;">Orders at or above this subtotal pay no COD fee.</small>
+    </div>
+    <?php if (can('shipping','edit')): ?>
+    <button class="btn btn-primary" onclick="saveCodConfig()"><i class="fa-solid fa-floppy-disk"></i> Save COD Settings</button>
+    <?php endif; ?>
+  </div>
+</div>
+
 <!-- CALCULATOR -->
 <div id="ship-calculator" class="ship-section fade-in">
   <h3 style="font-family:'Playfair Display',serif;margin-bottom:20px;">Shipping Cost Calculator</h3>
@@ -429,6 +529,27 @@ include __DIR__ . '/../includes/header.php';
           </select>
         </div>
         <div class="form-group"><label class="form-label">Base Cost (₹)</label><input type="number" class="form-control" id="method_cost" placeholder="0"></div>
+        <div class="form-group">
+          <label class="form-label">Delivery days <small class="text-muted">(blank = use the pincode's)</small></label>
+          <input type="number" min="0" step="1" class="form-control" id="method_days" placeholder="e.g. 2">
+          <small class="text-muted" style="font-size:.72rem;">Shown to the customer as the arrival date for this option. Set it lower than the others to sell a faster service.</small>
+        </div>
+      </div>
+      <div class="form-group" style="border-top:1px solid var(--border-color);padding-top:14px;margin-top:4px;">
+        <label class="form-label" style="margin-bottom:4px;">Availability limits <small class="text-muted">(optional — leave blank for no limit)</small></label>
+        <p class="text-muted" style="font-size:.76rem;margin-bottom:10px;">
+          An order outside these limits won't be offered this method at all. Use it to stop a
+          courier being quoted for consignments it can't carry — e.g. a 30&nbsp;kg ceiling, or a
+          freight service that only makes sense above 5&nbsp;kg.
+        </p>
+        <div class="form-row-2">
+          <div class="form-group"><label class="form-label">Min weight (kg)</label><input type="number" step="0.001" min="0" class="form-control" id="method_min_weight" placeholder="No minimum"></div>
+          <div class="form-group"><label class="form-label">Max weight (kg)</label><input type="number" step="0.001" min="0" class="form-control" id="method_max_weight" placeholder="No maximum"></div>
+        </div>
+        <div class="form-row-2">
+          <div class="form-group"><label class="form-label">Min order value (₹)</label><input type="number" step="0.01" min="0" class="form-control" id="method_min_value" placeholder="No minimum"></div>
+          <div class="form-group"><label class="form-label">Max order value (₹)</label><input type="number" step="0.01" min="0" class="form-control" id="method_max_value" placeholder="No maximum"></div>
+        </div>
       </div>
       <div class="form-group"><label class="form-label">Status</label><select class="form-control" id="method_status"><option value="1">Active</option><option value="0">Inactive</option></select></div>
     </div>
@@ -545,6 +666,25 @@ function showShipTab(name,btn){
   btn.classList.add('active');
 }
 
+// COD settings — saved through settings.php, which owns the site_settings whitelist.
+// `available` is the master accept-COD switch; `enabled` only governs the handling fee.
+async function saveCodConfig(){
+  const num = id => { const v = document.getElementById(id).value.trim(); return v === '' ? 0 : Math.max(0, parseFloat(v) || 0); };
+  const available = document.getElementById('cod_available').value === '1';
+  const enabled = document.getElementById('cod_enabled').value === '1';
+  const fee = num('cod_fee');
+  if (enabled && fee <= 0) { showToast('Enter a fee greater than 0, or set the fee to Off.','warning'); return; }
+  const payload = { action:'save_setting', key:'codConfig', value:{ available, enabled, fee, freeAbove: num('cod_free_above') } };
+  try{
+    const res = await fetch('settings.php',{method:'POST',
+      headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest',
+               'X-CSRF-Token':document.querySelector('meta[name=csrf-token]')?.content||''},
+      body:JSON.stringify(payload)});
+    const r = await res.json();
+    showToast(r.success ? 'COD settings saved' : (r.message||'Save failed'), r.success?'success':'danger');
+  }catch(e){ showToast('Save failed — reload and try again','danger'); }
+}
+
 // Methods
 function openMethodModal(m=null){
   document.getElementById('method_id').value=m?.id||'';
@@ -552,6 +692,13 @@ function openMethodModal(m=null){
   document.getElementById('method_desc').value=m?.description||'';
   document.getElementById('method_type').value=m?.type||'flat';
   document.getElementById('method_cost').value=m?.base_cost||'';
+  // Limits are nullable — keep an unset limit as an empty box, not a 0 (which would mean
+  // "minimum zero" and read as a real restriction).
+  document.getElementById('method_days').value=m?.delivery_days??'';
+  document.getElementById('method_min_weight').value=m?.min_weight_kg??'';
+  document.getElementById('method_max_weight').value=m?.max_weight_kg??'';
+  document.getElementById('method_min_value').value=m?.min_order_value??'';
+  document.getElementById('method_max_value').value=m?.max_order_value??'';
   document.getElementById('method_status').value=m?.is_active??1;
   document.getElementById('methodModalTitle').textContent=m?'Edit Shipping Method':'Add Shipping Method';
   openModal('methodModal');
@@ -559,7 +706,11 @@ function openMethodModal(m=null){
 async function saveMethod(){
   const name=document.getElementById('method_name').value.trim();
   if(!name){showToast('Method name required','warning');return;}
+  const lim=id=>{const v=document.getElementById(id).value.trim();return v===''?null:v;};
   const payload={action:'save_method',id:document.getElementById('method_id').value,name,
+    delivery_days:lim('method_days'),
+    min_weight_kg:lim('method_min_weight'),max_weight_kg:lim('method_max_weight'),
+    min_order_value:lim('method_min_value'),max_order_value:lim('method_max_value'),
     description:document.getElementById('method_desc').value,type:document.getElementById('method_type').value,
     base_cost:document.getElementById('method_cost').value||0,is_active:document.getElementById('method_status').value};
   const res=await fetch('shipping.php',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(payload)});

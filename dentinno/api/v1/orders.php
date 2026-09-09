@@ -22,6 +22,7 @@ function mapOrder(array $o, array $items): array {
         'subtotal'      => (float)$o['subtotal'],
         'discount'      => (float)$o['discount'],
         'shipping'      => (float)$o['shipping_charge'],
+        'codFee'        => (float)($o['cod_fee'] ?? 0),
         'tax'           => (float)($o['tax'] ?? 0),
         'total'         => (float)$o['total'],
         'address'       => jcol($o['shipping_address'] ?? null, null),
@@ -276,13 +277,19 @@ $address   = $body['address'] ?? null;
 $pincode = is_array($address)
     ? (string)($address['pincode'] ?? $address['pin'] ?? $address['zip'] ?? $address['postalCode'] ?? '')
     : '';
-$pricing  = computeOrderTotals($subtotal, $resolved, $couponCode, $pincode);
+// The delivery option the customer chose at checkout. Only its id is accepted; computeShipping
+// re-reads the rate from the DB and re-checks the method is active and valid for this order.
+$shipMethodId = isset($body['shippingMethodId']) && (int)$body['shippingMethodId'] > 0
+    ? (int)$body['shippingMethodId'] : null;
+// Read before pricing: the COD handling fee depends on it.
+$payMethod = (string)($body['paymentMethod'] ?? 'cod');
+$pricing  = computeOrderTotals($subtotal, $resolved, $couponCode, $pincode, $shipMethodId, $payMethod);
 $subtotal = $pricing['subtotal'];
 $discount = $pricing['discount'];
 $shipping = $pricing['shipping'];
+$codFee   = $pricing['codFee'];
 $tax      = $pricing['tax'];
 $total    = $pricing['total'];
-$payMethod = (string)($body['paymentMethod'] ?? 'cod');
 
 // Per-customer coupon cap: block a customer redeeming a code more times than per_user_limit
 // allows (NULL = unlimited). The global cap is enforced atomically at increment time below.
@@ -301,6 +308,10 @@ if ($pricing['couponRow']) {
 // has cod_available=1 (admin → Shipping → Pincode ETA). Longest-prefix match, same as
 // delivery.php. If no pincode rows exist at all, COD is left open (don't block on empty config).
 if ($payMethod === 'cod') {
+    // Master switch first — when the store isn't accepting COD, no pincode can override it.
+    if (!codAvailableGlobally()) {
+        jsonErr('Cash on Delivery is not available right now. Please choose online payment.', 422);
+    }
     $pin = preg_replace('/\D/', '', $pincode);
     $pinRows = $db->fetchAll("SELECT pincode_prefix, cod_available FROM delivery_pincodes WHERE is_active=1 ORDER BY CHAR_LENGTH(pincode_prefix) DESC");
     if (count($pinRows) > 0) {
@@ -326,14 +337,14 @@ try {
     $orderId = $db->insert(
         "INSERT INTO orders
          (order_number, customer_id, status, payment_status, payment_method,
-          subtotal, discount, shipping_charge, tax, total, coupon_id, shipping_address)
-         VALUES (?,?, 'pending', ?, ?, ?,?,?,?,?,?,?)",
+          subtotal, discount, shipping_charge, cod_fee, tax, total, coupon_id, shipping_address)
+         VALUES (?,?, 'pending', ?, ?, ?,?,?,?,?,?,?,?)",
         [
             $orderNumber, $cust['id'],
             // COD is collected on delivery (unpaid); online orders stay 'pending'
             // until the payment gateway confirms capture (see payment_razorpay.php).
             $payMethod === 'cod' ? 'unpaid' : 'pending',
-            $payMethod, $subtotal, $discount, $shipping, $tax, $total, $couponId,
+            $payMethod, $subtotal, $discount, $shipping, $codFee, $tax, $total, $couponId,
             $address ? json_encode($address) : null,
         ]
     );

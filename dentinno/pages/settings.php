@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         // Only known storefront-config keys may be written — reject anything else so a bug or a
         // crafted request can't pollute site_settings with arbitrary rows.
         $ALLOWED_KEYS = [
-            'aboutConfig','aboutSections','banners','branding','bulkRule','combosPage','company',
+            'aboutConfig','aboutSections','banners','branding','bulkRule','codConfig','combosPage','company',
             'contactConfig','contactSections','coupons','fbtItems','featured','footerConfig','freeGifts',
             'gvpPage','gvpThreshold','heroSlides','homeSections','lowStockThreshold','maintenanceMode','navMenu','offerZoneHero',
             'orderMailConfig','otpConfig','paymentOptions','payments','policies','premiumCategories','priceBounds','pricePresets',

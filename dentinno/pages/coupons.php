@@ -32,8 +32,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         if (!in_array($type, ['percent','fixed'], true)) {
             echo json_encode(['success'=>false,'message'=>'Coupon type must be percent or fixed.']); exit;
         }
-        if (!is_numeric($d['value'] ?? null) || (float)$d['value'] <= 0) {
-            echo json_encode(['success'=>false,'message'=>'Coupon value must be greater than 0.']); exit;
+        // A free-shipping coupon may carry no discount at all ("FREESHIP"), so 0 is allowed there.
+        $freeShip = !empty($d['free_shipping']) ? 1 : 0;
+        if (!is_numeric($d['value'] ?? null) || (float)$d['value'] < 0) {
+            echo json_encode(['success'=>false,'message'=>'Coupon value cannot be negative.']); exit;
+        }
+        if ((float)$d['value'] <= 0 && !$freeShip) {
+            echo json_encode(['success'=>false,'message'=>'Coupon value must be greater than 0, or tick Free shipping.']); exit;
         }
         if ($type === 'percent' && (float)$d['value'] > 100) {
             echo json_encode(['success'=>false,'message'=>'Percentage discount cannot exceed 100.']); exit;
@@ -44,14 +49,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
 
         if (!empty($d['id'])) {
             $before = db()->fetchOne("SELECT * FROM coupons WHERE id=?", [(int)$d['id']]);
-            db()->execute("UPDATE coupons SET code=?,type=?,value=?,min_order=?,max_discount=?,uses_limit=?,per_user_limit=?,is_active=?,start_date=?,expires_at=? WHERE id=?",
-                [$code,$d['type'],$d['value'],($d['min_order'] ?? 0),(($d['max_discount'] ?? '')?:null),(($d['uses_limit'] ?? '')?:null),$perUser,($d['is_active'] ?? 1),$startDate,$expires,$d['id']]);
+            db()->execute("UPDATE coupons SET code=?,type=?,value=?,free_shipping=?,min_order=?,max_discount=?,uses_limit=?,per_user_limit=?,is_active=?,start_date=?,expires_at=? WHERE id=?",
+                [$code,$d['type'],$d['value'],$freeShip,($d['min_order'] ?? 0),(($d['max_discount'] ?? '')?:null),(($d['uses_limit'] ?? '')?:null),$perUser,($d['is_active'] ?? 1),$startDate,$expires,$d['id']]);
             $after = db()->fetchOne("SELECT * FROM coupons WHERE id=?", [(int)$d['id']]);
             logActivity('updated', 'coupon', (int)$d['id'], $code.' · '.$d['type'].' '.$d['value'], auditDiff($before, $after));
             echo json_encode(['success'=>true,'message'=>'Coupon updated']);
         } else {
-            $newId = db()->insert("INSERT INTO coupons (code,type,value,min_order,max_discount,uses_limit,per_user_limit,is_active,start_date,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                [$code,$d['type'],$d['value'],($d['min_order'] ?? 0),(($d['max_discount'] ?? '')?:null),(($d['uses_limit'] ?? '')?:null),$perUser,($d['is_active'] ?? 1),$startDate,$expires]);
+            $newId = db()->insert("INSERT INTO coupons (code,type,value,free_shipping,min_order,max_discount,uses_limit,per_user_limit,is_active,start_date,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                [$code,$d['type'],$d['value'],$freeShip,($d['min_order'] ?? 0),(($d['max_discount'] ?? '')?:null),(($d['uses_limit'] ?? '')?:null),$perUser,($d['is_active'] ?? 1),$startDate,$expires]);
             $after = db()->fetchOne("SELECT * FROM coupons WHERE id=?", [(int)$newId]);
             logActivity('created', 'coupon', (int)$newId, $code.' · '.$d['type'].' '.$d['value'], auditDiff(null, $after));
             echo json_encode(['success'=>true,'message'=>'Coupon created']);
@@ -86,7 +91,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $prefix = strtoupper(preg_replace('/[^A-Z0-9]/i', '', (string)($data['prefix'] ?? '')));
         $type   = ($data['type'] ?? '') === 'fixed' ? 'fixed' : 'percent';
         $value  = (float)($data['value'] ?? 0);
-        if ($value <= 0) { echo json_encode(['success'=>false,'message'=>'Discount value must be greater than 0']); exit; }
+        $genFreeShip = !empty($data['free_shipping']) ? 1 : 0;
+        if ($value <= 0 && !$genFreeShip) { echo json_encode(['success'=>false,'message'=>'Discount value must be greater than 0, or enable free shipping']); exit; }
         if ($type === 'percent' && $value > 100) { echo json_encode(['success'=>false,'message'=>'Percentage cannot exceed 100']); exit; }
         // Clamp money/limit fields — this path bypasses the Validator the 'save' path uses.
         $minOrder = max(0, (float)($data['min_order'] ?? 0));
@@ -104,8 +110,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 $exists = db()->fetchOne("SELECT id FROM coupons WHERE UPPER(code)=?", [$code]);
             } while ($exists && ++$tries < 5);
             if ($exists) continue;
-            db()->insert("INSERT INTO coupons (code,type,value,min_order,max_discount,uses_limit,per_user_limit,is_active,start_date,expires_at) VALUES (?,?,?,?,?,?,?,1,?,?)",
-                [$code,$type,$value,$minOrder,$maxDisc,$usesLimit,$perUser,$startD,$expD]);
+            // Campaign codes carry the same free-shipping flag as the rest of the batch.
+            db()->insert("INSERT INTO coupons (code,type,value,free_shipping,min_order,max_discount,uses_limit,per_user_limit,is_active,start_date,expires_at) VALUES (?,?,?,?,?,?,?,?,1,?,?)",
+                [$code,$type,$value,$genFreeShip,$minOrder,$maxDisc,$usesLimit,$perUser,$startD,$expD]);
             $created++; $codes[] = $code;
         }
         echo json_encode(['success'=>true,'message'=>"Generated $created coupon code(s)", 'codes'=>$codes]);
@@ -304,6 +311,13 @@ include __DIR__ . '/../includes/header.php';
                     <input type="number" class="form-control" id="coup_min" placeholder="0">
                 </div>
             </div>
+            <div class="form-group">
+                <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                    <input type="checkbox" id="coup_free_ship" style="accent-color:var(--gold-primary);width:16px;height:16px;">
+                    <span>Also give <strong>free shipping</strong></span>
+                </label>
+                <small class="text-muted" style="font-size:.75rem;">Waives the delivery charge on top of the discount. For a shipping-only coupon, tick this and leave Discount Value at 0.</small>
+            </div>
             <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">Max Discount (₹)</label>
@@ -419,6 +433,7 @@ function openCouponModal(c = null) {
     document.getElementById('coup_code').value    = c?.code || '';
     document.getElementById('coup_type').value    = c?.type || 'percent';
     document.getElementById('coup_value').value   = c?.value || '';
+    document.getElementById('coup_free_ship').checked = !!Number(c?.free_shipping || 0);
     document.getElementById('coup_min').value     = c?.min_order || '0';
     document.getElementById('coup_max').value     = c?.max_discount || '';
     document.getElementById('coup_limit').value   = c?.uses_limit || '';
@@ -437,11 +452,15 @@ function applyFilters(){
 
 async function saveCoupon() {
     const code  = document.getElementById('coup_code').value.trim().toUpperCase();
-    const value = document.getElementById('coup_value').value;
-    if (!code || !value) { showToast('Code and value are required', 'warning'); return; }
+    const freeShip = document.getElementById('coup_free_ship').checked;
+    // A shipping-only coupon carries no discount, so an empty value is fine when it's ticked.
+    const value = document.getElementById('coup_value').value || (freeShip ? '0' : '');
+    if (!code) { showToast('Coupon code is required', 'warning'); return; }
+    if (!value && !freeShip) { showToast('Enter a discount value, or tick Free shipping', 'warning'); return; }
     const data = {
         action:'save', id:document.getElementById('coup_id').value,
         code, type:document.getElementById('coup_type').value, value,
+        free_shipping:document.getElementById('coup_free_ship').checked ? 1 : 0,
         min_order:document.getElementById('coup_min').value||0,
         max_discount:document.getElementById('coup_max').value,
         uses_limit:document.getElementById('coup_limit').value,

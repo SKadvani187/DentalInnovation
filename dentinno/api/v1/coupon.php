@@ -22,5 +22,8 @@ jsonOut([
     'type'     => $c['type'],
     'value'    => (float)$c['value'],
     'discount' => $ev['discount'],
+    // Whether the code also waives delivery, so the cart can show shipping as FREE straight away
+    // (the order API applies it authoritatively either way).
+    'freeShipping' => !empty($c['free_shipping']),
     'message'  => $ev['message'],
 ]);

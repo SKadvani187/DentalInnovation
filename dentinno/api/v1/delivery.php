@@ -2,6 +2,7 @@
 // GET /api/v1/delivery.php?pincode=395006
 // -> { serviceable, days, cod, label, eta } using the longest matching pincode prefix.
 require_once __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/_pricing.php';   // codAvailableGlobally()
 
 $pin = preg_replace('/\D/', '', qstr('pincode'));
 if (strlen($pin) !== 6) jsonErr('Enter a valid 6-digit pincode.', 422);
@@ -29,7 +30,8 @@ jsonOut([
     'serviceable' => true,
     'pincode'     => $pin,
     'days'        => $days,
-    'cod'         => (bool)$match['cod_available'],
+    // Both gates must pass: the store accepts COD at all, and this pincode allows it.
+    'cod'         => codAvailableGlobally() && (bool)$match['cod_available'],
     'label'       => $match['label'] ?: null,
     'eta'         => $eta->format('Y-m-d'),
 ]);

@@ -10,6 +10,11 @@
 -- Idempotent: clears any prior zone-specific price rules on the Free Shipping method,
 -- then re-inserts. The global All-Zones rules (₹99 / free) stay as the fallback for any
 -- pincode that doesn't resolve to a zone. Prereq: database_additions.sql + zone pincodes.
+--
+-- Each rate card is INSERT ... SELECT ... WHERE <zone> IS NOT NULL, because a zone name that
+-- doesn't exist on this install leaves its variable NULL. The original unconditional INSERT
+-- then wrote zone_id=NULL, quietly turning a zone rate card into a DUPLICATE global rule that
+-- competes with the ₹99 fallback for the same bracket — and added four more on every re-run.
 -- ───────────────────────────────────────────────────────────────────────────
 
 SET @m := (SELECT id FROM shipping_methods WHERE type='price' ORDER BY id LIMIT 1);
@@ -17,7 +22,7 @@ SET @m := (SELECT id FROM shipping_methods WHERE type='price' ORDER BY id LIMIT 
 -- Reset: remove existing zone-specific price rules for this method (keep zone_id IS NULL).
 DELETE FROM shipping_rules WHERE method_id=@m AND rule_type='price' AND zone_id IS NOT NULL;
 
--- Helper zone ids (by name, so this is install-independent).
+-- Helper zone ids (by name, so this is install-independent). NULL when the zone isn't set up.
 SET @west  := (SELECT id FROM shipping_zones WHERE name='West India'   LIMIT 1);
 SET @metro := (SELECT id FROM shipping_zones WHERE name='Metro Cities' LIMIT 1);
 SET @north := (SELECT id FROM shipping_zones WHERE name='North India'  LIMIT 1);
@@ -25,26 +30,31 @@ SET @south := (SELECT id FROM shipping_zones WHERE name='South India'  LIMIT 1);
 SET @india := (SELECT id FROM shipping_zones WHERE name='All India'    LIMIT 1);
 
 -- West India — ₹49 under ₹1,000, free at/above.
-INSERT INTO shipping_rules (method_id,zone_id,rule_type,min_value,max_value,cost,is_free,is_active) VALUES
-(@m,@west,'price',0,999.99,49,0,1),
-(@m,@west,'price',1000,NULL,0,1,1);
+INSERT INTO shipping_rules (method_id,zone_id,rule_type,min_value,max_value,cost,is_free,is_active)
+SELECT @m,@west,'price',0,999.99,49,0,1 WHERE @west IS NOT NULL
+UNION ALL
+SELECT @m,@west,'price',1000,NULL,0,1,1 WHERE @west IS NOT NULL;
 
 -- Metro Cities — ₹79 / free.
-INSERT INTO shipping_rules (method_id,zone_id,rule_type,min_value,max_value,cost,is_free,is_active) VALUES
-(@m,@metro,'price',0,999.99,79,0,1),
-(@m,@metro,'price',1000,NULL,0,1,1);
+INSERT INTO shipping_rules (method_id,zone_id,rule_type,min_value,max_value,cost,is_free,is_active)
+SELECT @m,@metro,'price',0,999.99,79,0,1 WHERE @metro IS NOT NULL
+UNION ALL
+SELECT @m,@metro,'price',1000,NULL,0,1,1 WHERE @metro IS NOT NULL;
 
 -- North India — ₹99 / free.
-INSERT INTO shipping_rules (method_id,zone_id,rule_type,min_value,max_value,cost,is_free,is_active) VALUES
-(@m,@north,'price',0,999.99,99,0,1),
-(@m,@north,'price',1000,NULL,0,1,1);
+INSERT INTO shipping_rules (method_id,zone_id,rule_type,min_value,max_value,cost,is_free,is_active)
+SELECT @m,@north,'price',0,999.99,99,0,1 WHERE @north IS NOT NULL
+UNION ALL
+SELECT @m,@north,'price',1000,NULL,0,1,1 WHERE @north IS NOT NULL;
 
 -- South India — ₹99 / free.
-INSERT INTO shipping_rules (method_id,zone_id,rule_type,min_value,max_value,cost,is_free,is_active) VALUES
-(@m,@south,'price',0,999.99,99,0,1),
-(@m,@south,'price',1000,NULL,0,1,1);
+INSERT INTO shipping_rules (method_id,zone_id,rule_type,min_value,max_value,cost,is_free,is_active)
+SELECT @m,@south,'price',0,999.99,99,0,1 WHERE @south IS NOT NULL
+UNION ALL
+SELECT @m,@south,'price',1000,NULL,0,1,1 WHERE @south IS NOT NULL;
 
 -- All India (remote catch-all) — ₹149 / free.
-INSERT INTO shipping_rules (method_id,zone_id,rule_type,min_value,max_value,cost,is_free,is_active) VALUES
-(@m,@india,'price',0,999.99,149,0,1),
-(@m,@india,'price',1000,NULL,0,1,1);
+INSERT INTO shipping_rules (method_id,zone_id,rule_type,min_value,max_value,cost,is_free,is_active)
+SELECT @m,@india,'price',0,999.99,149,0,1 WHERE @india IS NOT NULL
+UNION ALL
+SELECT @m,@india,'price',1000,NULL,0,1,1 WHERE @india IS NOT NULL;
