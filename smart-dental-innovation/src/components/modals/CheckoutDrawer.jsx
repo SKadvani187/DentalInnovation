@@ -8,6 +8,7 @@ import { useAppNavigate } from "../../hooks/useAppNavigate";
 import api, { loadRazorpayScript } from "../../lib/api";
 import { lookupPincode, detectCurrentPincode, validateAddressLocality } from "../../lib/pincode";
 import { useDeliveryCheck, useStockCheck } from "../../hooks/useCheckout";
+import { fmtEta } from "../../lib/eta";
 import logoAsset from "../../assets/logo.png";
 
 const fmt = (n) => `₹${Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -36,7 +37,9 @@ const emptyForm = { type: "Home", pincode: "", city: "", state: "", areas: [], b
 
 export default function CheckoutDrawer() {
   const { modal, closeModal, showToast, openModal } = useUI();
-  const { items, pricing, appliedCoupon, applyCoupon, removeCoupon, clearCart, setDeliveryPincode } = useCart();
+  const { items, pricing, appliedCoupon, applyCoupon, removeCoupon, clearCart, setDeliveryPincode,
+          shippingQuote, shippingMethodId, setShippingMethodId,
+          setPaymentMethod: setCartPaymentMethod } = useCart();
   const { user, token, addAddress, updateAddress, setDefaultAddress } = useAuth();
   const { branding = {}, coupons: COUPONS = [], company = {} } = useSettings();
   const navigate = useAppNavigate();
@@ -61,7 +64,7 @@ export default function CheckoutDrawer() {
   const [form, setForm] = useState(emptyForm);
   const [editTarget, setEditTarget] = useState(null);
 
-  const { mrpTotal, subtotal, couponDiscount, deliveryCharges, tax, finalTotal, totalSaved } = pricing;
+  const { mrpTotal, subtotal, couponDiscount, deliveryCharges, codFee, tax, finalTotal, totalSaved } = pricing;
   const productDiscount = Math.max(0, mrpTotal - subtotal);
 
   // On open: reset to delivery, pick the default (or first) saved address.
@@ -87,6 +90,10 @@ export default function CheckoutDrawer() {
   // Effective method: never let an unavailable COD selection survive to PAY NOW —
   // derived at render (no effect/cascading render) so it always reflects current COD state.
   const effectivePayment = payment === "cod" && !codAvailable ? "online" : payment;
+
+  // Mirror the effective payment into the cart, which owns the total — COD adds a surcharge, so
+  // the displayed total has to move the moment the buyer switches between COD and online.
+  useEffect(() => { setCartPaymentMethod(effectivePayment); }, [effectivePayment, setCartPaymentMethod]);
 
   // These sub-screens render with a simple header (back + title + close), no price summary.
   const isAddressView = view === "addrList" || view === "addrPincode" || view === "addrForm" || view === "coupons";
@@ -117,6 +124,9 @@ export default function CheckoutDrawer() {
     address: toOrderAddress(selectedAddr),
     paymentMethod,
     couponCode: appliedCoupon?.code || null,
+    // The chosen delivery option — id only. orders.php re-reads its rate and re-checks that the
+    // method is still active and valid for this order, so this can't buy cheaper shipping.
+    shippingMethodId: shippingMethodId || null,
   });
 
   const onPay = async () => {
@@ -334,6 +344,7 @@ export default function CheckoutDrawer() {
                   couponCode={appliedCoupon?.code}
                   subtotal={subtotal}
                   deliveryCharges={deliveryCharges}
+                  codFee={codFee}
                   tax={tax}
                   finalTotal={finalTotal}
                 />
@@ -351,6 +362,9 @@ export default function CheckoutDrawer() {
                     setPayment={setPayment}
                     method={method}
                     setMethod={setMethod}
+                    shippingOptions={shippingQuote?.methods || []}
+                    shippingMethodId={shippingMethodId ?? shippingQuote?.defaultMethodId ?? null}
+                    setShippingMethodId={setShippingMethodId}
                     onChangeAddress={() => setView(addresses.length === 0 ? "addrPincode" : "addrList")}
                     onOpenCoupons={() => setView("coupons")}
                   />
@@ -455,7 +469,7 @@ function SimpleHeader({ title, onBack, onClose }) {
 }
 
 /* ------------------------- Price breakup ------------------------ */
-function PriceBreakup({ items, mrpTotal, productDiscount, couponDiscount, couponCode, subtotal, deliveryCharges, tax, finalTotal }) {
+function PriceBreakup({ items, mrpTotal, productDiscount, couponDiscount, couponCode, subtotal, deliveryCharges, codFee = 0, tax, finalTotal }) {
   const first = items[0];
   return (
     <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
@@ -476,6 +490,7 @@ function PriceBreakup({ items, mrpTotal, productDiscount, couponDiscount, coupon
         {couponDiscount > 0 && <Row label={`Coupon${couponCode ? ` (${couponCode})` : ""}`} value={`-${fmt(couponDiscount)}`} green />}
         <Row label="Subtotal" value={fmt(subtotal)} bold />
         <Row label="Shipping Charges" value={deliveryCharges > 0 ? fmt(deliveryCharges) : "FREE"} green={deliveryCharges === 0} />
+        {codFee > 0 && <Row label="COD Handling Fee" value={fmt(codFee)} />}
         {tax > 0 && <Row label="Tax (GST)" value={fmt(tax)} />}
         <div className="pt-2 mt-1 border-t border-gray-200">
           <Row label="Total" value={fmt(finalTotal)} bold big />
@@ -495,7 +510,8 @@ function Row({ label, value, green, bold, big }) {
 }
 
 /* --------------------------- Delivery --------------------------- */
-function DeliveryView({ addr, delivery, deliveryCharges, finalTotal, codAvailable, payment, setPayment, method, setMethod, onChangeAddress, onOpenCoupons }) {
+function DeliveryView({ addr, delivery, deliveryCharges, finalTotal, codAvailable, payment, setPayment, method, setMethod,
+                        shippingOptions, shippingMethodId, setShippingMethodId, onChangeAddress, onOpenCoupons }) {
   return (
     <div className="px-4 py-4 space-y-4">
       <p className="text-xs font-bold uppercase tracking-wider text-brand-muted">Delivery Details</p>
@@ -534,25 +550,76 @@ function DeliveryView({ addr, delivery, deliveryCharges, finalTotal, codAvailabl
           </div>
         )}
 
-        {/* Shipping method row */}
-        <div className="border-t border-gray-100 p-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-brand-muted" viewBox="0 0 24 24" fill="currentColor"><path d="M20 8h-3V4H3a1 1 0 0 0-1 1v11h2a3 3 0 0 0 6 0h4a3 3 0 0 0 6 0h2v-5l-2-3M7 17.5A1.5 1.5 0 1 1 8.5 16 1.5 1.5 0 0 1 7 17.5m10 0A1.5 1.5 0 1 1 18.5 16 1.5 1.5 0 0 1 17 17.5M17 12V9.5h2.5L21 12Z" /></svg>
-              <div>
-                <p className="text-sm font-semibold text-brand-ink">Standard Delivery</p>
-                <p className="text-[11px] text-brand-muted">
-                  {delivery?.serviceable === false
-                    ? "Not deliverable to this pincode"
-                    : delivery?.eta
-                      ? `Scheduled · arrives by ${delivery.eta}`
-                      : "Scheduled for delivery"}
-                </p>
+        {/* Delivery options. One option is not a choice — it renders as a plain row, exactly as
+            before. Two or more become selectable, so a buyer can pay for a faster service. */}
+        {(() => {
+          const opts = (shippingOptions || []).filter((o) => o.applicable);
+          const chosen = opts.find((o) => o.id === shippingMethodId) || opts[0] || null;
+          const eta = delivery?.serviceable === false
+            ? "Not deliverable to this pincode"
+            : delivery?.eta ? `Scheduled · arrives by ${delivery.eta}` : "Scheduled for delivery";
+          const truck = (
+            <svg className="w-5 h-5 text-brand-muted shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M20 8h-3V4H3a1 1 0 0 0-1 1v11h2a3 3 0 0 0 6 0h4a3 3 0 0 0 6 0h2v-5l-2-3M7 17.5A1.5 1.5 0 1 1 8.5 16 1.5 1.5 0 0 1 7 17.5m10 0A1.5 1.5 0 1 1 18.5 16 1.5 1.5 0 0 1 17 17.5M17 12V9.5h2.5L21 12Z" /></svg>
+          );
+          const price = (o) => (o.free || Number(o.cost) === 0 ? "FREE" : fmt(o.cost));
+
+          if (opts.length <= 1) {
+            return (
+              <div className="border-t border-gray-100 p-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {truck}
+                  <div>
+                    <p className="text-sm font-semibold text-brand-ink">{chosen?.name || "Standard Delivery"}</p>
+                    <p className="text-[11px] text-brand-muted">{eta}</p>
+                  </div>
+                </div>
+                <span className={`text-sm font-bold ${deliveryCharges > 0 ? "text-green-700" : "text-green-600"}`}>
+                  {deliveryCharges > 0 ? fmt(deliveryCharges) : "FREE"}
+                </span>
+              </div>
+            );
+          }
+
+          return (
+            <div className="border-t border-gray-100">
+              <p className="px-3 pt-3 text-[11px] font-bold uppercase tracking-wider text-brand-muted">Delivery option</p>
+              <div className="p-3 pt-2 space-y-2">
+                {opts.map((o) => {
+                  const active = chosen?.id === o.id;
+                  return (
+                    <label
+                      key={o.id}
+                      className={`flex items-center gap-3 border rounded-lg px-3 py-2.5 cursor-pointer transition ${
+                        active ? "border-[#3684bf] bg-blue-50/40" : "border-gray-200 hover:border-gray-400"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="shipMethod"
+                        checked={active}
+                        onChange={() => setShippingMethodId(o.id)}
+                        className="accent-[#3684bf]"
+                      />
+                      {truck}
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold text-brand-ink">{o.name}</span>
+                        {/* Each option promises its own date — that is the whole reason to pay
+                            more for a faster one. Falls back to the pincode ETA when the method
+                            states no transit time of its own. */}
+                        <span className="block text-[11px] text-brand-muted">
+                          {o.eta ? `Arrives by ${fmtEta(o.eta)}` : o.description || eta}
+                        </span>
+                      </span>
+                      <span className={`text-sm font-bold shrink-0 ${o.free || Number(o.cost) === 0 ? "text-green-600" : "text-green-700"}`}>
+                        {price(o)}
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
-            <span className={`text-sm font-bold ${deliveryCharges > 0 ? "text-green-700" : "text-green-600"}`}>
-              {deliveryCharges > 0 ? fmt(deliveryCharges) : "FREE"}
-            </span>
-          </div>
+          );
+        })()}
       </div>
 
       {/* Offers & Rewards */}

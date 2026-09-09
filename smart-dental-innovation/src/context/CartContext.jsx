@@ -103,17 +103,32 @@ export function CartProvider({ children }) {
   // Server-authoritative shipping quote (shipping_methods/rules/zones). null until fetched;
   // until then the cart shows the flat shippingConfig estimate from computeCartPricing.
   const [shippingQuote, setShippingQuote] = useState(null);
+  // The delivery option the customer picked at checkout. null = let the engine choose (cheapest).
+  // Only the id is kept; every rupee is re-derived server-side on each quote and on the order.
+  const [shippingMethodId, setShippingMethodId] = useState(null);
+  // Which payment the buyer has selected. Held here (not just in the checkout sheet) because the
+  // COD surcharge changes the cart total, and the total is computed here.
+  const [paymentMethod, setPaymentMethod] = useState("cod");
   useEffect(() => {
     const lines = items
       .filter((i) => i.type !== "gift")
       .map((i) => ({ slug: i.id, qty: i.qty }));
     if (lines.length === 0) { setShippingQuote(null); return; }
     let alive = true;
-    api.shippingQuote({ items: lines, pincode: deliveryPincode })
+    api.shippingQuote({ items: lines, pincode: deliveryPincode, shippingMethodId })
       .then((q) => { if (alive && q && typeof q.shipping === "number") setShippingQuote(q); })
       .catch(() => { if (alive) setShippingQuote(null); });   // fall back to flat estimate
     return () => { alive = false; };
-  }, [items, deliveryPincode]);
+  }, [items, deliveryPincode, shippingMethodId]);
+
+  // Drop a selection the current cart/pincode can no longer use — a heavier cart or a different
+  // zone can rule an option out, and holding a dead id would quietly re-quote at the default
+  // while checkout still showed it as chosen.
+  useEffect(() => {
+    if (shippingMethodId === null || !shippingQuote?.methods) return;
+    const still = shippingQuote.methods.some((m) => m.id === shippingMethodId && m.applicable);
+    if (!still) setShippingMethodId(null);
+  }, [shippingQuote, shippingMethodId]);
 
   // Per-product free gifts: auto-add a ₹0 gift line for each product that grants one, and
   // drop gift lines whose granting product has left the cart. Keyed on the set of real
@@ -294,10 +309,15 @@ export function CartProvider({ children }) {
       coupon: appliedCoupon,
     });
     if (!shippingQuote || typeof shippingQuote.shipping !== "number") return base;
-    const deliveryCharges = items.length === 0 ? 0 : shippingQuote.shipping;
-    const finalTotal = Math.max(0, Math.round((base.finalTotal - base.deliveryCharges + deliveryCharges) * 100) / 100);
-    return { ...base, deliveryCharges, finalTotal };
-  }, [items, tierOffers, bulkRule, shippingConfig, taxConfig, appliedCoupon, shippingQuote]);
+    // A coupon can waive delivery outright; the order API applies the same rule server-side.
+    const deliveryCharges =
+      items.length === 0 || appliedCoupon?.freeShipping ? 0 : shippingQuote.shipping;
+    // COD surcharge, applied only once the buyer has actually selected Cash on Delivery.
+    const codFee = items.length === 0 || paymentMethod !== "cod" ? 0 : Number(shippingQuote.codFee) || 0;
+    const finalTotal = Math.max(0, Math.round(
+      (base.finalTotal - base.deliveryCharges - base.codFee + deliveryCharges + codFee) * 100) / 100);
+    return { ...base, deliveryCharges, codFee, finalTotal };
+  }, [items, tierOffers, bulkRule, shippingConfig, taxConfig, appliedCoupon, shippingQuote, paymentMethod]);
 
   // Count only purchasable lines — free gifts (auto + offer-bound) are bonuses, not items
   // the customer added, so they must not inflate the cart badge / "N items" label.
@@ -310,8 +330,10 @@ export function CartProvider({ children }) {
       subtotal, itemCount, pricing,
       appliedCoupon, applyCoupon, removeCoupon,
       deliveryPincode, setDeliveryPincode, shippingQuote,
+      shippingMethodId, setShippingMethodId,
+      paymentMethod, setPaymentMethod,
     }),
-    [items, addToCart, removeFromCart, updateQty, clearCart, subtotal, itemCount, pricing, appliedCoupon, applyCoupon, removeCoupon, deliveryPincode, setDeliveryPincode, shippingQuote]
+    [items, addToCart, removeFromCart, updateQty, clearCart, subtotal, itemCount, pricing, appliedCoupon, applyCoupon, removeCoupon, deliveryPincode, setDeliveryPincode, shippingQuote, shippingMethodId, paymentMethod]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

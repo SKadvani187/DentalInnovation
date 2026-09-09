@@ -104,12 +104,20 @@ export function computeCartPricing(items, opts = {}) {
   const discount = r2(bulkSavings + couponDiscount);
   const afterDiscount = Math.max(0, r2(subtotal - discount));
 
-  const deliveryCharges =
-    items.length === 0 || subtotal >= shipping.freeThreshold ? 0 : shipping.flatRate;
+  // A freeThreshold of 0 or less means "never free" — the same rule the server applies in
+  // api/v1/_pricing.php. Read literally it would mean "free above zero", i.e. every order free,
+  // so the two must agree or this estimate would flash FREE before the server quote corrects it.
+  const freeOverThreshold = shipping.freeThreshold > 0 && subtotal >= shipping.freeThreshold;
+  const deliveryCharges = items.length === 0 || freeOverThreshold ? 0 : shipping.flatRate;
 
   const taxAmount = tax.enabled && !tax.inclusive ? r2(afterDiscount * (tax.rate / 100)) : 0;
 
-  const finalTotal = Math.max(0, r2(afterDiscount + deliveryCharges + taxAmount));
+  // COD handling fee — only once the buyer has actually chosen Cash on Delivery. The server
+  // quotes the amount (api/v1/shipping_quote.php) and charges it again authoritatively on the
+  // order, so this only mirrors it in the displayed total.
+  const codFee = opts.codFee > 0 && opts.paymentMethod === "cod" ? r2(opts.codFee) : 0;
+
+  const finalTotal = Math.max(0, r2(afterDiscount + deliveryCharges + codFee + taxAmount));
   const totalSaved = Math.max(0, r2(mrpTotal - afterDiscount));
 
   return {
@@ -119,6 +127,7 @@ export function computeCartPricing(items, opts = {}) {
     couponDiscount,
     discount,
     deliveryCharges,
+    codFee,
     tax: taxAmount,
     finalTotal,
     totalSaved,

@@ -11,6 +11,7 @@ import { useProducts, useCombos, useEvents, useCategories, useReviews, useFaqs, 
 import api from "../../lib/api";
 import { useSettings } from "../../context/SettingsContext";
 import { discountPct } from "../../lib/pricing";
+import { fmtEta } from "../../lib/eta";
 import Seo from "../Seo";
 import RichText from "../RichText";
 
@@ -106,6 +107,10 @@ export default function ProductDetailPage() {
   const [pinMsg, setPinMsg] = useState("");
   const [pinInfo, setPinInfo] = useState(null);
   const [pinChecking, setPinChecking] = useState(false);
+  // The pincode we currently hold a delivery quote for. Set once the serviceability check
+  // succeeds; cleared the moment the buyer edits the box, so a stale quote can never linger
+  // next to a different pincode.
+  const [quotedPin, setQuotedPin] = useState("");
   const [reviewOpen, setReviewOpen] = useState(false);   // shared: Feedback link + Reviews card
   const [reviewWrite, setReviewWrite] = useState(false); // open review modal straight into write mode
   const [reviewsOpen, setReviewsOpen] = useState(false);
@@ -152,18 +157,40 @@ export default function ProductDetailPage() {
     try {
       const r = await api.checkDelivery(pincode);
       if (r.serviceable) {
-        setPinInfo({ ok: true, date: r.eta, cod: r.cod, label: r.label, days: r.days });
+        // methods arrive from the quote effect below, which also re-runs when the qty changes.
+        setPinInfo({ ok: true, date: r.eta, cod: r.cod, label: r.label, days: r.days, methods: null });
+        setQuotedPin(pincode);
       } else {
         setPinInfo(null);
+        setQuotedPin("");
         setPinMsg("Sorry, we don't deliver to this pincode yet.");
       }
     } catch (err) {
       setPinInfo(null);
+      setQuotedPin("");
       setPinMsg(err.message || "Could not check delivery for this pincode.");
     } finally {
       setPinChecking(false);
     }
   };
+
+  // Delivery options for the checked pincode, priced by the same server engine the cart and the
+  // order path use — the page never computes shipping itself. Re-runs on quantity changes because
+  // weight- and value-based methods can cross a rule boundary between qty 1 and qty 10.
+  useEffect(() => {
+    if (!quotedPin) return;
+    let alive = true;
+    api
+      .shippingQuote({ items: [{ id: product.id, qty: displayQty }], pincode: quotedPin })
+      .then((q) => {
+        if (!alive) return;
+        const methods = (q?.methods || []).filter((m) => m.applicable);
+        setPinInfo((p) => (p?.ok ? { ...p, methods } : p));
+      })
+      // A failed quote is not fatal — the pincode block still shows the base ETA and COD status.
+      .catch(() => { if (alive) setPinInfo((p) => (p?.ok ? { ...p, methods: [] } : p)); });
+    return () => { alive = false; };
+  }, [quotedPin, displayQty, product.id]);
 
   const onAdd = () => {
     addToCart(product, 1);
@@ -436,7 +463,7 @@ export default function ProductDetailPage() {
           </div>
 
           {/* This product's own options, right under the main card — each adds its own price. */}
-          <ProductVariants product={product} viewing={viewingVariant} onView={setViewingVariant} />
+          <ProductVariants product={product} viewing={viewingVariant} onView={setViewingVariant} eta={pinInfo?.ok ? pinInfo.date : null} />
 
           <div className="border border-gray-200 rounded-xl p-4">
             <h3 className="font-bold text-brand-ink mb-3">Delivery Details</h3>
@@ -461,6 +488,7 @@ export default function ProductDetailPage() {
                 onChange={(e) => {
                   setPincode(e.target.value.replace(/\D/g, "").slice(0, 6));
                   setPinInfo(null);
+                  setQuotedPin("");
                   setPinMsg("");
                 }}
                 className="flex-1 min-w-0 text-sm text-brand-ink placeholder:text-gray-400 focus:outline-none bg-transparent"
@@ -476,14 +504,38 @@ export default function ProductDetailPage() {
             </div>
             {pinInfo?.ok ? (
               <div className="mt-3 space-y-2 text-sm">
-                <div className="flex items-center gap-2 text-brand-ink">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3684bf" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                <div className="flex items-start gap-2 text-brand-ink">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3684bf" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5">
                     <rect x="1" y="6" width="14" height="11" rx="1" />
                     <path d="M15 9h4l3 3v5h-7" />
                     <circle cx="6" cy="19" r="2" />
                     <circle cx="18" cy="19" r="2" />
                   </svg>
-                  <span>Get it by <span className="font-semibold">{pinInfo.date}</span></span>
+                  {/* More than one option available => list them all with their own price and date,
+                      the way Amazon/Flipkart do. One option (or none quoted) keeps the plain line. */}
+                  {pinInfo.methods && pinInfo.methods.length > 1 ? (
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold mb-1.5">Delivery options</div>
+                      <ul className="space-y-1.5">
+                        {pinInfo.methods.map((m) => (
+                          <li key={m.id} className="flex items-baseline justify-between gap-3">
+                            <span className="min-w-0">
+                              <span className="font-medium">{m.name}</span>
+                              <span className="block text-xs text-brand-muted">
+                                Get it by {fmtEta(m.eta || pinInfo.date)}
+                              </span>
+                            </span>
+                            <span className={`shrink-0 text-sm font-semibold ${m.free || Number(m.cost) === 0 ? "text-green-600" : "text-brand-ink"}`}>
+                              {m.free || Number(m.cost) === 0 ? "FREE" : fmt(m.cost)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="text-xs text-brand-muted mt-1.5">Choose your option at checkout.</div>
+                    </div>
+                  ) : (
+                    <span>Get it by <span className="font-semibold">{fmtEta(pinInfo.date)}</span></span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 text-brand-ink">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3684bf" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
@@ -879,7 +931,10 @@ function usableVariants(product) {
   return [];
 }
 
-function ProductVariants({ product, viewing, onView }) {
+// `eta` is the real delivery date for the pincode the buyer checked above (null until they do).
+// Once we know it, the per-variant note shows that date instead of the generic settings text, so
+// the card and the delivery box on the same page can't promise two different things.
+function ProductVariants({ product, viewing, onView, eta = null }) {
   const { addToCart, items, updateQty, removeFromCart } = useCart();
   const { openModal } = useUI();
   const { productDefaults = {} } = useSettings();
@@ -961,7 +1016,9 @@ function ProductVariants({ product, viewing, onView }) {
                 <p className="text-xs font-semibold text-orange-600 mt-1">Only {v.qty} left</p>
               ) : (
                 <p className="text-xs text-brand-muted mt-1">
-                  {productDefaults.variantDeliveryNote || "📦 Get it by 3–5 days"}
+                  {eta
+                    ? `📦 Get it by ${fmtEta(eta)}`
+                    : productDefaults.variantDeliveryNote || "📦 Get it by 3–5 days"}
                 </p>
               )}
 
@@ -1019,7 +1076,10 @@ function ProductVariants({ product, viewing, onView }) {
   );
 }
 
-function AvailableVariants({ product }) {
+// `cod` mirrors the pincode check higher up the page: null until the buyer has checked a pincode,
+// then the real per-pincode answer. Never claim COD before we know — this row used to read
+// "COD available" unconditionally, contradicting the delivery box on the same page.
+function AvailableVariants({ product, cod = null }) {
   const { addToCart } = useCart();
   const { openModal } = useUI();
   const navigate = useAppNavigate();
@@ -1070,7 +1130,11 @@ function AvailableVariants({ product }) {
                 </button>
               </div>
             </div>
-            <p className="text-xs text-brand-muted mt-1">{productDefaults.variantCodNote || "💳 COD available"}</p>
+            {cod !== null && (
+              <p className="text-xs text-brand-muted mt-1">
+                {cod ? "💳 COD available" : "💳 Prepaid only (no COD)"}
+              </p>
+            )}
           </div>
         ))}
       </div>
