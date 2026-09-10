@@ -95,6 +95,12 @@ export default function CheckoutDrawer() {
   // the displayed total has to move the moment the buyer switches between COD and online.
   useEffect(() => { setCartPaymentMethod(effectivePayment); }, [effectivePayment, setCartPaymentMethod]);
 
+  // What the buyer is actually offered: one option per arrival date, cheapest of each. Two options
+  // landing on the same day are not a choice — they only invite paying more for the same service.
+  // Falls back to filtering the full method list so an older API response still renders.
+  const shippingOptions =
+    shippingQuote?.options || (shippingQuote?.methods || []).filter((m) => m.applicable);
+
   // These sub-screens render with a simple header (back + title + close), no price summary.
   const isAddressView = view === "addrList" || view === "addrPincode" || view === "addrForm" || view === "coupons";
   const addrTitle =
@@ -362,7 +368,7 @@ export default function CheckoutDrawer() {
                     setPayment={setPayment}
                     method={method}
                     setMethod={setMethod}
-                    shippingOptions={shippingQuote?.methods || []}
+                    shippingOptions={shippingOptions}
                     shippingMethodId={shippingMethodId ?? shippingQuote?.defaultMethodId ?? null}
                     setShippingMethodId={setShippingMethodId}
                     onChangeAddress={() => setView(addresses.length === 0 ? "addrPincode" : "addrList")}

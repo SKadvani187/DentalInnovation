@@ -184,7 +184,9 @@ export default function ProductDetailPage() {
       .shippingQuote({ items: [{ id: product.id, qty: displayQty }], pincode: quotedPin })
       .then((q) => {
         if (!alive) return;
-        const methods = (q?.methods || []).filter((m) => m.applicable);
+        // `options` is the customer-facing list: one entry per distinct arrival date, cheapest
+        // of each. Falling back to filtering `methods` keeps this working against an older API.
+        const methods = q?.options || (q?.methods || []).filter((m) => m.applicable);
         setPinInfo((p) => (p?.ok ? { ...p, methods } : p));
       })
       // A failed quote is not fatal — the pincode block still shows the base ETA and COD status.

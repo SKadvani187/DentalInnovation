@@ -92,6 +92,33 @@ foreach ($methods as $m) {
     }
 }
 
+// The customer-facing list. A shopper chooses delivery on ONE trade-off — how fast, for how much —
+// so two options that arrive the same day are not a choice, they are noise: nobody knowingly pays
+// more for the same date. Collapse each arrival date to its cheapest option and sort soonest first,
+// so the storefront shows a second line only when it buys the customer a genuinely earlier date.
+//
+// `methods` above is left untouched: it is the full engineering view (admin calculator, debugging,
+// and the checkout validation round-trip all still need every method, applicable or not).
+$byEta = [];
+foreach ($methods as $m) {
+    if (!$m['applicable']) continue;
+    $key = $m['eta'] ?? 'unknown';
+    $cur = $byEta[$key] ?? null;
+    $better = $cur === null
+        || ((bool)$m['free'] && !(bool)$cur['free'])
+        || (!(bool)$cur['free'] && (float)$m['cost'] < (float)$cur['cost']);
+    if ($better) $byEta[$key] = $m;
+}
+$options = array_values($byEta);
+usort($options, function ($a, $b) {
+    // Soonest arrival first; undated options last. Equal dates cannot both survive the grouping,
+    // so cost is only a tie-break for two undated options.
+    $ae = $a['eta'] ?? '9999-12-31';
+    $be = $b['eta'] ?? '9999-12-31';
+    if ($ae !== $be) return strcmp($ae, $be);
+    return (float)$a['cost'] <=> (float)$b['cost'];
+});
+
 jsonOut([
     'success'  => true,
     'shipping' => $shipping,
@@ -100,6 +127,8 @@ jsonOut([
     'zoneId'   => $zoneId,
     'subtotal' => $subtotal,
     'methods'  => $methods,
+    // What the storefront should actually render: one entry per distinct arrival date.
+    'options'  => $options,
     'defaultMethodId' => $defaultMethodId,
     // What COD would add on this order (0 when disabled, waived, or not applicable). Lets the
     // cart show the surcharge the moment COD is picked, without a second round trip.

@@ -124,10 +124,15 @@ export function CartProvider({ children }) {
   // Drop a selection the current cart/pincode can no longer use — a heavier cart or a different
   // zone can rule an option out, and holding a dead id would quietly re-quote at the default
   // while checkout still showed it as chosen.
+  // Checked against the OFFERED list, not merely the applicable one: an option that now shares its
+  // arrival date with a cheaper one is collapsed out of the picker, so keeping it selected would
+  // charge for a service the customer can no longer see chosen anywhere.
   useEffect(() => {
-    if (shippingMethodId === null || !shippingQuote?.methods) return;
-    const still = shippingQuote.methods.some((m) => m.id === shippingMethodId && m.applicable);
-    if (!still) setShippingMethodId(null);
+    if (shippingMethodId === null || !shippingQuote) return;
+    const offered = shippingQuote.options
+      || (shippingQuote.methods || []).filter((m) => m.applicable);
+    if (!offered.length) return;   // no quote yet — don't discard a valid choice
+    if (!offered.some((m) => m.id === shippingMethodId)) setShippingMethodId(null);
   }, [shippingQuote, shippingMethodId]);
 
   // Per-product free gifts: auto-add a ₹0 gift line for each product that grants one, and
