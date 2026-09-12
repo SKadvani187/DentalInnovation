@@ -326,7 +326,9 @@ if ($payMethod === 'cod') {
     }
 }
 
-$orderNumber = 'SDI-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(3)));
+// Orders placed before this prefix changed still carry SDI-. Nothing reads the prefix back —
+// lookups match the stored string whole — so the two coexist safely.
+$orderNumber = 'RDI-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(3)));
 
 $pdo = $db->getConnection();
 $pdo->beginTransaction();

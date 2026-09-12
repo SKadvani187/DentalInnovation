@@ -124,7 +124,7 @@ foreach ($nav as $group => $navPages):
             <div class="topbar-search">
                 <i class="fa-solid fa-magnifying-glass"></i>
                 <input type="text" placeholder="Search products, orders… (Enter)" id="globalSearch"
-                    onkeydown="if(event.key==='Enter'){var q=this.value.trim(); if(!q)return; var base='<?= APP_URL ?>/pages/'; var dest=/^(#|ord|sdi|inv)/i.test(q)?'orders.php?search=':'products.php?search='; window.location.href=base+dest+encodeURIComponent(q.replace(/^#/,''));}">
+                    onkeydown="if(event.key==='Enter'){var q=this.value.trim(); if(!q)return; var base='<?= APP_URL ?>/pages/'; var dest=/^(#|ord|sdi|rdi|inv)/i.test(q)?'orders.php?search=':'products.php?search='; window.location.href=base+dest+encodeURIComponent(q.replace(/^#/,''));}">
             </div>
 
             <!-- Notifications -->
