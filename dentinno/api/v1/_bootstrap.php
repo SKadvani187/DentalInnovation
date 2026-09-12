@@ -42,7 +42,24 @@ function jsonOutThenContinue($data, int $code = 200): void {
     ignore_user_abort(true);          // finish the follow-up work even though the client is gone
     set_time_limit(120);
     $body = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+    // Throw away anything already buffered. A stray notice or warning printed earlier would
+    // otherwise be flushed out in front of this JSON, and the client's JSON.parse would fail on a
+    // response whose status says success — surfacing as a bare "HTTP 201" with no explanation.
+    while (ob_get_level() > 0) { @ob_end_clean(); }
+
+    // Content-Length below counts the UNCOMPRESSED body, so any output compression would make it
+    // a lie and the client would read the wrong number of bytes and get truncated JSON. Turn
+    // compression off for this one response rather than dropping the header, which is what lets
+    // the browser finish the request while PHP carries on with the slow work afterwards.
+    @ini_set('zlib.output_compression', '0');
+    if (function_exists('apache_setenv')) {
+        @apache_setenv('no-gzip', '1');
+        @apache_setenv('dont-vary', '1');
+    }
+
     http_response_code($code);
+    header('Content-Encoding: identity');
     header('Content-Type: application/json');
     header('Content-Length: ' . strlen($body));
     header('Connection: close');
@@ -50,10 +67,18 @@ function jsonOutThenContinue($data, int $code = 200): void {
     // php-fpm can hand the connection back explicitly; mod_php needs the buffers flushed instead.
     if (function_exists('fastcgi_finish_request')) {
         fastcgi_finish_request();
-    } else {
-        while (ob_get_level() > 0) { @ob_end_flush(); }
-        @flush();
+        return;                       // connection is already closed; nothing more can leak out
     }
+
+    while (ob_get_level() > 0) { @ob_end_flush(); }
+    @flush();
+
+    // On mod_php the connection is still open at this point, and the caller now goes on to send
+    // WhatsApp messages and email. Those are wrapped in try/catch, but a PHP warning or deprecation
+    // is not an exception — with display_errors on it would be printed AFTER the JSON and appended
+    // to the body the client is still reading. Swallow anything printed from here on: the customer
+    // has their response, and a mail-library notice must never corrupt it.
+    ob_start(static fn($chunk) => '');
 }
 function jsonErr(string $msg, int $code = 400): void {
     jsonOut(['success' => false, 'error' => $msg], $code);

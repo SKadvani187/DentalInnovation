@@ -17,3 +17,11 @@ Thumbs.db
 
 # Local scratch test files
 dentinno/_t_*.php
+
+# Playwright run output — videos and traces run to hundreds of MB per run.
+# The specs themselves (tests/e2e/tests, playwright.config.mjs) ARE committed.
+tests/e2e/report/
+tests/e2e/test-results/
+tests/e2e/node_modules/
+playwright-report/
+test-results/
