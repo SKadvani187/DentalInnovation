@@ -1274,7 +1274,14 @@ async function saveSetting(key, value, label, silent) {
 <div class="card fade-in" data-home="hero" style="margin-top:18px;">
   <div class="card-header"><span class="card-title"><i class="fa-solid fa-images text-gold" style="margin-right:8px;"></i>Hero Slider (Home Banners)</span><small class="text-muted">Top homepage carousel — image + product link</small></div>
   <div class="card-body">
+    <p class="text-muted" style="font-size:.78rem;margin:0 0 10px;">
+      <i class="fa-solid fa-grip-vertical"></i> Drag a slide by the handle to reorder, or use the arrows.
+      The order here is the order customers see on the homepage.
+    </p>
     <div id="hero_rows"></div>
+    <p id="hero_order_hint" class="text-muted" style="display:none;font-size:.78rem;margin:0 0 10px;color:var(--gold-primary);">
+      <i class="fa-solid fa-circle-info"></i> Order changed — click <strong>Save Hero Slides</strong> to keep it.
+    </p>
     <button class="btn btn-ghost btn-sm" onclick="addHeroRow()"><i class="fa-solid fa-plus"></i> Add Slide</button>
     <button class="btn btn-gold" style="margin-left:8px;" onclick="saveHero()"><i class="fa-solid fa-floppy-disk"></i> Save Hero Slides</button>
     <input type="file" id="heroFileInput" accept="image/*" style="display:none">
@@ -1873,15 +1880,75 @@ function productById(slug){ return PRODUCT_OPTS.find(p => p.slug === slug); }
 
 // ---- Hero Slides ----
 let HERO = <?= json_encode($site['heroSlides'] ?? [], JSON_UNESCAPED_SLASHES) ?> || [];
+
+// The carousel renders this array in order (HeroCarousel.jsx maps it straight through), so the
+// slide order IS the array order — reordering here is all that's needed.
+let HERO_DRAG = null;          // index being dragged, null when not dragging
+
+function heroDragStart(i, ev) {
+  HERO_DRAG = i;
+  ev.dataTransfer.effectAllowed = 'move';
+  // Firefox refuses to start a drag unless some data is set.
+  try { ev.dataTransfer.setData('text/plain', String(i)); } catch (e) {}
+  ev.currentTarget.style.opacity = '.45';
+}
+function heroDragEnd(ev) {
+  HERO_DRAG = null;
+  ev.currentTarget.style.opacity = '';
+  document.querySelectorAll('#hero_rows [data-hero-row]')
+    .forEach(el => { el.style.borderColor = 'var(--border-color)'; });
+}
+function heroDragOver(i, ev) {
+  if (HERO_DRAG === null || HERO_DRAG === i) return;
+  ev.preventDefault();                      // without this the drop never fires
+  ev.dataTransfer.dropEffect = 'move';
+  ev.currentTarget.style.borderColor = 'var(--gold-primary)';
+}
+function heroDragLeave(ev) { ev.currentTarget.style.borderColor = 'var(--border-color)'; }
+function heroDrop(i, ev) {
+  ev.preventDefault();
+  if (HERO_DRAG === null || HERO_DRAG === i) return;
+  HERO.splice(i, 0, HERO.splice(HERO_DRAG, 1)[0]);
+  HERO_DRAG = null;
+  renderHero();
+  heroDirty();
+}
+/** Up / down buttons: drag-and-drop is mouse-only, these keep it usable by keyboard and touch. */
+function heroMove(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= HERO.length) return;
+  [HERO[i], HERO[j]] = [HERO[j], HERO[i]];
+  renderHero();
+  heroDirty();
+}
+/** Reordering only changes the in-memory array — say so, because Save is a separate click. */
+function heroDirty() {
+  const el = document.getElementById('hero_order_hint');
+  if (el) el.style.display = '';
+}
+
 function renderHero(){ document.getElementById('hero_rows').innerHTML = HERO.map((h,i)=>`
-  <div style="display:flex;gap:10px;margin-bottom:10px;align-items:center;border:1px solid var(--border-color);border-radius:10px;padding:10px;">
+  <div data-hero-row draggable="true"
+       ondragstart="heroDragStart(${i},event)" ondragend="heroDragEnd(event)"
+       ondragover="heroDragOver(${i},event)" ondragleave="heroDragLeave(event)" ondrop="heroDrop(${i},event)"
+       style="display:flex;gap:10px;margin-bottom:10px;align-items:center;border:1px solid var(--border-color);border-radius:10px;padding:10px;">
+    <div title="Drag to reorder" style="cursor:grab;color:var(--text-muted);padding:0 2px;flex-shrink:0;user-select:none;">
+      <i class="fa-solid fa-grip-vertical"></i>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;">
+      <button class="btn btn-ghost btn-sm" style="padding:1px 6px;line-height:1;" title="Move up"
+              onclick="heroMove(${i},-1)" ${i === 0 ? 'disabled' : ''}><i class="fa-solid fa-chevron-up"></i></button>
+      <button class="btn btn-ghost btn-sm" style="padding:1px 6px;line-height:1;" title="Move down"
+              onclick="heroMove(${i},1)" ${i === HERO.length - 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-down"></i></button>
+    </div>
+    <span class="text-muted" style="font-size:.75rem;width:18px;text-align:center;flex-shrink:0;">${i + 1}</span>
     <div onclick="uploadHero(${i})" style="width:120px;height:60px;border:2px dashed var(--border-active);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">
-      ${h.src ? `<img src="${(h.src||'').replace(/"/g,'&quot;')}" style="width:100%;height:100%;object-fit:cover;">` : `<span style="color:var(--gold-primary);font-size:.7rem;text-align:center;"><i class="fa-solid fa-cloud-arrow-up"></i><br>Upload</span>`}
+      ${h.src ? `<img src="${(h.src||'').replace(/"/g,'&quot;')}" draggable="false" style="width:100%;height:100%;object-fit:cover;">` : `<span style="color:var(--gold-primary);font-size:.7rem;text-align:center;"><i class="fa-solid fa-cloud-arrow-up"></i><br>Upload</span>`}
     </div>
     <select class="form-control" onchange="HERO[${i}].productId=this.value" style="flex:1;">${productOptions(h.productId||'')}</select>
-    <button class="btn btn-ghost btn-sm" onclick="HERO.splice(${i},1);renderHero()" title="Remove"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
+    <button class="btn btn-ghost btn-sm" onclick="HERO.splice(${i},1);renderHero();heroDirty()" title="Remove"><i class="fa-solid fa-trash" style="color:var(--danger);"></i></button>
   </div>`).join(''); }
-function addHeroRow(){ HERO.push({src:'',productId:''}); renderHero(); }
+function addHeroRow(){ HERO.push({src:'',productId:''}); renderHero(); heroDirty(); }
 function uploadHero(i){
   const inp = document.getElementById('heroFileInput');
   inp.onchange = async () => {
@@ -1894,7 +1961,11 @@ function uploadHero(i){
   };
   inp.click();
 }
-function saveHero(){ saveSetting('heroSlides', HERO, 'Hero slides'); }
+function saveHero(){
+  saveSetting('heroSlides', HERO, 'Hero slides');
+  const hint = document.getElementById('hero_order_hint');
+  if (hint) hint.style.display = 'none';
+}
 
 // ---- Promo + Patti banners ----
 function genericUpload(cb){
