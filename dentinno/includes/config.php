@@ -26,7 +26,7 @@ define('DB_CHARSET', 'utf8mb4');
 
 // App Settings
 define('APP_NAME', 'DentInno CRM');
-defv('APP_URL', 'http://localhost:9090');   // dev fallback; set prod URL via env/config.local.php
+defv('APP_URL', 'http://localhost:8088');   // dev fallback; set prod URL via env/config.local.php
 define('APP_VERSION', '1.0.0');
 define('TIMEZONE', 'Asia/Kolkata');
 
