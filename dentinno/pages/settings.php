@@ -2457,9 +2457,7 @@ function savePromo(){
 
 //save home banner
 function saveHomeBanners(){
-  console.log("saveHomeBanners called");
   const v = id => document.getElementById(id).value;
-  console.log("id", v);
   const homebanner = {
     leftId: v('hb_left_id'), topRightId: v('hb_tr_id'), bottomRightId: v('hb_br_id'),
     leftImg: v('hb_left_d'), topRightImg: v('hb_tr_d'), bottomRightImg: v('hb_br_d'),
