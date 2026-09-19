@@ -281,8 +281,10 @@ test.describe("B. Storefront", () => {
 test.describe("C. Variants", () => {
   test("C1 · a multi-variant product lists its options", async ({ page }) => {
     await page.goto(`/product/${VARIANT_PRODUCT}`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByText(/DG Scope/i).first()).toBeVisible();
-    expect(await page.locator("body").innerText()).toMatch(/DG Scope DG FI/i);
+    // Wait for the second option itself rather than sampling body text once the title appears —
+    // the variants card renders after the heading, so the old form was a race and failed
+    // intermittently under a full-suite run while passing on its own.
+    await expect(page.getByText(/DG Scope DG FI/i).first()).toBeVisible({ timeout: 15000 });
   });
 
   test("C2 · the variant delivery note uses the checked pincode's real date", async ({ page }) => {

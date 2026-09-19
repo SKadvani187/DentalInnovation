@@ -45,7 +45,7 @@ function withDefaultVariant(product, variant) {
 
 export function CartProvider({ children }) {
   const [items, setItems] = useLocalStorage("sdi:cart", []);
-  const { token } = useAuth();
+  const { token, sessionExpired } = useAuth();
   // cartSynced  = the one-time login merge has STARTED (prevents duplicate merges).
   // cartReady    = the merge has COMPLETED. The per-change "replace" sync is gated on THIS,
   // not on cartSynced — otherwise replace fires with the still-empty local cart before the
@@ -63,11 +63,16 @@ export function CartProvider({ children }) {
     cartSynced.current = true;
     api.syncCart(items, "merge")
       .then((merged) => { if (Array.isArray(merged)) setItems(merged); })
-      // A cart sync failure must never log the user out or block checkout — stay local-only.
-      .catch((err) => console.warn("[cart] sync failed:", err.message))
+      .catch((err) => {
+        // 401 = the server rejected this token, so the session really is over. `token &&` guards
+        // the old failure mode where a sync fired before the token was set and logged people out.
+        if (err.status === 401 && token) { sessionExpired(); return; }
+        // Any other failure must never log the user out or block checkout — stay local-only.
+        console.warn("[cart] sync failed:", err.message);
+      })
       // Only now is it safe to push local changes back (merge is reconciled).
       .finally(() => { cartReady.current = true; });
-  }, [token, items, setItems]);
+  }, [token, items, setItems, sessionExpired]);
 
   // On logout, clear the local cart (and coupon) so one customer's items can't leak into
   // the next session on a shared device. The cart stays saved on the server under the

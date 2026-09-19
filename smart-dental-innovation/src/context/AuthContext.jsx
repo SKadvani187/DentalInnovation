@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useCallback, useEffect } from "react";
+import { createContext, useContext, useMemo, useCallback, useEffect, useRef } from "react";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import api, { setAuthToken } from "../lib/api";
 
@@ -8,6 +8,8 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useLocalStorage("sdi:user", null);
   const [accounts, setAccounts] = useLocalStorage("sdi:accounts", []);
   const [token, setToken] = useLocalStorage("sdi:token", null);
+  // Guards sessionExpired() against firing twice — see the comment there.
+  const expiredOnce = useRef(false);
 
   // Restore token into the API client on load.
   useEffect(() => { setAuthToken(token); }, [token]);
@@ -277,9 +279,34 @@ export function AuthProvider({ children }) {
     setAuthToken(null);
   }, [setToken]);
 
+  /**
+   * The server has rejected our token (401): the session is over.
+   *
+   * Clears the profile too, not just the token — the header greeting reads from `user`, so
+   * keeping it would leave "Hi SHUBHAM" above a session that can no longer place an order.
+   *
+   * The toast is raised as a window event because UIProvider sits INSIDE this provider, so
+   * showToast is not reachable from here. SessionExpiredNotice (rendered within UIProvider)
+   * listens for it.
+   */
+  const sessionExpired = useCallback(() => {
+    // Cart and wishlist both sync on load, so both hit the 401 and both call this. State updates
+    // are async, so neither sees the other's clear — without this guard the customer gets the
+    // same toast twice. The ref is reset on a fresh login below.
+    if (expiredOnce.current) return;
+    expiredOnce.current = true;
+    setUser(null);
+    setToken(null);
+    setAuthToken(null);
+    window.dispatchEvent(new Event("sdi:session-expired"));
+  }, [setUser, setToken]);
+
+  // A new token means a new session: allow the notice to fire again if that one also expires.
+  useEffect(() => { if (token) expiredOnce.current = false; }, [token]);
+
   const value = useMemo(
-    () => ({ user, token, checkMobile, loginWithPassword, requestOtp, verifyOtp, completeProfile, updateProfile, addAddress, updateAddress, setDefaultAddress, removeAddress, logout, clearToken }),
-    [user, token, checkMobile, loginWithPassword, requestOtp, verifyOtp, completeProfile, updateProfile, addAddress, updateAddress, setDefaultAddress, removeAddress, logout, clearToken]
+    () => ({ user, token, checkMobile, loginWithPassword, requestOtp, verifyOtp, completeProfile, updateProfile, addAddress, updateAddress, setDefaultAddress, removeAddress, logout, clearToken, sessionExpired }),
+    [user, token, checkMobile, loginWithPassword, requestOtp, verifyOtp, completeProfile, updateProfile, addAddress, updateAddress, setDefaultAddress, removeAddress, logout, clearToken, sessionExpired]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

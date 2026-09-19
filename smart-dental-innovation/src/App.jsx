@@ -2,6 +2,7 @@ import { CartProvider } from "./context/CartContext";
 import { WishlistProvider } from "./context/WishlistContext";
 import { AuthProvider } from "./context/AuthContext";
 import { UIProvider } from "./context/UIContext";
+import SessionExpiredNotice from "./components/SessionExpiredNotice";
 import { SettingsProvider } from "./context/SettingsContext";
 import { useEffect, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -63,6 +64,7 @@ export default function App() {
           <CartProvider>
             <WishlistProvider>
               <UIProvider>
+                <SessionExpiredNotice />
                 <ErrorBoundary>
                   <Shell />
                 </ErrorBoundary>

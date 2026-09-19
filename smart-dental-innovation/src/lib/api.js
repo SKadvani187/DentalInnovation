@@ -8,15 +8,45 @@ const ROOT = BASE.replace(/\/v1\/?$/, "");
 
 // Bearer token (set after login). Persisted by AuthContext to localStorage.
 let authToken = null;
-export function setAuthToken(t) { authToken = t || null; }
+// Whether AuthContext has told us anything yet. "No token because we haven't been told" and
+// "no token because the customer signed out" must behave differently — see authHeaders().
+let tokenKnown = false;
+export function setAuthToken(t) { authToken = t || null; tokenKnown = true; }
+
+/**
+ * The saved token, straight from storage.
+ *
+ * AuthContext pushes the token in via setAuthToken from an effect — but CartProvider and
+ * WishlistProvider are its CHILDREN, and React runs child effects before parent ones. On every
+ * page load their sync fired while authToken was still null, so the request went out with no
+ * credentials, came back 401, and the customer was signed out just for refreshing the page.
+ *
+ * Reading storage directly closes that window: the header is correct from the very first call,
+ * whatever order the effects happen to run in.
+ */
+function storedToken() {
+  try {
+    const raw = window.localStorage.getItem("sdi:token");
+    if (raw == null) return null;
+    const v = JSON.parse(raw);            // useLocalStorage stores JSON, so the value is quoted
+    return typeof v === "string" && v ? v : null;
+  } catch {
+    return null;                          // private mode, cleared storage, corrupt value
+  }
+}
 
 function authHeaders() {
   // Send the token two ways: the standard Authorization header AND a custom
   // X-Auth-Token header. Apache frequently strips Authorization on shared/XAMPP
   // hosts, which breaks Bearer auth; X-Auth-Token is never stripped, so auth keeps
   // working regardless of server config.
-  return authToken
-    ? { Authorization: `Bearer ${authToken}`, "X-Auth-Token": authToken }
+  // Storage is consulted ONLY before AuthContext has spoken. Once it has — on login or logout —
+  // its answer is final. Without that condition a sign-out would keep authenticating: logout sets
+  // authToken to null immediately, but useLocalStorage writes the cleared value from an effect,
+  // so storage still holds the old token for a moment. On a shared device that is a real leak.
+  const t = authToken || (tokenKnown ? null : storedToken());
+  return t
+    ? { Authorization: `Bearer ${t}`, "X-Auth-Token": t }
     : {};
 }
 
@@ -28,10 +58,21 @@ async function get(path, params) {
     }
   }
   const res = await fetch(url, { headers: { Accept: "application/json", ...authHeaders() } });
-  if (!res.ok) throw new Error(`API ${path} -> ${res.status}`);
+  if (!res.ok) throw apiError(`API ${path} -> ${res.status}`, res.status);
   const json = await res.json();
-  if (json.success === false) throw new Error(json.error || `API ${path} failed`);
+  if (json.success === false) throw apiError(json.error || `API ${path} failed`, res.status);
   return json;
+}
+
+/**
+ * Errors carry the HTTP status. Without it every failure arrives as a bare string, so a dead
+ * session (401) is indistinguishable from a network blip — which is why callers had to treat all
+ * failures the same and a logged-out user kept looking logged in.
+ */
+function apiError(message, status) {
+  const err = new Error(message);
+  err.status = status;
+  return err;
 }
 
 async function post(path, body) {
@@ -41,7 +82,7 @@ async function post(path, body) {
     body: JSON.stringify(body || {}),
   });
   const json = await res.json().catch(() => ({ success: false, error: `HTTP ${res.status}` }));
-  if (!res.ok || json.success === false) throw new Error(json.error || `API ${path} -> ${res.status}`);
+  if (!res.ok || json.success === false) throw apiError(json.error || `API ${path} -> ${res.status}`, res.status);
   return json;
 }
 
