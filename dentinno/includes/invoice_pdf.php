@@ -204,7 +204,8 @@ function buildOrderInvoicePdf(array $order, array $items, ?array $customer = nul
     $p->move(13);
     $p->text($L, (string)($customer['name'] ?? ($ship['name'] ?? '')), 10, 'B');
     $p->move(12);
-    $custPhone = (string)($customer['phone'] ?? ($ship['mobile'] ?? ''));
+    require_once __DIR__ . '/order_address.php';
+    $custPhone = (string)($customer['phone'] ?? '') ?: orderAddressPhone($ship);
     if ($custPhone !== '') { $p->text($L, $custPhone, 9); $p->move(11); }
     $custEmail = (string)($customer['email'] ?? '');
     if ($custEmail !== '' && !str_ends_with($custEmail, '@storefront.local')) { $p->text($L, $custEmail, 9); $p->move(11); }
@@ -214,13 +215,13 @@ function buildOrderInvoicePdf(array $order, array $items, ?array $customer = nul
     $p->y = $topY;
     $p->text($rightColX, 'SHIP TO', 8, 'B', [150, 150, 150]);
     $p->move(13);
-    $shipLines = array_filter([
-        (string)($ship['name'] ?? ''),
-        trim(((string)($ship['line1'] ?? $ship['building'] ?? '')) . ' ' . ((string)($ship['line2'] ?? $ship['area'] ?? ''))),
-        (string)($ship['landmark'] ?? ''),
-        trim(implode(', ', array_filter([$ship['city'] ?? '', $ship['district'] ?? '', $ship['state'] ?? '']))),
-        !empty($ship['pincode']) ? 'PIN: ' . $ship['pincode'] : '',
-    ]);
+    // Shared with the admin screen and the packing slip — see includes/order_address.php for why
+    // the storefront's `address` key must be read, and why city/state are not appended to it.
+    require_once __DIR__ . '/order_address.php';
+    $shipLines = array_values(array_filter(array_merge(
+        [(string)($ship['name'] ?? '')],
+        orderAddressLines($ship)
+    ), static fn($v) => trim((string)$v) !== ''));
     if (!$shipLines) { $p->text($rightColX, 'Same as billing', 9, 'H', [150, 150, 150]); $p->move(11); }
     foreach ($shipLines as $i => $ln) {
         $p->text($rightColX, $ln, $i === 0 ? 10 : 9, $i === 0 ? 'B' : 'H');

@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/order_effects.php';
+require_once __DIR__ . '/../includes/order_address.php';
 $page_title = 'Orders';
 
 // Accent colour per PAYMENT status — drives the coloured payment pills in the list.
@@ -343,17 +344,9 @@ include __DIR__ . '/../includes/header.php';
                 <h3 style="font-size:0.8rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin:16px 0 10px;">Delivery Address</h3>
                 <?php if (is_array($ship) && $ship): ?>
                     <?php if(!empty($ship['name'])): ?><div class="font-bold"><?= htmlspecialchars($ship['name']) ?></div><?php endif; ?>
-                    <?php if(!empty($ship['mobile'])): ?><div class="text-muted"><?= htmlspecialchars($ship['mobile']) ?></div><?php endif; ?>
-                    <div class="text-muted">
-                        <?= htmlspecialchars(implode(', ', array_filter([
-                            $ship['line1'] ?? $ship['building'] ?? '',
-                            $ship['line2'] ?? $ship['area'] ?? '',
-                            $ship['landmark'] ?? '',
-                            $ship['city'] ?? '',
-                            $ship['district'] ?? '',
-                            $ship['state'] ?? '',
-                        ]))) ?><?= !empty($ship['pincode']) ? ' — ' . htmlspecialchars($ship['pincode']) : '' ?>
-                    </div>
+                    <?php $shipPhone = orderAddressPhone($ship); ?>
+                    <?php if($shipPhone !== ''): ?><div class="text-muted"><?= htmlspecialchars($shipPhone) ?></div><?php endif; ?>
+                    <div class="text-muted"><?= htmlspecialchars(orderAddressLine($ship)) ?></div>
                 <?php else: ?>
                     <div class="text-muted">No address on file (order created in admin)</div>
                 <?php endif; ?>
@@ -600,6 +593,10 @@ const ORDER_DETAIL = <?= $order_detail ? json_encode([
     'customer_name' => $order_detail['customer_name'],
     'phone'         => $order_detail['phone'],
     'ship'          => $printShip,
+    // Pre-formatted here so the print views don't repeat the address logic — and can't drift
+    // from it, which is exactly how they ended up printing only "city, state — pincode".
+    'shipLines'     => orderAddressLines($printShip),
+    'shipPhone'     => orderAddressPhone($printShip),
     'items'         => array_map(fn($i)=>['name'=>$i['product_name'],'qty'=>$i['quantity'],'price'=>$i['price'],'total'=>$i['total']], $order_detail['items'] ?? []),
     'subtotal'      => $order_detail['subtotal'],
     'discount'      => $order_detail['discount'],
@@ -615,8 +612,10 @@ function printInvoice() {
     const inr = (n) => '₹' + Number(n || 0).toLocaleString('en-IN');
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     const ship = o.ship || {};
-    const addrLine = [ship.line1 || ship.building, ship.line2 || ship.area, ship.landmark, [ship.city, ship.district, ship.state].filter(Boolean).join(', '), ship.pincode].filter(Boolean).map(esc).join('<br>');
-    const addr = [ship.name ? esc(ship.name) : '', addrLine, ship.mobile ? esc(ship.mobile) : ''].filter(Boolean).join('<br>');
+    // Lines are pre-formatted by PHP (orderAddressLines) so the print views cannot drift from
+    // what the order screen shows — that drift is how they ended up printing only the city.
+    const addrLine = (o.shipLines || []).map(esc).join('<br>');
+    const addr = [ship.name ? esc(ship.name) : '', addrLine, o.shipPhone ? esc(o.shipPhone) : ''].filter(Boolean).join('<br>');
     const rows = (o.items || []).map(it => `<tr>
         <td>${esc(it.name)}</td><td style="text-align:center">${esc(it.qty)}</td>
         <td style="text-align:right">${inr(it.price)}</td><td style="text-align:right">${inr(it.total)}</td></tr>`).join('');
@@ -645,8 +644,10 @@ function printPacking() {
     const o = ORDER_DETAIL; if (!o) return;
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     const ship = o.ship || {};
-    const addrLine = [ship.line1 || ship.building, ship.line2 || ship.area, ship.landmark, [ship.city, ship.district, ship.state].filter(Boolean).join(', '), ship.pincode].filter(Boolean).map(esc).join('<br>');
-    const addr = [ship.name ? esc(ship.name) : '', addrLine, ship.mobile ? esc(ship.mobile) : ''].filter(Boolean).join('<br>');
+    // Lines are pre-formatted by PHP (orderAddressLines) so the print views cannot drift from
+    // what the order screen shows — that drift is how they ended up printing only the city.
+    const addrLine = (o.shipLines || []).map(esc).join('<br>');
+    const addr = [ship.name ? esc(ship.name) : '', addrLine, o.shipPhone ? esc(o.shipPhone) : ''].filter(Boolean).join('<br>');
     const totalQty = (o.items || []).reduce((s,it)=>s+(parseInt(it.qty)||0),0);
     const rows = (o.items || []).map(it => `<tr>
         <td>${esc(it.name)}</td>
